@@ -356,43 +356,102 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
   }
 
   Widget _buildPricingGrid(bool isDesktop) {
+    final double cardWidth = isDesktop ? 300.0 : double.infinity;
     return Center(
       child: Wrap(
-        spacing: 24,
-        runSpacing: 24,
+        spacing: 16,
+        runSpacing: 16,
         alignment: WrapAlignment.center,
         children: [
-          // Starter Plan Card
+          // 1. Basic Plan
           _buildPricingCard(
-            title: 'Starter',
+            title: 'Basic 📚',
             price: 'Free',
-            subtitle: 'Perfect for individual review',
+            subtitle: 'Essential features for single students',
             features: [
               'Daily AI Tutor queries',
               'Access to student dashboards',
               'Standard study notes',
               'Basic mock quizzes',
             ],
-            ctaText: 'Get Started Free',
+            ctaText: 'Start Free',
             isPremium: false,
-            width: isDesktop ? 340 : double.infinity,
+            width: cardWidth,
           ),
 
-          // Campus Premium Card
+          // 2. Pro Student
           _buildPricingCard(
-            title: 'Campus Premium',
-            price: '\$12',
-            subtitle: 'Unlimited learning for power students',
+            title: 'Pro Student 🚀',
+            price: '₹299',
+            subtitle: 'Unlimited learning & AI tools',
             features: [
-              'Unlimited MRVN AI queries',
-              'Notes export capabilities',
-              'Full CBT mock attempts',
-              'Bulk teacher CRM logs',
-              'Parent linkage dashboards',
+              'Everything in Basic',
+              'Unlimited AI chats',
+              'Personalized study plans',
+              'Voice AI Tutor',
+              'AI summaries & quizzes',
+              'Priority support',
             ],
-            ctaText: 'Go Premium',
+            ctaText: 'Upgrade to Pro',
+            isPremium: false,
+            width: cardWidth,
+          ),
+
+          // 3. Exam Aspirant
+          _buildPricingCard(
+            title: 'Exam Aspirant 🎯',
+            price: '₹499',
+            subtitle: 'Cracking competitive tests',
+            features: [
+              'Everything in Pro',
+              'CBT Mock Tests',
+              'Previous Year Questions',
+              'Performance analytics',
+              'Revision planner',
+              'Exam-specific AI mentor',
+            ],
+            ctaText: 'Get Aspirant Plan',
             isPremium: true,
-            width: isDesktop ? 340 : double.infinity,
+            width: cardWidth,
+          ),
+
+          // 4. Premium AI
+          _buildPricingCard(
+            title: 'Premium AI 🤖',
+            price: '₹999',
+            subtitle: 'Ultimate researcher & advisor tools',
+            features: [
+              'Everything in Exam Aspirant',
+              'AI Research Assistant',
+              'AI Presentation Maker',
+              'AI Image Generator',
+              'AI Coding Tutor',
+              'AI Career Counselor',
+              'Early access features',
+            ],
+            ctaText: 'Get Ultimate AI',
+            isPremium: false,
+            width: cardWidth,
+          ),
+
+          // 5. Campus Plan
+          _buildPricingCard(
+            title: 'Campus Plan 🏫',
+            price: '₹49–99',
+            subtitle: 'For schools and institutions',
+            features: [
+              'School & Teacher dashboards',
+              'Parent linkage portal',
+              'Attendance Management',
+              'Homework Management',
+              'School Analytics dashboard',
+              'Bulk student accounts',
+              'Custom branding config',
+              'Dedicated account support',
+            ],
+            ctaText: 'Contact School Admin',
+            isPremium: false,
+            width: cardWidth,
           ),
         ],
       ),
@@ -452,16 +511,16 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 Text(
                   price,
                   style: TextStyle(
-                    fontSize: 38,
+                    fontSize: price.contains('–') ? 26 : 34,
                     fontWeight: FontWeight.bold,
                     color: _isDarkMode ? Colors.white : Colors.black87,
                   ),
                 ),
                 if (price != 'Free')
                   Text(
-                    ' / month',
+                    price.contains('–') ? ' per student/month' : ' / month',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: _isDarkMode ? Colors.white54 : Colors.black54,
                     ),
                   ),
