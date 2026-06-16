@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'presentation/screens/auth/login_screen.dart';
+import 'presentation/screens/auth/landing_page.dart';
 import 'presentation/screens/dashboard/dashboard_router.dart';
 
 void main() async {
@@ -43,7 +44,7 @@ class AuthStateRouter extends StatelessWidget {
         if (session != null) {
           return const DashboardRouter();
         } else {
-          return const LoginScreen();
+          return const LandingPageScreen();
         }
       },
     );

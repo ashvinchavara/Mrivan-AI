@@ -70,64 +70,58 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   // Native Google ID Token authentication
   Future<void> _handleGoogleSignIn() async {
-    setState(() {
-      _isLoading = true;
-    });
+  setState(() => _isLoading = true);
 
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: kIsWeb ? LoginScreen.webClientId : null,
-        serverClientId: LoginScreen.webClientId,
+  try {
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      scopes: ['email', 'profile'],
+      clientId: kIsWeb ? LoginScreen.webClientId : LoginScreen.androidClientId,
+      serverClientId: LoginScreen.webClientId,
+    );
+
+    await googleSignIn.signOut(); // important for web debugging
+
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    final googleAuth = await googleUser.authentication;
+
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+
+    if (idToken == null) {
+      throw Exception(
+        "Google did not return ID token. Check OAuth configuration in Google Cloud Console.",
       );
+    }
 
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
+    final response = await Supabase.instance.client.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: accessToken,
+    );
 
-      final googleAuth = await googleUser.authentication;
-      final accessToken = googleAuth.accessToken;
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null) {
-        throw const AuthException('No ID Token found from Google authentication.');
-      }
-
-      await Supabase.instance.client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
+    if (response.session == null) {
+      throw Exception("Supabase login failed");
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Google Sign-In Error: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
-
-    } on AuthException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sign-in failed: ${error.toString()}'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
