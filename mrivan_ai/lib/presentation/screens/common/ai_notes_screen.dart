@@ -210,7 +210,7 @@ class _AINotesScreenState extends State<AINotesScreen> {
                           color: _isDarkMode ? Colors.black26 : Colors.white24,
                           child: Row(
                             children: [
-                              Icon(Icons.auto_awesome_rounded, color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple),
+                              Icon(Icons.auto_awesome_rounded, color: const Color(0xFF155DFC)),
                               const SizedBox(width: 8),
                               Text(
                                 'AI Study Notes Generator',
@@ -408,7 +408,7 @@ class _AINotesScreenState extends State<AINotesScreen> {
                 onPressed: _generateNotes,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: _isDarkMode ? Colors.purpleAccent.shade400 : Colors.deepPurple,
+                  backgroundColor: const Color(0xFF155DFC),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -466,7 +466,7 @@ class _AINotesScreenState extends State<AINotesScreen> {
                 ),
                 if (!_isGenerating)
                   IconButton(
-                    icon: const Icon(Icons.copy_rounded, color: Colors.purpleAccent),
+                    icon: const Icon(Icons.copy_rounded, color: Color(0xFF155DFC)),
                     onPressed: () {
                       // Simple copy notification
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -539,7 +539,7 @@ class _AINotesScreenState extends State<AINotesScreen> {
           padding: const EdgeInsets.only(top: 10, bottom: 6),
           child: Text(
             trimmed.substring(3),
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF155DFC)),
           ),
         ));
       } else if (trimmed.startsWith('### ')) {
@@ -556,7 +556,7 @@ class _AINotesScreenState extends State<AINotesScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("• ", style: TextStyle(fontWeight: FontWeight.bold, color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple)),
+              Text("• ", style: TextStyle(fontWeight: FontWeight.bold, color: const Color(0xFF155DFC))),
               Expanded(
                 child: Text(
                   trimmed.substring(2),
@@ -572,7 +572,7 @@ class _AINotesScreenState extends State<AINotesScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(trimmed.substring(0, 3), style: TextStyle(fontWeight: FontWeight.bold, color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple)),
+              Text(trimmed.substring(0, 3), style: TextStyle(fontWeight: FontWeight.bold, color: const Color(0xFF155DFC))),
               Expanded(
                 child: Text(
                   trimmed.substring(3),
@@ -588,7 +588,7 @@ class _AINotesScreenState extends State<AINotesScreen> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-            border: Border(left: BorderSide(color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple, width: 4)),
+            border: Border(left: BorderSide(color: const Color(0xFF155DFC), width: 4)),
             borderRadius: const BorderRadius.only(topRight: Radius.circular(8), bottomRight: Radius.circular(8)),
           ),
           child: Text(

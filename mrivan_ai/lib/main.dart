@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
       title: 'Mrivan AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF155DFC)),
         useMaterial3: true,
       ),
       home: const AuthStateRouter(),

@@ -138,7 +138,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                           children: [
                             Icon(
                               Icons.school_rounded,
-                              color: _isDarkMode ? Colors.white : Colors.deepPurple,
+                              color: const Color(0xFF155DFC),
                               size: 26,
                             ),
                             const SizedBox(width: 8),
@@ -190,7 +190,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                   child: _isLoadingProfile
                       ? const Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                            valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF155DFC)),
                           ),
                         )
                       : _buildRoleDashboard(),
@@ -320,7 +320,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                         Icon(
                           Icons.chat_bubble_outline_rounded,
                           size: 36,
-                          color: _isDarkMode ? Colors.purpleAccent : Colors.purple,
+                          color: const Color(0xFF155DFC),
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -510,7 +510,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                     title: 'AI Helper Tools',
                     subtitle: 'Generate notes outlines and quizzes',
                     icon: Icons.auto_awesome_rounded,
-                    color: Colors.purple,
+                    color: const Color(0xFF155DFC),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -778,7 +778,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple, size: 24),
+          Icon(icon, color: const Color(0xFF155DFC), size: 24),
           const Spacer(),
           Text(
             val,

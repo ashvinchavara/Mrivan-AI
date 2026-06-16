@@ -50,7 +50,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                           children: [
                             Icon(
                               Icons.school_rounded,
-                              color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
+                              color: const Color(0xFF155DFC),
                               size: 28,
                             ),
                             const SizedBox(width: 8),
@@ -83,7 +83,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                             ElevatedButton(
                               onPressed: _navigateToLogin,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: _isDarkMode ? Colors.white10 : Colors.deepPurple,
+                                backgroundColor: _isDarkMode ? Colors.white10 : const Color(0xFF155DFC),
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -183,10 +183,10 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: _isDarkMode ? Colors.purpleAccent.withValues(alpha: 0.15) : Colors.deepPurple.withValues(alpha: 0.1),
+                color: const Color(0xFF155DFC).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
+                  color: const Color(0xFF155DFC),
                   width: 1,
                 ),
               ),
@@ -195,7 +195,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
+                  color: const Color(0xFF155DFC),
                 ),
               ),
             ),
@@ -222,7 +222,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
               style: TextStyle(
                 fontSize: isDesktop ? 22 : 18,
                 fontWeight: FontWeight.w700,
-                color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
+                color: const Color(0xFF155DFC),
               ),
             ),
             const SizedBox(height: 16),
@@ -244,10 +244,10 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
               onPressed: _navigateToLogin,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(220, 56),
-                backgroundColor: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
+                backgroundColor: const Color(0xFF155DFC),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                shadowColor: Colors.purple.withValues(alpha: 0.3),
+                shadowColor: const Color(0xFF155DFC).withValues(alpha: 0.3),
                 elevation: 10,
               ),
               child: const Row(
@@ -280,7 +280,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
             title: 'MRVN AI Tutor',
             description: 'Get step-by-step solutions to physics equations, language tasks, or writing ideas, in any language.',
             icon: Icons.chat_bubble_outline_rounded,
-            color: Colors.purpleAccent,
+            color: const Color(0xFF155DFC),
             width: cardWidth,
           ),
           _buildFeatureCard(
@@ -421,7 +421,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.purpleAccent.withValues(alpha: 0.2),
+                    color: const Color(0xFF155DFC).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
@@ -429,7 +429,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: Colors.purpleAccent,
+                      color: Color(0xFF155DFC),
                     ),
                   ),
                 ),
@@ -482,7 +482,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                     children: [
                       Icon(
                         Icons.check_circle_rounded,
-                        color: isPremium ? Colors.purpleAccent : Colors.tealAccent.shade400,
+                        color: isPremium ? const Color(0xFF155DFC) : Colors.tealAccent.shade400,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -504,7 +504,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 48),
                 backgroundColor: isPremium 
-                    ? (_isDarkMode ? Colors.purpleAccent : Colors.deepPurple) 
+                    ? const Color(0xFF155DFC) 
                     : Colors.transparent,
                 foregroundColor: isPremium ? Colors.white : (_isDarkMode ? Colors.white : Colors.black87),
                 side: isPremium 
@@ -552,7 +552,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
               onPressed: _navigateToLogin,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(200, 50),
-                backgroundColor: _isDarkMode ? Colors.purpleAccent.shade400 : Colors.deepPurple,
+                backgroundColor: const Color(0xFF155DFC),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
@@ -171,7 +172,8 @@ class SkyPainter extends CustomPainter {
     // Render clouds
     for (var cloud in clouds) {
       final double x = ((cloud.xOffset + cloudsAnimation * cloud.speed * 10) % 1.5 - 0.35) * size.width;
-      final double y = cloud.yOffset * size.height;
+      // Add a slow, organic floating movement to the clouds vertically
+      final double y = cloud.yOffset * size.height + (sin(cloudsAnimation * 2 * pi + cloud.xOffset * 10) * 12 * cloud.scale);
       _drawCloudShape(canvas, Offset(x, y), cloud.scale, cloud.opacity);
     }
   }

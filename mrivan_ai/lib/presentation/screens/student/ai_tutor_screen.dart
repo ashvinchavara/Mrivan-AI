@@ -292,7 +292,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
                           color: _isDarkMode ? Colors.black26 : Colors.white24,
                           child: Row(
                             children: [
-                              Icon(Icons.chat_bubble_outline_rounded, color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple),
+                              Icon(Icons.chat_bubble_outline_rounded, color: const Color(0xFF155DFC)),
                               const SizedBox(width: 8),
                               Text(
                                 'AI Tutor - Mr. Ivan',
@@ -344,7 +344,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
                                         ),
                                       ),
                                       IconButton(
-                                        icon: const Icon(Icons.add_comment_rounded, color: Colors.purpleAccent),
+                                        icon: const Icon(Icons.add_comment_rounded, color: Color(0xFF155DFC)),
                                         onPressed: _showStartSessionDialog,
                                       ),
                                     ],
@@ -432,7 +432,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
               Icon(
                 Icons.auto_awesome_rounded,
                 size: 50,
-                color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
+                color: const Color(0xFF155DFC),
               ),
               const SizedBox(height: 16),
               Text(
@@ -487,7 +487,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
                 onPressed: _createNewSession,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: _isDarkMode ? Colors.purpleAccent.shade400 : Colors.deepPurple,
+                  backgroundColor: const Color(0xFF155DFC),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -574,7 +574,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
                               decoration: BoxDecoration(
                                 color: isAI
                                     ? (_isDarkMode ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.5))
-                                    : (_isDarkMode ? Colors.purpleAccent.withValues(alpha: 0.2) : Colors.deepPurple.withValues(alpha: 0.1)),
+                                    : (_isDarkMode ? const Color(0xFF155DFC).withValues(alpha: 0.2) : const Color(0xFF155DFC).withValues(alpha: 0.1)),
                                 borderRadius: BorderRadius.only(
                                   topLeft: const Radius.circular(16),
                                   topRight: const Radius.circular(16),
@@ -584,7 +584,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
                                 border: Border.all(
                                   color: isAI
                                       ? (_isDarkMode ? Colors.white10 : Colors.black12)
-                                      : (_isDarkMode ? Colors.purpleAccent.withValues(alpha: 0.4) : Colors.deepPurple.withValues(alpha: 0.3)),
+                                      : (_isDarkMode ? const Color(0xFF155DFC).withValues(alpha: 0.4) : const Color(0xFF155DFC).withValues(alpha: 0.3)),
                                 ),
                               ),
                               child: Text(
@@ -610,7 +610,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
                   const SizedBox(
                     height: 12,
                     width: 12,
-                    child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.purpleAccent)),
+                    child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF155DFC))),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -651,7 +651,7 @@ class _AITutorScreenState extends State<AITutorScreen> {
                 const SizedBox(width: 8),
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
+                  backgroundColor: const Color(0xFF155DFC),
                   child: IconButton(
                     icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
                     onPressed: _sendMessage,

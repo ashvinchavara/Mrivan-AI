@@ -261,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                         // Google Sign-In Card Button
                                         if (_isLoading)
                                           const CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF155DFC)),
                                           )
                                         else
                                           InkWell(
