@@ -245,8 +245,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           child: FadeTransition(opacity: anim, child: child),
                         ),
                         child: _isDarkMode
-                            ? const Icon(Icons.wb_sunny_rounded, key: ValueKey('light'), color: Colors.amber)
-                            : const Icon(Icons.nights_stay_rounded, key: ValueKey('dark'), color: Colors.indigo),
+                            ? const Icon(Icons.lightbulb_rounded, key: ValueKey('light'), color: Colors.amber)
+                            : const Icon(Icons.school_rounded, key: ValueKey('dark'), color: Color(0xFF155DFC)),
                       ),
                       onPressed: () {
                         setState(() {

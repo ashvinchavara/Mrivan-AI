@@ -104,8 +104,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                           children: [
                             IconButton(
                               icon: Icon(
-                                _isDarkMode ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded,
-                                color: _isDarkMode ? Colors.amber : Colors.indigo,
+                                _isDarkMode ? Icons.lightbulb_rounded : Icons.school_rounded,
+                                color: _isDarkMode ? Colors.amber : const Color(0xFF155DFC),
                               ),
                               onPressed: () {
                                 setState(() {
