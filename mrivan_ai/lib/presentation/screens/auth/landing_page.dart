@@ -15,6 +15,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
   bool? _isDarkModeState;
   bool get _isDarkMode => _isDarkModeState ?? false;
   late final ScrollController _scrollController;
+  final GlobalKey _pricingSectionKey = GlobalKey();
 
   @override
   void initState() {
@@ -39,6 +40,17 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
       context,
       MaterialPageRoute(builder: (context) => const LoginScreen()),
     );
+  }
+
+  void _scrollToPricing() {
+    final context = _pricingSectionKey.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOutCubic,
+      );
+    }
   }
 
   @override
@@ -140,6 +152,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                     
                     const SizedBox(height: 60),
                     ScrollFadeIn(
+                      key: _pricingSectionKey,
                       controller: _scrollController,
                       child: _buildSectionHeader('Pricing Plans', 'Choose the speed that matches your studies'),
                     ),
@@ -263,7 +276,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
 
             // Main CTA Button
             ElevatedButton(
-              onPressed: _navigateToLogin,
+              onPressed: _scrollToPricing,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(220, 56),
                 backgroundColor: const Color(0xFF155DFC),
@@ -680,7 +693,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _navigateToLogin,
+              onPressed: _scrollToPricing,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(200, 50),
                 backgroundColor: const Color(0xFF155DFC),
