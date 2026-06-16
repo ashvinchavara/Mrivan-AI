@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/animated_background.dart';
 import 'login_screen.dart';
+import 'payment_screen.dart';
 
 class LandingPageScreen extends StatefulWidget {
   const LandingPageScreen({super.key});
@@ -656,7 +657,22 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 )),
             const SizedBox(height: 24),
             HoverButton(
-              onPressed: _navigateToLogin,
+              onPressed: () {
+                if (price == 'Free') {
+                  _navigateToLogin();
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PaymentScreen(
+                        planTitle: title,
+                        planPrice: price,
+                        planSubtitle: subtitle,
+                      ),
+                    ),
+                  );
+                }
+              },
               text: ctaText,
               isPremium: isPremium,
               isDarkMode: _isDarkMode,
