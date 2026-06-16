@@ -86,14 +86,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     try {
       if (kIsWeb) {
         // For Web, use Supabase's native OAuth flow to bypass google_sign_in package limitations
-        String redirectUrl = kDebugMode ? 'http://localhost:5000' : Uri.base.origin;
+        String redirectUrl = Uri.base.origin;
         if (widget.pendingPlanTitle != null && widget.pendingPlanPrice != null) {
           final encodedTitle = Uri.encodeComponent(widget.pendingPlanTitle!);
           final encodedPrice = Uri.encodeComponent(widget.pendingPlanPrice!);
           final encodedSubtitle = Uri.encodeComponent(widget.pendingPlanSubtitle ?? '');
-          redirectUrl = kDebugMode
-              ? 'http://localhost:5000/?plan_title=$encodedTitle&plan_price=$encodedPrice&plan_subtitle=$encodedSubtitle'
-              : '${Uri.base.origin}/?plan_title=$encodedTitle&plan_price=$encodedPrice&plan_subtitle=$encodedSubtitle';
+          redirectUrl = '${Uri.base.origin}/?plan_title=$encodedTitle&plan_price=$encodedPrice&plan_subtitle=$encodedSubtitle';
         }
 
         await Supabase.instance.client.auth.signInWithOAuth(
