@@ -16,18 +16,10 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
   bool get _isDarkMode => _isDarkModeState ?? false;
   late final ScrollController _scrollController;
 
-  // Scrollytelling pricing state
-  bool _hasFinishedIntro = false;
-  bool _isPinned = false;
-  double _pinnedScrollOffset = 0.0;
-  double _pricingIntroProgress = 0.0;
-  final GlobalKey _pricingSectionKey = GlobalKey();
-
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -38,79 +30,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
-  }
-
-  double _getTargetScrollOffset() {
-    if (!_isPinned) return _scrollController.offset;
-    if (_pricingIntroProgress > 5.7 && _scrollController.hasClients) {
-      final double tScroll = (_pricingIntroProgress - 5.7) / 0.3;
-      final double maxScroll = _scrollController.position.maxScrollExtent;
-      return _pinnedScrollOffset + (maxScroll - _pinnedScrollOffset) * tScroll;
-    }
-    return _pinnedScrollOffset;
-  }
-
-  void _onScroll() {
-    if (_hasFinishedIntro) return;
-    if (_isPinned) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_getTargetScrollOffset());
-      }
-      return;
-    }
-
-    if (_scrollController.hasClients) {
-      final renderBox = _pricingSectionKey.currentContext?.findRenderObject() as RenderBox?;
-      if (renderBox != null && renderBox.attached) {
-        final position = renderBox.localToGlobal(Offset.zero);
-        final screenHeight = MediaQuery.of(context).size.height;
-        
-        final gridHeight = renderBox.size.height;
-        final gridCenterY = position.dy + gridHeight / 2;
-        final viewportCenterY = screenHeight / 2;
-        
-        // Pin when the grid center meets the viewport center
-        if (gridCenterY <= viewportCenterY) {
-          final targetOffset = _scrollController.offset + (gridCenterY - viewportCenterY);
-          setState(() {
-            _isPinned = true;
-            _pinnedScrollOffset = targetOffset;
-            _pricingIntroProgress = 0.0;
-          });
-          _scrollController.jumpTo(_pinnedScrollOffset);
-        }
-      }
-    }
-  }
-
-  void _handleScrollDelta(double delta) {
-    if (!_isPinned) return;
-    setState(() {
-      // 150 pixels of scroll to advance 1.0 progress (one card)
-      const double sensitivity = 150.0;
-      _pricingIntroProgress += delta / sensitivity;
-      if (_pricingIntroProgress >= 6.0) {
-        _pricingIntroProgress = 6.0;
-        _isPinned = false;
-        _hasFinishedIntro = true;
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-        }
-      } else if (_pricingIntroProgress <= 0.0) {
-        _pricingIntroProgress = 0.0;
-        _isPinned = false;
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(_pinnedScrollOffset);
-        }
-      } else {
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(_getTargetScrollOffset());
-        }
-      }
-    });
   }
 
   void _navigateToLogin() {
@@ -205,66 +126,50 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
             // 2. Main Scrollable Landing Sections
             Positioned.fill(
               top: MediaQuery.of(context).padding.top + 80,
-              child: Listener(
-                onPointerSignal: (pointerSignal) {
-                  if (pointerSignal is PointerScrollEvent && _isPinned) {
-                    _handleScrollDelta(pointerSignal.scrollDelta.dy);
-                  }
-                },
-                child: GestureDetector(
-                  onVerticalDragUpdate: _isPinned
-                      ? (details) {
-                          _handleScrollDelta(-details.delta.dy);
-                        }
-                      : null,
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    physics: _isPinned
-                        ? const NeverScrollableScrollPhysics()
-                        : const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 30),
-                        ScrollFadeIn(
-                          controller: _scrollController,
-                          child: _buildHeroSection(isDesktop),
-                        ),
-                        
-                        const SizedBox(height: 60),
-                        ScrollFadeIn(
-                          controller: _scrollController,
-                          child: _buildSectionHeader('Powerful Features', 'Everything you need to master your syllabus'),
-                        ),
-                        const SizedBox(height: 24),
-                        _buildFeaturesGrid(isDesktop),
-
-                        const SizedBox(height: 60),
-                        ScrollFadeIn(
-                          controller: _scrollController,
-                          child: _buildSectionHeader('Pricing Plans', 'Choose the speed that matches your studies'),
-                        ),
-                        const SizedBox(height: 24),
-                        _buildPricingGrid(isDesktop),
-
-                        const SizedBox(height: 60),
-                        ScrollFadeIn(
-                          controller: _scrollController,
-                          child: _buildCtaBanner(),
-                        ),
-
-                        const SizedBox(height: 40),
-                        Text(
-                          '© 2026 Mrivan AI CRM & AI Tutor. All rights reserved.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _isDarkMode ? Colors.white38 : Colors.black38,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 30),
+                    ScrollFadeIn(
+                      controller: _scrollController,
+                      child: _buildHeroSection(isDesktop),
                     ),
-                  ),
+                    
+                    const SizedBox(height: 60),
+                    ScrollFadeIn(
+                      controller: _scrollController,
+                      child: _buildSectionHeader('Powerful Features', 'Everything you need to master your syllabus'),
+                    ),
+                    const SizedBox(height: 24),
+                    _buildFeaturesGrid(isDesktop),
+
+                    const SizedBox(height: 60),
+                    ScrollFadeIn(
+                      controller: _scrollController,
+                      child: _buildSectionHeader('Pricing Plans', 'Choose the speed that matches your studies'),
+                    ),
+                    const SizedBox(height: 24),
+                    _buildPricingGrid(isDesktop),
+
+                    const SizedBox(height: 60),
+                    ScrollFadeIn(
+                      controller: _scrollController,
+                      child: _buildCtaBanner(),
+                    ),
+
+                    const SizedBox(height: 40),
+                    Text(
+                      '© 2026 Mrivan AI CRM & AI Tutor. All rights reserved.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _isDarkMode ? Colors.white38 : Colors.black38,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
               ),
             ),
@@ -401,125 +306,6 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
   }
 
   Widget _buildPricingGrid(bool isDesktop) {
-    if (_hasFinishedIntro) {
-      return _buildStaticPricingGrid(isDesktop);
-    }
-    return _buildAnimatingPricingGrid(isDesktop);
-  }
-
-  Widget _buildAnimatingPricingGrid(bool isDesktop) {
-    const double cardWidth = 300.0;
-    const double cardHeight = 580.0;
-    const double spacingX = 16.0;
-    const double spacingY = 16.0;
-
-    const double totalWidth = 3 * cardWidth + 2 * spacingX; // 932
-    const double totalHeight = 2 * cardHeight + 1 * spacingY; // 1176
-
-    const double centerLeft = (totalWidth - cardWidth) / 2; // 316
-    const double centerTop = (totalHeight - cardHeight) / 2; // 298
-
-    return Container(
-      key: _pricingSectionKey,
-      width: double.infinity,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxHeight: 700,
-          ),
-          child: FittedBox(
-            fit: BoxFit.contain,
-            child: SizedBox(
-              width: totalWidth,
-              height: totalHeight,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: List.generate(6, (index) {
-                  final col = index % 3;
-                  final row = index ~/ 3;
-                  final double finalLeft = col * (cardWidth + spacingX);
-                  final double finalTop = row * (cardHeight + spacingY);
-
-                  double opacity = 0.0;
-                  double left = centerLeft;
-                  double top = centerTop;
-                  double scale = 1.0;
-                  double rotation = 0.0;
-
-                  if (_pricingIntroProgress >= index + 1) {
-                    // Pasted at destination
-                    opacity = 1.0;
-                    left = finalLeft;
-                    top = finalTop;
-                    scale = 1.0;
-                    rotation = 0.0;
-                  } else if (_pricingIntroProgress < index) {
-                    // Not yet started
-                    opacity = 0.0;
-                  } else {
-                    // Animating
-                    double t = _pricingIntroProgress - index; // 0.0 to 1.0
-
-                    if (t < 0.2) {
-                      // Fade in at center
-                      double fadeProgress = t / 0.2;
-                      opacity = fadeProgress;
-                      left = centerLeft;
-                      top = centerTop;
-                      scale = 0.9 + 0.1 * fadeProgress;
-                      rotation = 0.0;
-                    } else if (t < 0.7) {
-                      // Pause in center (full size and readable)
-                      opacity = 1.0;
-                      left = centerLeft;
-                      top = centerTop;
-                      scale = 1.0;
-                      rotation = 0.0;
-                    } else {
-                      // Sweep from center to final position (t from 0.7 to 1.0)
-                      double sweepProgress = (t - 0.7) / 0.3;
-                      double ease = Curves.easeInOutCubic.transform(sweepProgress);
-
-                      opacity = 1.0;
-                      left = centerLeft + (finalLeft - centerLeft) * ease;
-                      top = centerTop + (finalTop - centerTop) * ease;
-                      scale = 1.0;
-                      // Swinging rotation: starts at 0, swings mid-sweep, settles back to 0
-                      double targetRotation = (index % 2 == 0) ? 0.06 : -0.06;
-                      rotation = targetRotation * ease * (1.0 - ease) * 4.0;
-                    }
-                  }
-
-                  if (opacity <= 0.0) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Positioned(
-                    left: left,
-                    top: top,
-                    width: cardWidth,
-                    height: cardHeight,
-                    child: Opacity(
-                      opacity: opacity,
-                      child: Transform.scale(
-                        scale: scale,
-                        child: Transform.rotate(
-                          angle: rotation,
-                          child: _buildPricingCardByIndex(index, cardWidth),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStaticPricingGrid(bool isDesktop) {
     final double cardWidth = isDesktop ? 300.0 : double.infinity;
     return Center(
       child: Wrap(
@@ -527,7 +313,12 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
         runSpacing: 16,
         alignment: WrapAlignment.center,
         children: List.generate(6, (index) {
-          return _buildPricingCardByIndex(index, cardWidth);
+          return ScrollFadeIn(
+            controller: _scrollController,
+            delayMs: index * 100.0,
+            beginOffset: const Offset(0.0, 0.15),
+            child: _buildPricingCardByIndex(index, cardWidth),
+          );
         }),
       ),
     );
