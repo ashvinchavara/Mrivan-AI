@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -51,17 +52,52 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // TODO: Paste your actual Client IDs from Google Cloud Console here
+  // Web Client ID is mandatory for Android & Web to request the ID Token
+  static const String _webClientId = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
+  // iOS Client ID is required for iOS native sign-in
+  static const String _iosClientId = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
+
   Future<void> _handleGoogleSignIn() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Trigger Supabase Google OAuth sign in
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: kIsWeb ? null : 'io.supabase.mrivan://login-callback',
+      // 1. Initialize GoogleSignIn with client IDs.
+      // - clientId is required for iOS.
+      // - serverClientId is the Web Client ID, required on Android to fetch the idToken.
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: kIsWeb ? null : _iosClientId,
+        serverClientId: _webClientId,
       );
+
+      // 2. Trigger native account chooser (opens native sheet inside the app)
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        // User cancelled the sign-in flow
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 3. Obtain authentication details
+      final googleAuth = await googleUser.authentication;
+      final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        throw const AuthException('No ID Token found from Google authentication.');
+      }
+
+      // 4. Authenticate with Supabase using the ID Token
+      await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
     } on AuthException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -74,8 +110,8 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('An unexpected error occurred during Sign-In'),
+          SnackBar(
+            content: Text('Sign-in failed: ${error.toString()}'),
             backgroundColor: Colors.redAccent,
           ),
         );
