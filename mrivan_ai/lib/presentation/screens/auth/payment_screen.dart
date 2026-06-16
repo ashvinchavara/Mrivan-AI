@@ -64,8 +64,8 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     
     setState(() {
       _basePrice = parsed;
-      _gstAmount = double.parse((parsed * 0.18).toStringAsFixed(2));
-      _totalAmount = double.parse((_basePrice + _gstAmount).toStringAsFixed(2));
+      _gstAmount = 0.0;
+      _totalAmount = parsed;
     });
   }
 
@@ -318,12 +318,6 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
           const SizedBox(height: 16),
           Divider(color: _isDarkMode ? Colors.white12 : Colors.black12, height: 1),
           const SizedBox(height: 16),
-          _buildBillRow('Plan Base Price', '₹${_basePrice.toStringAsFixed(2)}'),
-          const SizedBox(height: 8),
-          _buildBillRow('GST / Platform Tax (18%)', '₹${_gstAmount.toStringAsFixed(2)}'),
-          const SizedBox(height: 16),
-          Divider(color: _isDarkMode ? Colors.white12 : Colors.black12, height: 1),
-          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -347,29 +341,6 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildBillRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: _isDarkMode ? Colors.white60 : Colors.black54,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: _isDarkMode ? Colors.white70 : Colors.black87,
-          ),
-        ),
-      ],
     );
   }
 
