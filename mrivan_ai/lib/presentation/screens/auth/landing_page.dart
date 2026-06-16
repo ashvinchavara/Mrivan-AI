@@ -642,25 +642,11 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                   isPremium: isPremium,
                 )),
             const SizedBox(height: 24),
-            ElevatedButton(
+            HoverButton(
               onPressed: _navigateToLogin,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-                backgroundColor: isPremium 
-                    ? const Color(0xFF155DFC) 
-                    : Colors.transparent,
-                foregroundColor: isPremium ? Colors.white : (_isDarkMode ? Colors.white : Colors.black87),
-                elevation: 0,
-                shadowColor: Colors.transparent,
-                side: isPremium 
-                    ? BorderSide.none 
-                    : BorderSide(color: _isDarkMode ? Colors.white30 : Colors.black26),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                ctaText,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
+              text: ctaText,
+              isPremium: isPremium,
+              isDarkMode: _isDarkMode,
             ),
           ],
         ),
@@ -959,6 +945,114 @@ class _ExpandableFeatureItemState extends State<ExpandableFeatureItem> with Sing
               : const SizedBox.shrink(),
         ),
       ],
+    );
+  }
+}
+
+class HoverButton extends StatefulWidget {
+  final VoidCallback onPressed;
+  final String text;
+  final bool isPremium;
+  final bool isDarkMode;
+
+  const HoverButton({
+    key,
+    required this.onPressed,
+    required this.text,
+    required this.isPremium,
+    required this.isDarkMode,
+  }) : super(key: key);
+
+  @override
+  State<HoverButton> createState() => _HoverButtonState();
+}
+
+class _HoverButtonState extends State<HoverButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color buttonBg = widget.isPremium
+        ? const Color(0xFF155DFC)
+        : Colors.transparent;
+    final Color hoverBg = widget.isPremium
+        ? const Color(0xFF155DFC).withValues(alpha: 0.85)
+        : (widget.isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05));
+
+    final Color textColor = widget.isPremium
+        ? Colors.white
+        : (widget.isDarkMode ? Colors.white : Colors.black87);
+
+    final double scale = _isHovered ? 1.03 : 1.0;
+    final double elevation = _isHovered ? 6.0 : 0.0;
+    final Color shadowColor = widget.isPremium
+        ? const Color(0xFF155DFC).withValues(alpha: 0.4)
+        : (widget.isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.15));
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedScale(
+        scale: scale,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        child: AnimatedPhysicalModel(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          shape: BoxShape.rectangle,
+          borderRadius: BorderRadius.circular(12),
+          elevation: elevation,
+          color: Colors.transparent,
+          shadowColor: shadowColor,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            decoration: BoxDecoration(
+              color: _isHovered ? hoverBg : buttonBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: widget.isPremium
+                    ? Colors.transparent
+                    : (_isHovered
+                        ? const Color(0xFF155DFC)
+                        : (widget.isDarkMode ? Colors.white30 : Colors.black26)),
+                width: 1.5,
+              ),
+              boxShadow: _isHovered && widget.isPremium
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF155DFC).withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onPressed,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  height: 48,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    widget.text,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: _isHovered && !widget.isPremium 
+                          ? const Color(0xFF155DFC)
+                          : textColor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
