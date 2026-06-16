@@ -313,6 +313,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 0.0,
+            beginOffset: const Offset(-0.15, 0.0),
             child: _buildPricingCard(
               title: 'Free Plan 📚',
               price: 'Free',
@@ -334,6 +335,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 100.0,
+            beginOffset: const Offset(-0.15, 0.0),
             child: _buildPricingCard(
               title: 'Basic Plan ⚡',
               price: '₹99',
@@ -356,6 +358,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 200.0,
+            beginOffset: const Offset(-0.15, 0.0),
             child: _buildPricingCard(
               title: 'Campus Plan 🏫',
               price: '₹49–99',
@@ -381,6 +384,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 300.0,
+            beginOffset: const Offset(-0.15, 0.0),
             child: _buildPricingCard(
               title: 'Pro Student 🚀',
               price: '₹299',
@@ -404,6 +408,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 400.0,
+            beginOffset: const Offset(-0.15, 0.0),
             child: _buildPricingCard(
               title: 'Exam Aspirant 🎯',
               price: '₹499',
@@ -426,6 +431,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 500.0,
+            beginOffset: const Offset(-0.15, 0.0),
             child: _buildPricingCard(
               title: 'Premium AI 🤖',
               price: '₹999',
@@ -525,14 +531,16 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 color: _isDarkMode ? Colors.white54 : Colors.black54,
               ),
             ),
-            const Divider(height: 32),
+            Divider(height: 32, color: _isDarkMode ? Colors.white12 : Colors.black12),
             ...features.map((feat) => Padding(
                   padding: const EdgeInsets.only(bottom: 12.0),
                   child: Row(
                     children: [
                       Icon(
                         Icons.check_circle_rounded,
-                        color: isPremium ? const Color(0xFF155DFC) : Colors.tealAccent.shade400,
+                        color: isPremium 
+                            ? const Color(0xFF155DFC) 
+                            : (_isDarkMode ? Colors.tealAccent.shade400 : Colors.teal.shade700),
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -557,6 +565,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                     ? const Color(0xFF155DFC) 
                     : Colors.transparent,
                 foregroundColor: isPremium ? Colors.white : (_isDarkMode ? Colors.white : Colors.black87),
+                elevation: 0,
+                shadowColor: Colors.transparent,
                 side: isPremium 
                     ? BorderSide.none 
                     : BorderSide(color: _isDarkMode ? Colors.white30 : Colors.black26),
@@ -643,12 +653,14 @@ class ScrollFadeIn extends StatefulWidget {
   final Widget child;
   final ScrollController controller;
   final double delayMs;
+  final Offset beginOffset;
 
   const ScrollFadeIn({
     super.key,
     required this.child,
     required this.controller,
     this.delayMs = 0,
+    this.beginOffset = const Offset(0.0, 0.1),
   });
 
   @override
@@ -674,7 +686,7 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
       CurvedAnimation(parent: _animController, curve: Curves.easeOut),
     );
 
-    _slideAnim = Tween<Offset>(begin: const Offset(0.0, 0.1), end: Offset.zero).animate(
+    _slideAnim = Tween<Offset>(begin: widget.beginOffset, end: Offset.zero).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
 
@@ -697,7 +709,7 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
   }
 
   void _checkVisibility() {
-    if (!mounted || _hasAnimated) return;
+    if (!mounted) return;
 
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize || !renderBox.attached) return;
@@ -705,16 +717,27 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
     final position = renderBox.localToGlobal(Offset.zero);
     final screenHeight = MediaQuery.of(context).size.height;
 
-    // Trigger when the top of the element enters 90% of screen height
-    if (position.dy < screenHeight * 0.9 && position.dy > -renderBox.size.height) {
-      setState(() {
-        _hasAnimated = true;
-      });
-      Future.delayed(Duration(milliseconds: widget.delayMs.toInt()), () {
-        if (mounted) {
-          _animController.forward();
-        }
-      });
+    // Check if the element is inside the viewport (enters 95% of screen height and is not fully scrolled off)
+    final bool isInViewport = position.dy < screenHeight * 0.95 && position.dy > -renderBox.size.height * 0.8;
+
+    if (isInViewport) {
+      if (!_hasAnimated) {
+        setState(() {
+          _hasAnimated = true;
+        });
+        Future.delayed(Duration(milliseconds: widget.delayMs.toInt()), () {
+          if (mounted && _hasAnimated) {
+            _animController.forward();
+          }
+        });
+      }
+    } else {
+      if (_hasAnimated) {
+        setState(() {
+          _hasAnimated = false;
+        });
+        _animController.reverse();
+      }
     }
   }
 
@@ -895,34 +918,42 @@ class _CategoryFeaturesWidgetState extends State<CategoryFeaturesWidget> {
               final cat = _categories[index];
               final isSelected = index == _selectedCategoryIndex;
 
-              return ChoiceChip(
-                label: Text(
-                  cat['name'] as String,
-                  style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected
-                        ? Colors.white
-                        : (widget.isDarkMode ? Colors.white70 : Colors.black87),
-                  ),
-                ),
-                selected: isSelected,
-                selectedColor: const Color(0xFF155DFC),
-                backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: isSelected 
-                        ? Colors.transparent 
-                        : (widget.isDarkMode ? Colors.white12 : Colors.black12),
-                  ),
-                ),
-                onSelected: (selected) {
-                  if (selected) {
-                    setState(() {
-                      _selectedCategoryIndex = index;
-                    });
-                  }
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedCategoryIndex = index;
+                  });
                 },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF155DFC)
+                        : (widget.isDarkMode
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.04)),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.transparent
+                          : (widget.isDarkMode
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.black.withValues(alpha: 0.08)),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    cat['name'] as String,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      color: isSelected
+                          ? Colors.white
+                          : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                    ),
+                  ),
+                ),
               );
             }),
           ),
