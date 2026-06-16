@@ -69,60 +69,148 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // Native Google ID Token authentication
+  // Native Google ID Token authentication (Mobile) or OAuth Redirect (Web)
   Future<void> _handleGoogleSignIn() async {
-  setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-  try {
-    final GoogleSignIn googleSignIn = GoogleSignIn(
-      scopes: ['email', 'profile'],
-      clientId: kIsWeb ? LoginScreen.webClientId : LoginScreen.androidClientId,
-      serverClientId: LoginScreen.webClientId,
-    );
+    try {
+      if (kIsWeb) {
+        // For Web, use Supabase's native OAuth flow to bypass google_sign_in package limitations
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: kDebugMode ? 'http://localhost:5000' : Uri.base.origin,
+        );
+        return;
+      }
 
-    await googleSignIn.signOut(); // important for web debugging
-
-    final googleUser = await googleSignIn.signIn();
-    if (googleUser == null) {
-      setState(() => _isLoading = false);
-      return;
-    }
-
-    final googleAuth = await googleUser.authentication;
-
-    final idToken = googleAuth.idToken;
-    final accessToken = googleAuth.accessToken;
-
-    if (idToken == null) {
-      throw Exception(
-        "Google did not return ID token. Check OAuth configuration in Google Cloud Console.",
+      // Mobile (Android / iOS) flows
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+        clientId: LoginScreen.androidClientId,
+        serverClientId: LoginScreen.webClientId,
       );
-    }
 
-    final response = await Supabase.instance.client.auth.signInWithIdToken(
-      provider: OAuthProvider.google,
-      idToken: idToken,
-      accessToken: accessToken,
-    );
+      await googleSignIn.signOut().catchError((_) {}); // Ignore sign-out errors
 
-    if (response.session == null) {
-      throw Exception("Supabase login failed");
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Google Sign-In Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
+
+      if (kDebugMode) {
+        print('Google Sign-In Account Info:');
+        print(' - Email: ${googleUser.email}');
+        print(' - ID Token: ${idToken != null ? "FOUND (Length: ${idToken.length})" : "NULL"}');
+        print(' - Access Token: ${accessToken != null ? "FOUND (Length: ${accessToken.length})" : "NULL"}');
+      }
+
+      if (idToken == null) {
+        throw Exception(
+          "Google did not return an ID token.\n\n"
+          "To fix this, please verify:\n"
+          "1. You have registered your Android SHA-1 fingerprint in the Google Cloud Console under your Android Client ID.\n"
+          "2. The 'serverClientId' in code matches the Web Client ID from your Google Cloud Console.\n"
+          "3. The OAuth Consent Screen is configured and published in Google Cloud Console."
+        );
+      }
+
+      final response = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
       );
-    }
-  } finally {
-    if (mounted) {
-      setState(() => _isLoading = false);
+
+      if (response.session == null) {
+        throw Exception("Supabase login failed");
+      }
+    } catch (e) {
+      String errorMessage = e.toString();
+      if (errorMessage.contains('ApiException: 10')) {
+        errorMessage = "Google Sign-In Developer Error (ApiException 10).\n\n"
+            "This typically means your Android SHA-1 certificate fingerprint is not registered "
+            "in the Google Cloud Console under your Android Client ID, or the package name "
+            "com.ash.mrivan_ai does not match the registration.";
+      } else if (errorMessage.contains('ApiException: 12500')) {
+        errorMessage = "Google Sign-In Error (ApiException 12500).\n\n"
+            "This typically indicates a mismatch in the OAuth Consent Screen configuration, "
+            "or the Google Cloud project configuration is incomplete.";
+      }
+      
+      if (kDebugMode) {
+        print('Google Sign-In Error Details: $e');
+      }
+      
+      if (mounted) {
+        _showErrorDialog(errorMessage);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
-}
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = _isDarkMode;
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: isDark ? Colors.white12 : Colors.black12,
+              width: 1,
+            ),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.red[400], size: 28),
+              const SizedBox(width: 12),
+              Text(
+                'Authentication Error',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.black87,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF155DFC),
+              ),
+              child: const Text(
+                'Close',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void didChangeDependencies() {
