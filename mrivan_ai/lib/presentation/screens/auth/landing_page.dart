@@ -12,13 +12,20 @@ class LandingPageScreen extends StatefulWidget {
 }
 
 class _LandingPageScreenState extends State<LandingPageScreen> {
-  bool _isDarkMode = false;
+  bool? _isDarkModeState;
+  bool get _isDarkMode => _isDarkModeState ?? false;
   late final ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _isDarkModeState ??= MediaQuery.of(context).platformBrightness == Brightness.dark;
   }
 
   @override
@@ -89,7 +96,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                               ),
                               onPressed: () {
                                 setState(() {
-                                  _isDarkMode = !_isDarkMode;
+                                  _isDarkModeState = !_isDarkMode;
                                 });
                               },
                             ),

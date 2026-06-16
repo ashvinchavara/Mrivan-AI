@@ -22,7 +22,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late final StreamSubscription<AuthState> _authSubscription;
   
   bool _isLoading = false;
-  bool _isDarkMode = false; // Toggle state
+  bool? _isDarkModeState; // Toggle state
+  bool get _isDarkMode => _isDarkModeState ?? false;
 
   // Animation Controller for Login Card
   late final AnimationController _cardFadeController;
@@ -124,6 +125,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _isDarkModeState ??= MediaQuery.of(context).platformBrightness == Brightness.dark;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: AnimatedBackground(
@@ -155,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       ),
                       onPressed: () {
                         setState(() {
-                          _isDarkMode = !_isDarkMode;
+                          _isDarkModeState = !_isDarkMode;
                         });
                       },
                     ),

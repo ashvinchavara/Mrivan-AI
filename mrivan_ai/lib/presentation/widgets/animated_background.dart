@@ -153,6 +153,45 @@ class SkyPainter extends CustomPainter {
     ).createShader(rect);
     canvas.drawRect(rect, backgroundPaint);
 
+    // Draw Sun and Moon set/rise transition behind clouds & arches
+    final double sunX = size.width * 0.8;
+    final double sunY = size.height * (0.2 + 0.3 * themeTransition);
+    final double sunOpacity = (1.0 - themeTransition).clamp(0.0, 1.0);
+
+    if (sunOpacity > 0.0) {
+      final Paint sunGlow = Paint()
+        ..color = Colors.amber.shade200.withValues(alpha: sunOpacity * 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 35.0);
+      canvas.drawCircle(Offset(sunX, sunY), 65.0, sunGlow);
+
+      final Paint sunBody = Paint()
+        ..color = const Color(0xFFFDB813).withValues(alpha: sunOpacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(sunX, sunY), 28.0, sunBody);
+    }
+
+    final double moonX = size.width * 0.8;
+    final double moonY = size.height * (0.5 - 0.3 * themeTransition);
+    final double moonOpacity = themeTransition.clamp(0.0, 1.0);
+
+    if (moonOpacity > 0.0) {
+      final Paint moonGlow = Paint()
+        ..color = Colors.indigo.shade200.withValues(alpha: moonOpacity * 0.2)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 25.0);
+      canvas.drawCircle(Offset(moonX, moonY), 50.0, moonGlow);
+
+      final Path moonPath = Path.combine(
+        PathOperation.difference,
+        Path()..addOval(Rect.fromCircle(center: Offset(moonX, moonY), radius: 24.0)),
+        Path()..addOval(Rect.fromCircle(center: Offset(moonX - 8.0, moonY - 4.0), radius: 22.0)),
+      );
+
+      final Paint moonBody = Paint()
+        ..color = const Color(0xFFF1F5F9).withValues(alpha: moonOpacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(moonPath, moonBody);
+    }
+
     // Lerp arch lines
     final Color archColor = Color.lerp(
       const Color(0xFFCBE3FE).withValues(alpha: 0.4),
