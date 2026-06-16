@@ -290,8 +290,6 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
     );
   }
 
-
-
   Widget _buildPricingGrid(bool isDesktop) {
     final double cardWidth = isDesktop ? 300.0 : double.infinity;
     return Center(
@@ -318,13 +316,30 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           title: 'Free Plan 📚',
           price: 'Free',
           subtitle: 'Essential features for single students',
-          features: [
-            'Limited AI Tutor chats',
-            '5 doubt solutions/day',
-            'Basic notes & Study materials',
-            'Limited tests & Community support',
-            'Cloud-based access & 24/7 availability',
-            'Student communities & Discussion forums',
+          featureGroups: const [
+            FeatureGroup(
+              title: 'AI Learning Features',
+              items: [
+                'Limited AI Tutor chats',
+                '5 doubt solutions/day',
+                'Basic notes',
+                'Limited tests',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Community Features',
+              items: [
+                'Community support',
+                'Student communities',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Platform Features',
+              items: [
+                'Cloud-based access',
+                'Mobile-friendly platform',
+              ],
+            ),
           ],
           ctaText: 'Start Free',
           isPremium: false,
@@ -335,13 +350,31 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           title: 'Basic Plan ⚡',
           price: '₹99',
           subtitle: 'Affordable booster for self-study',
-          features: [
-            'Unlimited doubts & AI Tutor access',
-            'Notes & Assignment generation',
-            'Homework help & AI Translation',
-            'Weekly mock tests & NCERT solutions',
-            'Question banks & Video lessons',
-            'Progress tracking & Worksheets',
+          featureGroups: const [
+            FeatureGroup(
+              title: 'AI Learning Features',
+              items: [
+                'Unlimited doubts',
+                'AI Tutor access',
+                'Notes generation',
+                'Homework help',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Exam Preparation',
+              items: [
+                'Weekly mock tests',
+                'Progress tracking',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Platform Features',
+              items: [
+                'Cloud-based access',
+                'Mobile-friendly platform',
+                'Secure data storage',
+              ],
+            ),
           ],
           ctaText: 'Get Basic',
           isPremium: false,
@@ -350,15 +383,38 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
       case 2:
         return _buildPricingCard(
           title: 'Campus Plan 🏫',
-          price: '₹49–99',
+          price: '₹149',
           subtitle: 'For schools and institutions',
-          features: [
-            'School, Teacher & Parent Dashboards',
-            'Attendance & Homework Management',
-            'School & Institution Analytics',
-            'Bulk Student Accounts & Custom Branding',
-            'School-wide licenses & Admin controls',
-            'Dedicated Support',
+          featureGroups: const [
+            FeatureGroup(
+              title: 'School Dashboards',
+              items: [
+                'School dashboard',
+                'Teacher dashboard',
+                'Student dashboard',
+                'Parent portal',
+              ],
+            ),
+            FeatureGroup(
+              title: 'School CRM Management',
+              items: [
+                'Attendance management',
+                'Homework tracking',
+                'Announcements and notices',
+                'School analytics',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Campus Plan CRM features',
+              items: [
+                'School-wide licenses',
+                'Admin controls',
+                'Bulk student onboarding',
+                'Institution analytics',
+                'Custom branding',
+                'Dedicated support',
+              ],
+            ),
           ],
           ctaText: 'Contact School Admin',
           isPremium: false,
@@ -369,13 +425,31 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           title: 'Pro Student 🚀',
           price: '₹299',
           subtitle: 'Unlimited learning & AI tools',
-          features: [
-            'Everything in Basic',
-            'Unlimited AI chats & Chat Assistant',
-            'Personalized study plans (learning paths)',
-            'Voice AI Tutor & Interaction',
-            'AI summaries & Writing Assistant',
-            'Live AI Classes & Priority Support',
+          inheritsText: 'Everything in Basic',
+          featureGroups: const [
+            FeatureGroup(
+              title: 'AI Learning Features',
+              items: [
+                'Unlimited AI chats',
+                'Personalized study plans',
+                'Voice AI Tutor',
+                'Priority support',
+              ],
+            ),
+            FeatureGroup(
+              title: 'AI Productivity Tools',
+              items: [
+                'AI Chat Assistant',
+                'AI Summarization',
+                'AI Translation',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Content Library',
+              items: [
+                'Interactive quizzes',
+              ],
+            ),
           ],
           ctaText: 'Upgrade to Pro',
           isPremium: true,
@@ -386,13 +460,37 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           title: 'Exam Aspirant 🎯',
           price: '₹499',
           subtitle: 'Cracking competitive tests',
-          features: [
-            'Everything in Pro',
-            'CBT Mock Tests & Simulations',
-            'Previous Year Questions & Analysis',
-            'Performance & Weak area analytics',
-            'Revision planner & exam schedules',
-            'Exam-specific AI mentor',
+          inheritsText: 'Everything in Pro',
+          featureGroups: const [
+            FeatureGroup(
+              title: 'Exam Preparation',
+              items: [
+                'CBT simulations',
+                'Mock tests for school exams',
+                'Competitive exam preparation',
+                'Adaptive testing',
+                'Previous year question analysis',
+                'Performance analytics',
+                'Weak area identification',
+                'Revision schedules',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Content Library',
+              items: [
+                'NCERT solutions',
+                'Study materials',
+                'Question banks',
+                'Practice worksheets',
+                'Video lessons',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Community Features',
+              items: [
+                'Mentor support',
+              ],
+            ),
           ],
           ctaText: 'Get Aspirant Plan',
           isPremium: false,
@@ -404,13 +502,29 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           title: 'Premium AI 🤖',
           price: '₹999',
           subtitle: 'Ultimate researcher & advisor tools',
-          features: [
-            'Everything in Exam Aspirant',
-            'AI Research Assistant',
-            'AI Presentation Maker & Generator',
-            'AI Image Generator & Coding Tutor',
-            'AI Career Counselor & Resume Builder',
-            'Early access features',
+          inheritsText: 'Everything in Exam Aspirant',
+          featureGroups: const [
+            FeatureGroup(
+              title: 'AI Productivity Tools',
+              items: [
+                'AI Research Assistant',
+                'AI Presentation Maker',
+                'AI Image Generator',
+                'AI Coding Tutor',
+                'AI Career Counselor',
+                'AI Writing Assistant',
+              ],
+            ),
+            FeatureGroup(
+              title: 'Platform Features',
+              items: [
+                'Early access features',
+                'Cloud-based access',
+                'Secure data storage',
+                'Scalable infrastructure',
+                '24/7 availability',
+              ],
+            ),
           ],
           ctaText: 'Get Ultimate AI',
           isPremium: false,
@@ -423,7 +537,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
     required String title,
     required String price,
     required String subtitle,
-    required List<String> features,
+    required List<FeatureGroup> featureGroups,
+    String? inheritsText,
     required String ctaText,
     required bool isPremium,
     required double width,
@@ -431,7 +546,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
     return SizedBox(
       width: width,
       child: _buildGlassCard(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -495,30 +610,36 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 color: _isDarkMode ? Colors.white54 : Colors.black54,
               ),
             ),
-            Divider(height: 32, color: _isDarkMode ? Colors.white12 : Colors.black12),
-            ...features.map((feat) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: isPremium 
-                            ? const Color(0xFF155DFC) 
-                            : (_isDarkMode ? Colors.tealAccent.shade400 : Colors.teal.shade700),
-                        size: 18,
+            Divider(height: 24, color: _isDarkMode ? Colors.white12 : Colors.black12),
+            if (inheritsText != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.star_rounded,
+                      color: const Color(0xFF155DFC),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      inheritsText,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: _isDarkMode ? Colors.white : Colors.black87,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          feat,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: _isDarkMode ? Colors.white70 : Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            // Expandable Feature Items
+            ...featureGroups.map((group) => ExpandableFeatureItem(
+                  title: group.title,
+                  subFeatures: group.items,
+                  isDarkMode: _isDarkMode,
+                  isPremium: isPremium,
                 )),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -728,4 +849,116 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
   }
 }
 
+class FeatureGroup {
+  final String title;
+  final List<String> items;
 
+  const FeatureGroup({required this.title, required this.items});
+}
+
+class ExpandableFeatureItem extends StatefulWidget {
+  final String title;
+  final List<String> subFeatures;
+  final bool isDarkMode;
+  final bool isPremium;
+
+  const ExpandableFeatureItem({
+    key,
+    required this.title,
+    required this.subFeatures,
+    required this.isDarkMode,
+    required this.isPremium,
+  }) : super(key: key);
+
+  @override
+  State<ExpandableFeatureItem> createState() => _ExpandableFeatureItemState();
+}
+
+class _ExpandableFeatureItemState extends State<ExpandableFeatureItem> with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () {
+            setState(() {
+              _isExpanded = !_isExpanded;
+            });
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+            child: Row(
+              children: [
+                Icon(
+                  _isExpanded ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_right_rounded,
+                  color: widget.isPremium 
+                      ? const Color(0xFF155DFC) 
+                      : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                  size: 20,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: widget.isDarkMode ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          child: _isExpanded
+              ? Padding(
+                  padding: const EdgeInsets.only(left: 28.0, bottom: 8.0, top: 4.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: widget.subFeatures.map((feat) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3.0),
+                              child: Icon(
+                                Icons.check_circle_rounded,
+                                color: widget.isPremium
+                                    ? const Color(0xFF155DFC)
+                                    : (widget.isDarkMode ? Colors.tealAccent.shade400 : Colors.teal.shade700),
+                                size: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                feat,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
