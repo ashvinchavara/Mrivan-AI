@@ -8,6 +8,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
+  static const String webClientId = '524472321619-ft3dc0catvgplebulv2bqrpakdi8uo18.apps.googleusercontent.com';
+  // Android client ID registered with Package name com.ash.mrivan_ai
+  static const String androidClientId = '524472321619-06jghr6deij7ig11u2smbk2gts6scn1k.apps.googleusercontent.com';
+  static const String iosClientId = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -22,10 +27,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   late final AnimationController _cloudsController;
   late final AnimationController _themeTransitionController; // Smooth transition controller
   late final AnimationController _cardFadeController;
-
-  // Google OAuth Credentials Config
-  static const String _webClientId = '524472321619-ft3dc0catvgplebulv2bqrpakdi8uo18.apps.googleusercontent.com';
-  static const String _iosClientId = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
 
   // Cloud configuration list
   late final List<FloatingCloud> _clouds;
@@ -101,8 +102,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
     try {
       final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: kIsWeb ? null : _iosClientId,
-        serverClientId: _webClientId,
+        clientId: kIsWeb ? LoginScreen.webClientId : null,
+        serverClientId: LoginScreen.webClientId,
       );
 
       final googleUser = await googleSignIn.signIn();
