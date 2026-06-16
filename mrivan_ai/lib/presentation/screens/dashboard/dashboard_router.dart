@@ -84,18 +84,18 @@ class _DashboardRouterState extends State<DashboardRouter> {
           .eq('id', user.id)
           .maybeSingle();
 
-      if (response != null) {
-        setState(() {
-          _userRole = response['role'] as String?;
+      setState(() {
+        _userRole = 'student'; // Force student role for everyone
+        if (response != null) {
           _userName = response['full_name'] as String?;
           schoolId = response['school_id'] as String?;
           classId = response['class_id'] as String?;
-        });
-        
-        // 2. Proactively load data based on user role (e.g. attendance for students)
-        if (_userRole == 'student') {
-          _loadStudentAttendance(user.id);
         }
+      });
+      
+      // 2. Proactively load data based on user role (e.g. attendance for students)
+      if (_userRole == 'student') {
+        _loadStudentAttendance(user.id);
       }
     } catch (e) {
       if (kDebugMode) {
