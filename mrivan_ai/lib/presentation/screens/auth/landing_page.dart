@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../widgets/animated_background.dart';
@@ -313,7 +314,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 0.0,
-            beginOffset: const Offset(-0.15, 0.0),
+            beginOffset: const Offset(0.2, 0.0),
+            beginRotation: 2 * pi,
             child: _buildPricingCard(
               title: 'Free Plan 📚',
               price: 'Free',
@@ -335,7 +337,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 100.0,
-            beginOffset: const Offset(-0.15, 0.0),
+            beginOffset: const Offset(0.2, 0.0),
+            beginRotation: 2 * pi,
             child: _buildPricingCard(
               title: 'Basic Plan ⚡',
               price: '₹99',
@@ -358,7 +361,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 200.0,
-            beginOffset: const Offset(-0.15, 0.0),
+            beginOffset: const Offset(0.2, 0.0),
+            beginRotation: 2 * pi,
             child: _buildPricingCard(
               title: 'Campus Plan 🏫',
               price: '₹49–99',
@@ -384,7 +388,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 300.0,
-            beginOffset: const Offset(-0.15, 0.0),
+            beginOffset: const Offset(0.2, 0.0),
+            beginRotation: 2 * pi,
             child: _buildPricingCard(
               title: 'Pro Student 🚀',
               price: '₹299',
@@ -408,7 +413,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 400.0,
-            beginOffset: const Offset(-0.15, 0.0),
+            beginOffset: const Offset(0.2, 0.0),
+            beginRotation: 2 * pi,
             child: _buildPricingCard(
               title: 'Exam Aspirant 🎯',
               price: '₹499',
@@ -431,7 +437,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 500.0,
-            beginOffset: const Offset(-0.15, 0.0),
+            beginOffset: const Offset(0.2, 0.0),
+            beginRotation: 2 * pi,
             child: _buildPricingCard(
               title: 'Premium AI 🤖',
               price: '₹999',
@@ -654,6 +661,7 @@ class ScrollFadeIn extends StatefulWidget {
   final ScrollController controller;
   final double delayMs;
   final Offset beginOffset;
+  final double beginRotation;
 
   const ScrollFadeIn({
     super.key,
@@ -661,6 +669,7 @@ class ScrollFadeIn extends StatefulWidget {
     required this.controller,
     this.delayMs = 0,
     this.beginOffset = const Offset(0.0, 0.1),
+    this.beginRotation = 0.0,
   });
 
   @override
@@ -672,6 +681,7 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
   late Animation<double> _opacityAnim;
   late Animation<Offset> _slideAnim;
   late Animation<double> _scaleAnim;
+  late Animation<double> _rotationAnim;
   bool _hasAnimated = false;
 
   @override
@@ -694,6 +704,10 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
 
+    _rotationAnim = Tween<double>(begin: widget.beginRotation, end: 0.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+    );
+
     widget.controller.addListener(_checkVisibility);
     // Also check on the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -709,7 +723,7 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
   }
 
   void _checkVisibility() {
-    if (!mounted) return;
+    if (!mounted || _hasAnimated) return;
 
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize || !renderBox.attached) return;
@@ -717,27 +731,19 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
     final position = renderBox.localToGlobal(Offset.zero);
     final screenHeight = MediaQuery.of(context).size.height;
 
-    // Check if the element is inside the viewport (enters 95% of screen height and is not fully scrolled off)
-    final bool isInViewport = position.dy < screenHeight * 0.95 && position.dy > -renderBox.size.height * 0.8;
+    // Check if the element enters 95% of screen height
+    if (position.dy < screenHeight * 0.95 && position.dy > -renderBox.size.height) {
+      setState(() {
+        _hasAnimated = true; // Permanently set to true so animation only runs once
+      });
+      // Remove listener immediately so it becomes static and stops checking
+      widget.controller.removeListener(_checkVisibility);
 
-    if (isInViewport) {
-      if (!_hasAnimated) {
-        setState(() {
-          _hasAnimated = true;
-        });
-        Future.delayed(Duration(milliseconds: widget.delayMs.toInt()), () {
-          if (mounted && _hasAnimated) {
-            _animController.forward();
-          }
-        });
-      }
-    } else {
-      if (_hasAnimated) {
-        setState(() {
-          _hasAnimated = false;
-        });
-        _animController.reverse();
-      }
+      Future.delayed(Duration(milliseconds: widget.delayMs.toInt()), () {
+        if (mounted) {
+          _animController.forward();
+        }
+      });
     }
   }
 
@@ -752,7 +758,10 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
             scale: _scaleAnim.value,
             child: FractionalTranslation(
               translation: _slideAnim.value,
-              child: child,
+              child: Transform.rotate(
+                angle: _rotationAnim.value,
+                child: child,
+              ),
             ),
           ),
         );
