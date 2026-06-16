@@ -1,0 +1,37 @@
+name: Deploy Flutter Web
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
+          channel: 'stable'
+
+      - name: Install Dependencies
+        working-directory: mrivan_ai
+        run: flutter pub get
+
+      - name: Build Web Application
+        working-directory: mrivan_ai
+        run: flutter build web --release --base-href "/Mrivan-AI/"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: mrivan_ai/build/web
