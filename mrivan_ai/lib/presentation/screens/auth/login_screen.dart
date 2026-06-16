@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/animated_background.dart';
+import '../../theme/theme_config.dart';
 import 'payment_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -29,11 +30,10 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+  bool get _isDarkMode => isDarkModeNotifier.value;
   late final StreamSubscription<AuthState> _authSubscription;
   
   bool _isLoading = false;
-  bool? _isDarkModeState; // Toggle state
-  bool get _isDarkMode => _isDarkModeState ?? false;
 
   // Animation Controller for Login Card
   late final AnimationController _cardFadeController;
@@ -200,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     showDialog(
       context: context,
       builder: (context) {
-        final isDark = _isDarkMode;
+        final isDark = isDarkModeNotifier.value;
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           surfaceTintColor: Colors.transparent,
@@ -253,51 +253,46 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _isDarkModeState ??= MediaQuery.of(context).platformBrightness == Brightness.dark;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AnimatedBackground(
-        isDarkMode: _isDarkMode,
-        child: Stack(
-          children: [
-            // 1. Light / Dark Mode Toggle Button (Top Right)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 16,
-              right: 16,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    color: _isDarkMode ? Colors.black26 : Colors.white24,
-                    child: IconButton(
-                      icon: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        transitionBuilder: (child, anim) => RotationTransition(
-                          turns: child.key == const ValueKey('dark')
-                              ? Tween<double>(begin: 0.75, end: 1.0).animate(anim)
-                              : Tween<double>(begin: 0.25, end: 0.5).animate(anim),
-                          child: FadeTransition(opacity: anim, child: child),
+    return ValueListenableBuilder<bool>(
+      valueListenable: isDarkModeNotifier,
+      builder: (context, isDarkMode, child) {
+        return Scaffold(
+          body: AnimatedBackground(
+            isDarkMode: _isDarkMode,
+            child: Stack(
+              children: [
+                // 1. Light / Dark Mode Toggle Button (Top Right)
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 16,
+                  right: 16,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        color: _isDarkMode ? Colors.black26 : Colors.white24,
+                        child: IconButton(
+                          icon: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            transitionBuilder: (child, anim) => RotationTransition(
+                              turns: child.key == const ValueKey('dark')
+                                  ? Tween<double>(begin: 0.75, end: 1.0).animate(anim)
+                                  : Tween<double>(begin: 0.25, end: 0.5).animate(anim),
+                              child: FadeTransition(opacity: anim, child: child),
+                            ),
+                            child: _isDarkMode
+                                ? const Icon(Icons.lightbulb_rounded, key: ValueKey('light'), color: Colors.amber)
+                                : const Icon(Icons.school_rounded, key: ValueKey('dark'), color: Color(0xFF155DFC)),
+                          ),
+                          onPressed: () {
+                            isDarkModeNotifier.value = !_isDarkMode;
+                          },
                         ),
-                        child: _isDarkMode
-                            ? const Icon(Icons.lightbulb_rounded, key: ValueKey('light'), color: Colors.amber)
-                            : const Icon(Icons.school_rounded, key: ValueKey('dark'), color: Color(0xFF155DFC)),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _isDarkModeState = !_isDarkMode;
-                        });
-                      },
                     ),
                   ),
                 ),
-              ),
-            ),
 
             // 2. Central Login Card
             Positioned.fill(
@@ -476,5 +471,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         ),
       ),
     );
+      },
+    );
   }
 }
+

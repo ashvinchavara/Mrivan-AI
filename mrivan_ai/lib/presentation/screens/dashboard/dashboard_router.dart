@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/animated_background.dart';
 import '../../../data/services/database_service.dart';
 import '../auth/payment_screen.dart';
+import '../../theme/theme_config.dart';
 
 // Sub-feature screens
 import '../student/ai_tutor_screen.dart';
@@ -23,7 +24,7 @@ class DashboardRouter extends StatefulWidget {
 
 class _DashboardRouterState extends State<DashboardRouter> {
   final SupabaseClient _client = Supabase.instance.client;
-  bool _isDarkMode = false;
+  bool get _isDarkMode => isDarkModeNotifier.value;
   bool _isLoadingProfile = true;
   String? _userRole;
   String? _userName;
@@ -141,93 +142,96 @@ class _DashboardRouterState extends State<DashboardRouter> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AnimatedBackground(
-        isDarkMode: _isDarkMode,
-        child: Stack(
-          children: [
-            // 1. Dashboard Top Header Panel
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 16,
-              left: 16,
-              right: 16,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    color: _isDarkMode ? Colors.black26 : Colors.white24,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // App Brand Logo
-                        Row(
+    return ValueListenableBuilder<bool>(
+      valueListenable: isDarkModeNotifier,
+      builder: (context, isDarkMode, child) {
+        return Scaffold(
+          body: AnimatedBackground(
+            isDarkMode: _isDarkMode,
+            child: Stack(
+              children: [
+                // 1. Dashboard Top Header Panel
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 16,
+                  left: 16,
+                  right: 16,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        color: _isDarkMode ? Colors.black26 : Colors.white24,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(
-                              Icons.school_rounded,
-                              color: const Color(0xFF155DFC),
-                              size: 26,
+                            // App Brand Logo
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.school_rounded,
+                                  color: const Color(0xFF155DFC),
+                                  size: 26,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Mrivan AI',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: _isDarkMode ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Mrivan AI',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: _isDarkMode ? Colors.white : Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
 
-                        // Actions: Theme Switcher & Logout
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                _isDarkMode ? Icons.lightbulb_rounded : Icons.school_rounded,
-                                color: _isDarkMode ? Colors.amber : const Color(0xFF155DFC),
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _isDarkMode = !_isDarkMode;
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                              onPressed: _handleSignOut,
+                            // Actions: Theme Switcher & Logout
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    _isDarkMode ? Icons.lightbulb_rounded : Icons.school_rounded,
+                                    color: _isDarkMode ? Colors.amber : const Color(0xFF155DFC),
+                                  ),
+                                  onPressed: () {
+                                    isDarkModeNotifier.value = !_isDarkMode;
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                                  onPressed: _handleSignOut,
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
 
-            // 2. Main Dashboard Panel View
-            Positioned.fill(
-              top: MediaQuery.of(context).padding.top + 80,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: _isLoadingProfile
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF155DFC)),
-                          ),
-                        )
-                      : _buildRoleDashboard(),
+                // 2. Main Dashboard Panel View
+                Positioned.fill(
+                  top: MediaQuery.of(context).padding.top + 80,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      child: _isLoadingProfile
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF155DFC)),
+                              ),
+                            )
+                          : _buildRoleDashboard(),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

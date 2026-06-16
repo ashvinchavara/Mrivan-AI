@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../widgets/animated_background.dart';
+import '../../theme/theme_config.dart';
 import 'login_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
@@ -22,8 +23,7 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProviderStateMixin {
-  bool? _isDarkModeState;
-  bool get _isDarkMode => _isDarkModeState ?? false;
+  bool get _isDarkMode => isDarkModeNotifier.value;
 
   // Selected Payment Method: 'upi', 'card', 'net_banking'
   String _selectedMethod = 'upi';
@@ -69,11 +69,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     });
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _isDarkModeState ??= MediaQuery.of(context).platformBrightness == Brightness.dark;
-  }
+
 
   @override
   void dispose() {
@@ -159,11 +155,14 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AnimatedBackground(
-        isDarkMode: _isDarkMode,
-        child: Stack(
-          children: [
+    return ValueListenableBuilder<bool>(
+      valueListenable: isDarkModeNotifier,
+      builder: (context, isDarkMode, child) {
+        return Scaffold(
+          body: AnimatedBackground(
+            isDarkMode: _isDarkMode,
+            child: Stack(
+              children: [
             // Main Scrollable Area
             Positioned.fill(
               child: SafeArea(
@@ -224,11 +223,14 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
 
             // Fullscreen Processing Overlay
             if (_isProcessing) _buildProcessingOverlay(),
-          ],
+            ],
+          ),
         ),
-      ),
+      );
+      },
     );
   }
+
 
   Widget _buildSectionHeader(String title) {
     return Text(

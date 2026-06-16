@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/animated_background.dart';
+import '../../theme/theme_config.dart';
 import 'login_screen.dart';
 import 'payment_screen.dart';
 
@@ -13,8 +14,7 @@ class LandingPageScreen extends StatefulWidget {
 }
 
 class _LandingPageScreenState extends State<LandingPageScreen> {
-  bool? _isDarkModeState;
-  bool get _isDarkMode => _isDarkModeState ?? false;
+  bool get _isDarkMode => isDarkModeNotifier.value;
   late final ScrollController _scrollController;
   final GlobalKey _pricingSectionKey = GlobalKey();
 
@@ -22,12 +22,6 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _isDarkModeState ??= MediaQuery.of(context).platformBrightness == Brightness.dark;
   }
 
   @override
@@ -59,129 +53,132 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 800;
 
-    return Scaffold(
-      body: AnimatedBackground(
-        isDarkMode: _isDarkMode,
-        child: Stack(
-          children: [
-            // 1. Navigation Header
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 16,
-              left: 16,
-              right: 16,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    color: _isDarkMode ? Colors.black26 : Colors.white24,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // App Brand Logo
-                        Row(
+    return ValueListenableBuilder<bool>(
+      valueListenable: isDarkModeNotifier,
+      builder: (context, isDarkMode, child) {
+        return Scaffold(
+          body: AnimatedBackground(
+            isDarkMode: _isDarkMode,
+            child: Stack(
+              children: [
+                // 1. Navigation Header
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 16,
+                  left: 16,
+                  right: 16,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        color: _isDarkMode ? Colors.black26 : Colors.white24,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(
-                              Icons.school_rounded,
-                              color: const Color(0xFF155DFC),
-                              size: 28,
+                            // Logo and Branding
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.school_rounded,
+                                  color: const Color(0xFF155DFC),
+                                  size: 26,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Mrivan AI',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    color: _isDarkMode ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Mrivan AI',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                color: _isDarkMode ? Colors.white : Colors.black87,
-                              ),
+
+                            // Actions: Theme Switcher & Login
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    _isDarkMode ? Icons.lightbulb_rounded : Icons.school_rounded,
+                                    color: _isDarkMode ? Colors.amber : const Color(0xFF155DFC),
+                                  ),
+                                  onPressed: () {
+                                    isDarkModeNotifier.value = !_isDarkMode;
+                                  },
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton(
+                                  onPressed: _navigateToLogin,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _isDarkMode ? Colors.white10 : const Color(0xFF155DFC),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                  ),
+                                  child: const Text('Login'),
+                                ),
+                              ],
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 2. Main Scrollable Landing Sections
+                Positioned.fill(
+                  top: MediaQuery.of(context).padding.top + 80,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 30),
+                        ScrollFadeIn(
+                          controller: _scrollController,
+                          child: _buildHeroSection(isDesktop),
                         ),
 
-                        // Actions: Theme Switcher & Login
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                _isDarkMode ? Icons.lightbulb_rounded : Icons.school_rounded,
-                                color: _isDarkMode ? Colors.amber : const Color(0xFF155DFC),
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _isDarkModeState = !_isDarkMode;
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 12),
-                            ElevatedButton(
-                              onPressed: _navigateToLogin,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isDarkMode ? Colors.white10 : const Color(0xFF155DFC),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              ),
-                              child: const Text(
-                                'Sign In',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
+                        const SizedBox(height: 40),
+                        ScrollFadeIn(
+                          key: _pricingSectionKey,
+                          controller: _scrollController,
+                          child: _buildSectionHeader(
+                            'Flexible Pricing for Everyone',
+                            'Choose the tier that matches your goals. Get started for free, upgrade as you grow.',
+                          ),
                         ),
+                        const SizedBox(height: 24),
+                        _buildPricingGrid(isDesktop),
+
+                        const SizedBox(height: 60),
+                        ScrollFadeIn(
+                          controller: _scrollController,
+                          child: _buildCtaBanner(),
+                        ),
+
+                        const SizedBox(height: 40),
+                        Text(
+                          '© 2026 Mrivan AI CRM & AI Tutor. All rights reserved.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _isDarkMode ? Colors.white38 : Colors.black38,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-
-            // 2. Main Scrollable Landing Sections
-            Positioned.fill(
-              top: MediaQuery.of(context).padding.top + 80,
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 30),
-                    ScrollFadeIn(
-                      controller: _scrollController,
-                      child: _buildHeroSection(isDesktop),
-                    ),
-                    
-                    const SizedBox(height: 60),
-                    ScrollFadeIn(
-                      key: _pricingSectionKey,
-                      controller: _scrollController,
-                      child: _buildSectionHeader('Pricing Plans', 'Choose the speed that matches your studies'),
-                    ),
-                    const SizedBox(height: 24),
-                    _buildPricingGrid(isDesktop),
-
-                    const SizedBox(height: 60),
-                    ScrollFadeIn(
-                      controller: _scrollController,
-                      child: _buildCtaBanner(),
-                    ),
-
-                    const SizedBox(height: 40),
-                    Text(
-                      '© 2026 Mrivan AI CRM & AI Tutor. All rights reserved.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _isDarkMode ? Colors.white38 : Colors.black38,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
