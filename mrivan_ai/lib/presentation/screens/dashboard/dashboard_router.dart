@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/animated_background.dart';
 import '../../../data/services/database_service.dart';
+import '../auth/payment_screen.dart';
 
 // Sub-feature screens
 import '../student/ai_tutor_screen.dart';
@@ -36,6 +38,32 @@ class _DashboardRouterState extends State<DashboardRouter> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingPlanRedirect();
+    });
+  }
+
+  void _checkPendingPlanRedirect() {
+    final uri = Uri.base;
+    final planTitle = uri.queryParameters['plan_title'];
+    final planPrice = uri.queryParameters['plan_price'];
+    final planSubtitle = uri.queryParameters['plan_subtitle'];
+
+    if (planTitle != null && planPrice != null) {
+      // Clear query parameters in URL to prevent redirect loop on reload
+      SystemNavigator.routeInformationUpdated(location: '/');
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentScreen(
+            planTitle: planTitle,
+            planPrice: planPrice,
+            planSubtitle: planSubtitle ?? '',
+          ),
+        ),
+      );
+    }
   }
 
   // Fetch the logged-in user profile from Supabase

@@ -810,12 +810,8 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
               ),
               child: ElevatedButton(
                 onPressed: () {
-                  // Redirect to Login Screen to activate/link account
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (route) => false,
-                  );
+                  // Pop all routes to return to the root widget (which is now DashboardRouter because of active session)
+                  Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF155DFC),

@@ -5,9 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/animated_background.dart';
+import 'payment_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String? pendingPlanTitle;
+  final String? pendingPlanPrice;
+  final String? pendingPlanSubtitle;
+
+  const LoginScreen({
+    super.key,
+    this.pendingPlanTitle,
+    this.pendingPlanPrice,
+    this.pendingPlanSubtitle,
+  });
 
   static const String webClientId = '524472321619-ft3dc0catvgplebulv2bqrpakdi8uo18.apps.googleusercontent.com';
   // Android client ID registered with Package name com.ash.mrivan_ai
@@ -76,9 +86,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     try {
       if (kIsWeb) {
         // For Web, use Supabase's native OAuth flow to bypass google_sign_in package limitations
+        String redirectUrl = kDebugMode ? 'http://localhost:5000' : Uri.base.origin;
+        if (widget.pendingPlanTitle != null && widget.pendingPlanPrice != null) {
+          final encodedTitle = Uri.encodeComponent(widget.pendingPlanTitle!);
+          final encodedPrice = Uri.encodeComponent(widget.pendingPlanPrice!);
+          final encodedSubtitle = Uri.encodeComponent(widget.pendingPlanSubtitle ?? '');
+          redirectUrl = kDebugMode
+              ? 'http://localhost:5000/?plan_title=$encodedTitle&plan_price=$encodedPrice&plan_subtitle=$encodedSubtitle'
+              : '${Uri.base.origin}/?plan_title=$encodedTitle&plan_price=$encodedPrice&plan_subtitle=$encodedSubtitle';
+        }
+
         await Supabase.instance.client.auth.signInWithOAuth(
           OAuthProvider.google,
-          redirectTo: kDebugMode ? 'http://localhost:5000' : Uri.base.origin,
+          redirectTo: redirectUrl,
         );
         return;
       }
@@ -129,6 +149,25 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
       if (response.session == null) {
         throw Exception("Supabase login failed");
+      }
+
+      if (widget.pendingPlanTitle != null && widget.pendingPlanPrice != null) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PaymentScreen(
+                planTitle: widget.pendingPlanTitle!,
+                planPrice: widget.pendingPlanPrice!,
+                planSubtitle: widget.pendingPlanSubtitle ?? '',
+              ),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       String errorMessage = e.toString();

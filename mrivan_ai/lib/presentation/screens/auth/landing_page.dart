@@ -664,10 +664,10 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => PaymentScreen(
-                        planTitle: title,
-                        planPrice: price,
-                        planSubtitle: subtitle,
+                      builder: (context) => LoginScreen(
+                        pendingPlanTitle: title,
+                        pendingPlanPrice: price,
+                        pendingPlanSubtitle: subtitle,
                       ),
                     ),
                   );
