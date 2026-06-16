@@ -255,7 +255,7 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
 
             // Description
             Text(
-              'Meet MRVN—your 24/7 hyper-personalized study partner. Learn, practice, and succeed in any subject or language. Solve math calculations, draft study notes, analyze complex concepts, and take CBT mock diagnostics instantly.',
+              'Meet Mrivan AI—your 24/7 hyper-personalized study partner. Learn, practice, and succeed in any subject or language. Solve math calculations, draft study notes, analyze complex concepts, and take CBT mock diagnostics instantly.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
@@ -295,100 +295,9 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
   }
 
   Widget _buildFeaturesGrid(bool isDesktop) {
-    final double cardWidth = isDesktop ? 340 : double.infinity;
-    final List<Map<String, dynamic>> features = [
-      {
-        'title': 'MRVN AI Tutor',
-        'description': 'Get step-by-step solutions to physics equations, language tasks, or writing ideas, in any language.',
-        'icon': Icons.chat_bubble_outline_rounded,
-        'color': const Color(0xFF155DFC),
-      },
-      {
-        'title': 'AI Outline Builder',
-        'description': 'Generate comprehensive notes outlines and study summaries based on your class level instantly.',
-        'icon': Icons.auto_stories_outlined,
-        'color': Colors.blueAccent,
-      },
-      {
-        'title': 'CBT Test Diagnostics',
-        'description': 'Attempt mock quizzes with auto-grading logic to identify syllabus areas that need study.',
-        'icon': Icons.analytics_outlined,
-        'color': Colors.orangeAccent,
-      },
-      {
-        'title': 'unified School CRM',
-        'description': 'A shared workspace linking attendance logs, homework entries, and performance cards.',
-        'icon': Icons.checklist_rtl_rounded,
-        'color': Colors.tealAccent,
-      },
-    ];
-
-    return Center(
-      child: Wrap(
-        spacing: 20,
-        runSpacing: 20,
-        alignment: WrapAlignment.center,
-        children: List.generate(features.length, (index) {
-          final feat = features[index];
-          return ScrollFadeIn(
-            controller: _scrollController,
-            delayMs: index * 100.0,
-            child: _buildFeatureCard(
-              title: feat['title'] as String,
-              description: feat['description'] as String,
-              icon: feat['icon'] as IconData,
-              color: feat['color'] as Color,
-              width: cardWidth,
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildFeatureCard({
-    required String title,
-    required String description,
-    required IconData icon,
-    required Color color,
-    required double width,
-  }) {
-    return SizedBox(
-      width: width,
-      child: _buildGlassCard(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 28),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: _isDarkMode ? Colors.white : Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              description,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: _isDarkMode ? Colors.white70 : Colors.black54,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return CategoryFeaturesWidget(
+      isDarkMode: _isDarkMode,
+      scrollController: _scrollController,
     );
   }
 
@@ -400,19 +309,20 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
         runSpacing: 16,
         alignment: WrapAlignment.center,
         children: [
-          // 1. Basic Plan
+          // 1. Free Plan
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 0.0,
             child: _buildPricingCard(
-              title: 'Basic 📚',
+              title: 'Free Plan 📚',
               price: 'Free',
               subtitle: 'Essential features for single students',
               features: [
-                'Daily AI Tutor queries',
-                'Access to student dashboards',
-                'Standard study notes',
-                'Basic mock quizzes',
+                'Limited AI Tutor chats',
+                '5 doubt solutions/day',
+                'Basic notes',
+                'Limited tests',
+                'Community support',
               ],
               ctaText: 'Start Free',
               isPremium: false,
@@ -420,10 +330,57 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
             ),
           ),
 
-          // 2. Pro Student
+          // 2. Basic Plan
           ScrollFadeIn(
             controller: _scrollController,
             delayMs: 100.0,
+            child: _buildPricingCard(
+              title: 'Basic Plan ⚡',
+              price: '₹99',
+              subtitle: 'Affordable booster for self-study',
+              features: [
+                'Unlimited doubts',
+                'AI Tutor access',
+                'Notes generation',
+                'Homework help',
+                'Weekly mock tests',
+                'Progress tracking',
+              ],
+              ctaText: 'Get Basic',
+              isPremium: false,
+              width: cardWidth,
+            ),
+          ),
+
+          // 3. Campus Plan
+          ScrollFadeIn(
+            controller: _scrollController,
+            delayMs: 200.0,
+            child: _buildPricingCard(
+              title: 'Campus Plan 🏫',
+              price: '₹49–99',
+              subtitle: 'For schools and institutions',
+              features: [
+                'School Dashboard',
+                'Teacher Dashboard',
+                'Parent Dashboard',
+                'Attendance Management',
+                'Homework Management',
+                'School Analytics',
+                'Bulk Student Accounts',
+                'Custom Branding',
+                'Dedicated Support',
+              ],
+              ctaText: 'Contact School Admin',
+              isPremium: false,
+              width: cardWidth,
+            ),
+          ),
+
+          // 4. Pro Student
+          ScrollFadeIn(
+            controller: _scrollController,
+            delayMs: 300.0,
             child: _buildPricingCard(
               title: 'Pro Student 🚀',
               price: '₹299',
@@ -433,19 +390,20 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 'Unlimited AI chats',
                 'Personalized study plans',
                 'Voice AI Tutor',
-                'AI summaries & quizzes',
+                'AI summaries',
+                'AI quizzes',
                 'Priority support',
               ],
               ctaText: 'Upgrade to Pro',
-              isPremium: false,
+              isPremium: true,
               width: cardWidth,
             ),
           ),
 
-          // 3. Exam Aspirant
+          // 5. Exam Aspirant
           ScrollFadeIn(
             controller: _scrollController,
-            delayMs: 200.0,
+            delayMs: 400.0,
             child: _buildPricingCard(
               title: 'Exam Aspirant 🎯',
               price: '₹499',
@@ -459,15 +417,15 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 'Exam-specific AI mentor',
               ],
               ctaText: 'Get Aspirant Plan',
-              isPremium: true,
+              isPremium: false,
               width: cardWidth,
             ),
           ),
 
-          // 4. Premium AI
+          // 6. Premium AI
           ScrollFadeIn(
             controller: _scrollController,
-            delayMs: 300.0,
+            delayMs: 500.0,
             child: _buildPricingCard(
               title: 'Premium AI 🤖',
               price: '₹999',
@@ -482,30 +440,6 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                 'Early access features',
               ],
               ctaText: 'Get Ultimate AI',
-              isPremium: false,
-              width: cardWidth,
-            ),
-          ),
-
-          // 5. Campus Plan
-          ScrollFadeIn(
-            controller: _scrollController,
-            delayMs: 400.0,
-            child: _buildPricingCard(
-              title: 'Campus Plan 🏫',
-              price: '₹49–99',
-              subtitle: 'For schools and institutions',
-              features: [
-                'School & Teacher dashboards',
-                'Parent linkage portal',
-                'Attendance Management',
-                'Homework Management',
-                'School Analytics dashboard',
-                'Bulk student accounts',
-                'Custom branding config',
-                'Dedicated account support',
-              ],
-              ctaText: 'Contact School Admin',
               isPremium: false,
               width: cardWidth,
             ),
@@ -801,6 +735,270 @@ class _ScrollFadeInState extends State<ScrollFadeIn> with SingleTickerProviderSt
         );
       },
       child: widget.child,
+    );
+  }
+}
+
+class CategoryFeaturesWidget extends StatefulWidget {
+  final bool isDarkMode;
+  final ScrollController scrollController;
+
+  const CategoryFeaturesWidget({
+    super.key,
+    required this.isDarkMode,
+    required this.scrollController,
+  });
+
+  @override
+  State<CategoryFeaturesWidget> createState() => _CategoryFeaturesWidgetState();
+}
+
+class _CategoryFeaturesWidgetState extends State<CategoryFeaturesWidget> {
+  int _selectedCategoryIndex = 0;
+
+  final List<Map<String, dynamic>> _categories = [
+    {
+      'name': 'AI Learning Features',
+      'icon': Icons.psychology_rounded,
+      'features': [
+        {'title': 'AI Tutor for all subjects & classes', 'icon': Icons.chat_bubble_outline_rounded},
+        {'title': 'Multilingual learning support', 'icon': Icons.translate_rounded},
+        {'title': 'Voice-based learning interaction', 'icon': Icons.mic_rounded},
+        {'title': 'Personalized learning paths', 'icon': Icons.insights_rounded},
+        {'title': 'Concept explanations with examples', 'icon': Icons.lightbulb_outline_rounded},
+        {'title': 'Doubt-solving assistant', 'icon': Icons.help_outline_rounded},
+        {'title': 'Homework help', 'icon': Icons.menu_book_rounded},
+        {'title': 'Assignment generation', 'icon': Icons.assignment_rounded},
+        {'title': 'Notes generation', 'icon': Icons.edit_note_rounded},
+        {'title': 'Study planner', 'icon': Icons.calendar_month_rounded},
+      ],
+    },
+    {
+      'name': 'AI Productivity Tools',
+      'icon': Icons.bolt_rounded,
+      'features': [
+        {'title': 'AI Chat Assistant', 'icon': Icons.chat_rounded},
+        {'title': 'AI Writing Assistant', 'icon': Icons.create_rounded},
+        {'title': 'AI Research Assistant', 'icon': Icons.manage_search_rounded},
+        {'title': 'AI Presentation Generator', 'icon': Icons.slideshow_rounded},
+        {'title': 'AI Image Generation', 'icon': Icons.image_rounded},
+        {'title': 'AI Summarization', 'icon': Icons.summarize_rounded},
+        {'title': 'AI Translation', 'icon': Icons.g_translate_rounded},
+      ],
+    },
+    {
+      'name': 'School Features',
+      'icon': Icons.school_rounded,
+      'features': [
+        {'title': 'School dashboard', 'icon': Icons.dashboard_rounded},
+        {'title': 'Teacher dashboard', 'icon': Icons.people_alt_rounded},
+        {'title': 'Student dashboard', 'icon': Icons.person_pin_rounded},
+        {'title': 'Attendance management', 'icon': Icons.how_to_reg_rounded},
+        {'title': 'Homework tracking', 'icon': Icons.checklist_rtl_rounded},
+        {'title': 'Parent portal', 'icon': Icons.family_restroom_rounded},
+        {'title': 'Announcements and notices', 'icon': Icons.campaign_rounded},
+        {'title': 'School analytics', 'icon': Icons.analytics_rounded},
+      ],
+    },
+    {
+      'name': 'Exam Preparation',
+      'icon': Icons.edit_document,
+      'features': [
+        {'title': 'CBT simulations', 'icon': Icons.computer_rounded},
+        {'title': 'Mock tests for school exams', 'icon': Icons.quiz_rounded},
+        {'title': 'Competitive exam preparation', 'icon': Icons.stars_rounded},
+        {'title': 'Adaptive testing', 'icon': Icons.bar_chart_rounded},
+        {'title': 'Previous year question analysis', 'icon': Icons.history_edu_rounded},
+        {'title': 'Performance analytics', 'icon': Icons.trending_up_rounded},
+        {'title': 'Weak area identification', 'icon': Icons.report_problem_rounded},
+        {'title': 'Revision schedules', 'icon': Icons.schedule_rounded},
+      ],
+    },
+    {
+      'name': 'Content Library',
+      'icon': Icons.library_books_rounded,
+      'features': [
+        {'title': 'NCERT solutions', 'icon': Icons.menu_book_rounded},
+        {'title': 'Study materials', 'icon': Icons.book_rounded},
+        {'title': 'Question banks', 'icon': Icons.folder_open_rounded},
+        {'title': 'Practice worksheets', 'icon': Icons.article_rounded},
+        {'title': 'Video lessons', 'icon': Icons.video_library_rounded},
+        {'title': 'Interactive quizzes', 'icon': Icons.sports_esports_rounded},
+      ],
+    },
+    {
+      'name': 'Campus Plan Features',
+      'icon': Icons.business_rounded,
+      'features': [
+        {'title': 'School-wide licenses', 'icon': Icons.vpn_key_rounded},
+        {'title': 'Admin controls', 'icon': Icons.admin_panel_settings_rounded},
+        {'title': 'Bulk student onboarding', 'icon': Icons.group_add_rounded},
+        {'title': 'Institution analytics', 'icon': Icons.donut_large_rounded},
+        {'title': 'Custom branding', 'icon': Icons.palette_rounded},
+        {'title': 'Dedicated support', 'icon': Icons.support_agent_rounded},
+      ],
+    },
+    {
+      'name': 'Community Features',
+      'icon': Icons.groups_rounded,
+      'features': [
+        {'title': 'Student communities', 'icon': Icons.group_work_rounded},
+        {'title': 'Discussion forums', 'icon': Icons.forum_rounded},
+        {'title': 'Peer learning groups', 'icon': Icons.connect_without_contact_rounded},
+        {'title': 'Mentor support', 'icon': Icons.supervised_user_circle_rounded},
+      ],
+    },
+    {
+      'name': 'Platform Features',
+      'icon': Icons.cloud_done_rounded,
+      'features': [
+        {'title': 'Cloud-based access', 'icon': Icons.cloud_done_rounded},
+        {'title': 'Mobile-friendly platform', 'icon': Icons.phone_android_rounded},
+        {'title': 'Secure data storage', 'icon': Icons.security_rounded},
+        {'title': 'Scalable infrastructure', 'icon': Icons.dns_rounded},
+        {'title': 'Multi-device synchronization', 'icon': Icons.sync_rounded},
+        {'title': '24/7 availability', 'icon': Icons.more_time_rounded},
+      ],
+    },
+    {
+      'name': 'Future Features (recommended)',
+      'icon': Icons.rocket_launch_rounded,
+      'features': [
+        {'title': 'AI Voice Tutor', 'icon': Icons.keyboard_voice_rounded},
+        {'title': 'Live AI Classes', 'icon': Icons.live_tv_rounded},
+        {'title': 'AI Career Guidance', 'icon': Icons.work_outline_rounded},
+        {'title': 'Scholarship Finder', 'icon': Icons.card_membership_rounded},
+        {'title': 'College Admission Assistant', 'icon': Icons.account_balance_rounded},
+        {'title': 'AI Coding Tutor', 'icon': Icons.code_rounded},
+        {'title': 'AI Interview Preparation', 'icon': Icons.record_voice_over_rounded},
+        {'title': 'AI Resume Builder', 'icon': Icons.contact_page_rounded},
+        {'title': 'AI Project Generator', 'icon': Icons.construction_rounded},
+        {'title': 'Offline Learning Mode', 'icon': Icons.cloud_off_rounded},
+      ],
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth > 800;
+
+    return Column(
+      children: [
+        // Category Tabs selector (wrap for flexibility)
+        Center(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: List.generate(_categories.length, (index) {
+              final cat = _categories[index];
+              final isSelected = index == _selectedCategoryIndex;
+
+              return ChoiceChip(
+                label: Text(
+                  cat['name'] as String,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected
+                        ? Colors.white
+                        : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: const Color(0xFF155DFC),
+                backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: isSelected 
+                        ? Colors.transparent 
+                        : (widget.isDarkMode ? Colors.white12 : Colors.black12),
+                  ),
+                ),
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _selectedCategoryIndex = index;
+                    });
+                  }
+                },
+              );
+            }),
+          ),
+        ),
+        const SizedBox(height: 32),
+
+        // Grid of Features in Selected Category (rebuilt with new key to trigger scroll fade in animations again on click!)
+        KeyedSubtree(
+          key: ValueKey(_selectedCategoryIndex),
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            alignment: WrapAlignment.center,
+            children: List.generate(
+              (_categories[_selectedCategoryIndex]['features'] as List).length,
+              (index) {
+                final feat = (_categories[_selectedCategoryIndex]['features'] as List)[index];
+                return ScrollFadeIn(
+                  controller: widget.scrollController,
+                  delayMs: index * 50.0,
+                  child: SizedBox(
+                    width: isDesktop ? 240 : double.infinity,
+                    child: _buildFeatureMicroCard(
+                      title: feat['title'] as String,
+                      icon: feat['icon'] as IconData,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureMicroCard({required String title, required IconData icon}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: widget.isDarkMode ? Colors.black.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: widget.isDarkMode ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.45),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF155DFC).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: const Color(0xFF155DFC), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: widget.isDarkMode ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
