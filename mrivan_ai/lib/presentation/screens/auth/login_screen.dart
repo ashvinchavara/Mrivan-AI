@@ -24,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   late final AnimationController _cardFadeController;
 
   // Google OAuth Credentials Config
-  static const String _webClientId = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
+  static const String _webClientId = '524472321619-ft3dc0catvgplebulv2bqrpakdi8uo18.apps.googleusercontent.com';
   static const String _iosClientId = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
 
   // Cloud configuration list
@@ -341,8 +341,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                               mainAxisAlignment: MainAxisAlignment.center,
                                               children: [
                                                 Image.network(
-                                                  'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/24px-Google_%22G%22_logo.svg.png',
+                                                  'https://developers.google.com/identity/images/g-logo.png',
                                                   height: 20,
+                                                  errorBuilder: (context, error, stackTrace) => Icon(
+                                                    Icons.g_mobiledata_rounded,
+                                                    color: _isDarkMode ? Colors.white70 : Colors.blue,
+                                                    size: 26,
+                                                  ),
                                                 ),
                                                 const SizedBox(width: 12),
                                                 Text(
