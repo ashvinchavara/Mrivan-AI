@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -16,25 +15,19 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   late final StreamSubscription<AuthState> _authSubscription;
   
-  // Text Editing Controllers for Email Form
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  
   bool _isLoading = false;
-  bool _isObscure = true;
-  bool _isDarkMode = false; // Toggle for Cloud/Rain Cloud backgrounds
+  bool _isDarkMode = false; // Toggle state
 
   // Animation Controllers for Background
   late final AnimationController _cloudsController;
-  late final AnimationController _rainController;
+  late final AnimationController _themeTransitionController; // Smooth transition controller
   late final AnimationController _cardFadeController;
 
   // Google OAuth Credentials Config
   static const String _webClientId = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
   static const String _iosClientId = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
 
-  // Rain Drops and Cloud configuration lists
-  late final List<RainDrop> _rainDrops;
+  // Cloud configuration list
   late final List<FloatingCloud> _clouds;
 
   @override
@@ -43,32 +36,22 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
     // 1. Initialize background animations
     _cloudsController = AnimationController(
-      duration: const Duration(seconds: 40),
+      duration: const Duration(seconds: 45),
       vsync: this,
     )..repeat();
 
-    _rainController = AnimationController(
-      duration: const Duration(seconds: 2),
+    // Controller to smoothly lerp values between Light and Dark mode
+    _themeTransitionController = AnimationController(
+      duration: const Duration(milliseconds: 700),
       vsync: this,
-    )..repeat();
+    );
 
     _cardFadeController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     )..forward();
 
-    // 2. Initialize rain and cloud arrays
-    final rand = math.Random();
-    _rainDrops = List.generate(80, (index) {
-      return RainDrop(
-        x: rand.nextDouble(),
-        y: rand.nextDouble(),
-        speed: 10 + rand.nextDouble() * 15,
-        length: 8 + rand.nextDouble() * 12,
-        weight: 0.8 + rand.nextDouble() * 1.5,
-      );
-    });
-
+    // 2. Initialize cloud coordinates
     _clouds = [
       FloatingCloud(xOffset: -0.2, yOffset: 0.12, speed: 0.015, scale: 1.3, opacity: 0.7),
       FloatingCloud(xOffset: 0.25, yOffset: 0.35, speed: 0.01, scale: 0.9, opacity: 0.5),
@@ -104,10 +87,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   @override
   void dispose() {
     _authSubscription.cancel();
-    _emailController.dispose();
-    _passwordController.dispose();
     _cloudsController.dispose();
-    _rainController.dispose();
+    _themeTransitionController.dispose();
     _cardFadeController.dispose();
     super.dispose();
   }
@@ -173,74 +154,21 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     }
   }
 
-  // Supabase Email / Password login
-  Future<void> _handleEmailPasswordSignIn() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in both email and password.'),
-          backgroundColor: Colors.orangeAccent,
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-    } on AuthException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.message),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Unexpected error: ${error.toString()}'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. Animated Sky Background (Light Sky vs Dark Rain Clouds)
+          // 1. Smoothly Transitioning Sky Background (Gradients & Clouds dynamically interpolate)
           Positioned.fill(
             child: AnimatedBuilder(
-              animation: Listenable.merge([_cloudsController, _rainController]),
+              animation: Listenable.merge([_cloudsController, _themeTransitionController]),
               builder: (context, child) {
                 return CustomPaint(
                   painter: SkyPainter(
-                    isDarkMode: _isDarkMode,
+                    themeTransition: _themeTransitionController.value,
                     cloudsAnimation: _cloudsController.value,
-                    rainAnimation: _rainController.value,
                     clouds: _clouds,
-                    rainDrops: _rainDrops,
                   ),
                 );
               },
@@ -273,6 +201,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                     onPressed: () {
                       setState(() {
                         _isDarkMode = !_isDarkMode;
+                        if (_isDarkMode) {
+                          _themeTransitionController.forward();
+                        } else {
+                          _themeTransitionController.reverse();
+                        }
                       });
                     },
                   ),
@@ -281,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             ),
           ),
 
-          // 3. Central Login Card
+          // 3. Central Login Card (Constrained & simplified to Google-only)
           Positioned.fill(
             child: SafeArea(
               child: Center(
@@ -299,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                           curve: Curves.easeOutBack,
                         )),
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 400),
+                          constraints: const BoxConstraints(maxWidth: 380),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(28),
                             child: BackdropFilter(
@@ -355,7 +288,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
                                       // Sign in header
                                       Text(
-                                        'Sign in with email',
+                                        'Sign in to Mrivan AI',
                                         style: TextStyle(
                                           fontSize: 22,
                                           fontWeight: FontWeight.bold,
@@ -365,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        'Make a new doc to bring your words, data, and teams together. For free',
+                                        'Access your CRM dashboard and subjects tutor instantly.',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           fontSize: 13,
@@ -373,158 +306,67 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                           height: 1.35,
                                         ),
                                       ),
-                                      const SizedBox(height: 28),
+                                      const SizedBox(height: 32),
 
-                                      // Email Field
-                                      _buildTextField(
-                                        controller: _emailController,
-                                        hintText: 'Email',
-                                        icon: Icons.mail_outline_rounded,
-                                        isDark: _isDarkMode,
-                                      ),
-                                      const SizedBox(height: 16),
-
-                                      // Password Field
-                                      _buildTextField(
-                                        controller: _passwordController,
-                                        hintText: 'Password',
-                                        icon: Icons.lock_outline_rounded,
-                                        isDark: _isDarkMode,
-                                        obscureText: _isObscure,
-                                        suffixIcon: IconButton(
-                                          icon: Icon(
-                                            _isObscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                            size: 20,
-                                            color: _isDarkMode ? Colors.white54 : Colors.black45,
-                                          ),
-                                          onPressed: () {
-                                            setState(() {
-                                              _isObscure = !_isObscure;
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-
-                                      // Forgot Password link
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: TextButton(
-                                          onPressed: () {
-                                            // Handle forgot password logic
-                                          },
-                                          style: TextButton.styleFrom(
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: const Size(50, 30),
-                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          ),
-                                          child: Text(
-                                            'Forgot password?',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: _isDarkMode ? Colors.white70 : Colors.black54,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 20),
-
-                                      // Submit Button (Get Started)
+                                      // Google Sign-In Card Button
                                       if (_isLoading)
                                         const CircularProgressIndicator(
                                           valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
                                         )
                                       else
-                                        ElevatedButton(
-                                          onPressed: _handleEmailPasswordSignIn,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF1E1E2C),
-                                            foregroundColor: Colors.white,
-                                            minimumSize: const Size(double.infinity, 48),
-                                            elevation: 0,
-                                            shape: RoundedRectangleBorder(
+                                        InkWell(
+                                          onTap: _handleGoogleSignIn,
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Container(
+                                            width: double.infinity,
+                                            height: 50,
+                                            decoration: BoxDecoration(
+                                              color: _isDarkMode ? Colors.white.withValues(alpha: 0.08) : Colors.white,
                                               borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: _isDarkMode
+                                                    ? Colors.white.withValues(alpha: 0.1)
+                                                    : Colors.black.withValues(alpha: 0.06),
+                                                width: 1,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withValues(alpha: 0.02),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 4),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                          child: const Text(
-                                            'Get Started',
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Image.network(
+                                                  'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/24px-Google_%22G%22_logo.svg.png',
+                                                  height: 20,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Text(
+                                                  'Continue with Google',
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: _isDarkMode ? Colors.white : Colors.black87,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ),
-                                      const SizedBox(height: 24),
+                                      const SizedBox(height: 32),
 
-                                      // Social Divider
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Divider(
-                                              color: _isDarkMode ? Colors.white10 : Colors.black12,
-                                              thickness: 1,
-                                            ),
-                                          ),
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                                            child: Text(
-                                              'Or sign in with',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: _isDarkMode ? Colors.white38 : Colors.black38,
-                                              ),
-                                            ),
-                                          ),
-                                          Expanded(
-                                            child: Divider(
-                                              color: _isDarkMode ? Colors.white10 : Colors.black12,
-                                              thickness: 1,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 20),
-
-                                      // Social Sign-in Cards (Google, Facebook, Apple)
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          _buildSocialButton(
-                                            child: Image.network(
-                                              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/24px-Google_%22G%22_logo.svg.png',
-                                              height: 20,
-                                            ),
-                                            onTap: _handleGoogleSignIn,
-                                            isDark: _isDarkMode,
-                                          ),
-                                          _buildSocialButton(
-                                            child: Icon(
-                                              Icons.facebook,
-                                              color: Colors.blue.shade700,
-                                              size: 24,
-                                            ),
-                                            onTap: () {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(content: Text('Facebook login in development.')),
-                                              );
-                                            },
-                                            isDark: _isDarkMode,
-                                          ),
-                                          _buildSocialButton(
-                                            child: Icon(
-                                              Icons.apple,
-                                              color: _isDarkMode ? Colors.white : Colors.black,
-                                              size: 24,
-                                            ),
-                                            onTap: () {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(content: Text('Apple login in development.')),
-                                              );
-                                            },
-                                            isDark: _isDarkMode,
-                                          ),
-                                        ],
+                                      // Terms and conditions disclaimer
+                                      Text(
+                                        'By continuing, you agree to our Terms of Service and Privacy Policy.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: _isDarkMode ? Colors.white30 : Colors.black38,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -544,97 +386,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       ),
     );
   }
-
-  // Frosted text input helper
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hintText,
-    required IconData icon,
-    required bool isDark,
-    bool obscureText = false,
-    Widget? suffixIcon,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      style: TextStyle(
-        fontSize: 14,
-        color: isDark ? Colors.white : Colors.black87,
-      ),
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: TextStyle(
-          color: isDark ? Colors.white54 : Colors.black45,
-          fontSize: 14,
-        ),
-        prefixIcon: Icon(
-          icon,
-          size: 20,
-          color: isDark ? Colors.white54 : Colors.black45,
-        ),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
-            width: 1.0,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: Colors.deepPurple.shade300,
-            width: 1.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Frosted social sign-in card helper
-  Widget _buildSocialButton({
-    required Widget child,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 100,
-        height: 48,
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
-            width: 1,
-          ),
-        ),
-        child: Center(child: child),
-      ),
-    );
-  }
-}
-
-// Helper Model for Rain Drops
-class RainDrop {
-  double x;
-  double y;
-  double speed;
-  double length;
-  double weight;
-
-  RainDrop({
-    required this.x,
-    required this.y,
-    required this.speed,
-    required this.length,
-    required this.weight,
-  });
 }
 
 // Helper Model for Floating Clouds
@@ -654,20 +405,16 @@ class FloatingCloud {
   });
 }
 
-// Background Custom Painter for Animations
+// Background Custom Painter for Transitions (Linear Interpolations)
 class SkyPainter extends CustomPainter {
-  final bool isDarkMode;
+  final double themeTransition; // 0.0 = Light Mode, 1.0 = Dark Mode
   final double cloudsAnimation;
-  final double rainAnimation;
   final List<FloatingCloud> clouds;
-  final List<RainDrop> rainDrops;
 
   SkyPainter({
-    required this.isDarkMode,
+    required this.themeTransition,
     required this.cloudsAnimation,
-    required this.rainAnimation,
     required this.clouds,
-    required this.rainDrops,
   });
 
   @override
@@ -675,33 +422,34 @@ class SkyPainter extends CustomPainter {
     final Rect rect = Offset.zero & size;
     final Paint backgroundPaint = Paint();
     
-    // Background gradient setup
-    if (!isDarkMode) {
-      backgroundPaint.shader = const LinearGradient(
-        colors: [
-          Color(0xFFD4ECFF), // Soft sky blue gradient
-          Color(0xFFEBF6FF),
-          Color(0xFFFFFFFF),
-        ],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(rect);
-    } else {
-      backgroundPaint.shader = const LinearGradient(
-        colors: [
-          Color(0xFF0F172A), // Slate dark mode gradient
-          Color(0xFF1E1B4B), // indigo shade
-          Color(0xFF0C0A20), // deep midnight
-        ],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(rect);
-    }
+    // 1. Smoothly interpolate background gradient top/bottom colors
+    final Color topColor = Color.lerp(
+      const Color(0xFFD4ECFF), // Light top (soft blue)
+      const Color(0xFF0F172A), // Dark top (stormy navy slate)
+      themeTransition
+    )!;
+    final Color bottomColor = Color.lerp(
+      const Color(0xFFFFFFFF), // Light bottom (white)
+      const Color(0xFF070512), // Dark bottom (deep night black)
+      themeTransition
+    )!;
+
+    backgroundPaint.shader = LinearGradient(
+      colors: [topColor, bottomColor],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    ).createShader(rect);
     canvas.drawRect(rect, backgroundPaint);
 
-    // Arch lines drawn in background (matches concentric circle lines from Ebolt UI design)
+    // 2. Smoothly interpolate background arch colors
+    final Color archColor = Color.lerp(
+      const Color(0xFFCBE3FE).withValues(alpha: 0.4),
+      Colors.white.withValues(alpha: 0.05),
+      themeTransition
+    )!;
+    
     final Paint archPaint = Paint()
-      ..color = (isDarkMode ? Colors.white12 : const Color(0xFFCBE3FE)).withValues(alpha: isDarkMode ? 0.05 : 0.4)
+      ..color = archColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     
@@ -709,38 +457,30 @@ class SkyPainter extends CustomPainter {
     canvas.drawCircle(Offset(size.width / 2, size.height * 1.05), size.height * 0.75, archPaint);
     canvas.drawCircle(Offset(size.width / 2, size.height * 1.05), size.height * 0.95, archPaint);
 
-    // Floating Clouds rendering
+    // 3. Render drifting clouds with interpolated styles
     for (var cloud in clouds) {
-      // Calculate current horizontal shift
       final double x = ((cloud.xOffset + cloudsAnimation * cloud.speed * 10) % 1.5 - 0.35) * size.width;
       final double y = cloud.yOffset * size.height;
-      _drawCloudShape(canvas, Offset(x, y), cloud.scale, cloud.opacity, isDarkMode);
-    }
-
-    // Rain drop lines (drawn only in Dark Mode/Storm clouds)
-    if (isDarkMode) {
-      final Paint rainPaint = Paint()
-        ..color = const Color(0xFF93C5FD).withValues(alpha: 0.25)
-        ..style = PaintingStyle.stroke;
-
-      for (var drop in rainDrops) {
-        final double rx = drop.x * size.width;
-        // Animates moving down and wrapping around the screen
-        final double ry = (drop.y * size.height + rainAnimation * drop.speed * 300) % size.height;
-        
-        rainPaint.strokeWidth = drop.weight;
-        canvas.drawLine(Offset(rx, ry), Offset(rx, ry + drop.length), rainPaint);
-      }
+      _drawCloudShape(canvas, Offset(x, y), cloud.scale, cloud.opacity);
     }
   }
 
-  // Draw soft cloud shapes combining circles
-  void _drawCloudShape(Canvas canvas, Offset center, double scale, double opacity, bool isDark) {
+  // Draw soft cloud shapes by combining overlapping circular shapes
+  void _drawCloudShape(Canvas canvas, Offset center, double scale, double opacity) {
+    // Interpolate cloud body color (white to dark slate-grey)
+    final Color cloudColor = Color.lerp(
+      Colors.white.withValues(alpha: opacity * 0.85),
+      const Color(0xFF2E384D).withValues(alpha: opacity * 0.55),
+      themeTransition
+    )!;
+
     final Paint cloudPaint = Paint()
-      ..color = (isDark ? const Color(0xFF334155) : Colors.white).withValues(alpha: opacity * (isDark ? 0.5 : 0.85))
+      ..color = cloudColor
       ..style = PaintingStyle.fill;
     
-    cloudPaint.maskFilter = MaskFilter.blur(BlurStyle.normal, (isDark ? 16.0 : 12.0) * scale);
+    // Interpolate cloud blur radius (fuzzy light clouds vs highly blurred night storm clouds)
+    final double blurSigma = lerpDouble(12.0, 18.0, themeTransition)!;
+    cloudPaint.maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma * scale);
 
     final double baseRadius = 35 * scale;
     canvas.drawCircle(center, baseRadius, cloudPaint);
