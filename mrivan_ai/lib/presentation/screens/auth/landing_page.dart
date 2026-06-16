@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../widgets/animated_background.dart';
@@ -16,10 +15,15 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
   bool get _isDarkMode => _isDarkModeState ?? false;
   late final ScrollController _scrollController;
 
+  // Scrollytelling pricing state
+  double _maxScrollOffsetReached = 0.0;
+  bool _hasFinishedIntro = false;
+
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -30,8 +34,20 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients) {
+      final double offset = _scrollController.offset;
+      if (offset > _maxScrollOffsetReached) {
+        setState(() {
+          _maxScrollOffsetReached = offset;
+        });
+      }
+    }
   }
 
   void _navigateToLogin() {
@@ -310,163 +326,238 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
   }
 
   Widget _buildPricingGrid(bool isDesktop) {
+    if (_hasFinishedIntro) {
+      return _buildStaticPricingGrid(isDesktop);
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final renderBox = context.findRenderObject() as RenderBox?;
+        if (renderBox == null || !renderBox.hasSize || !renderBox.attached) {
+          // Fallback first card centered before grid is laid out
+          return Center(
+            child: SizedBox(
+              height: 580,
+              width: isDesktop ? 300.0 : double.infinity,
+              child: _buildPricingCardByIndex(0, isDesktop ? 300.0 : double.infinity),
+            ),
+          );
+        }
+
+        final position = renderBox.localToGlobal(Offset.zero);
+        final screenHeight = MediaQuery.of(context).size.height;
+
+        // Total scroll range allocated to transition through all 6 cards
+        final double totalScrollDistance = screenHeight * 0.85 + 250.0;
+        final double globalY = _scrollController.offset + position.dy;
+        final double startAnimatingScrollOffset = globalY - screenHeight * 0.85;
+        
+        final double currentScroll = (_maxScrollOffsetReached - startAnimatingScrollOffset).clamp(0.0, totalScrollDistance);
+
+        // Transition to static once presentation has completely scrolled by
+        if (currentScroll >= totalScrollDistance - 5.0) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_hasFinishedIntro) {
+              setState(() {
+                _hasFinishedIntro = true;
+              });
+            }
+          });
+          return _buildStaticPricingGrid(isDesktop);
+        }
+
+        final double cardSlice = totalScrollDistance / 6.0;
+
+        return Center(
+          child: SizedBox(
+            height: 580,
+            width: isDesktop ? 300.0 : double.infinity,
+            child: Stack(
+              children: List.generate(6, (index) {
+                double opacity = 0.0;
+                Offset translation = Offset.zero;
+                double scale = 1.0;
+                double rotation = 0.0;
+
+                double cardStart = index * cardSlice;
+                double cardEnd = (index + 1) * cardSlice;
+
+                if (currentScroll >= cardStart && currentScroll <= cardEnd) {
+                  double t = (currentScroll - cardStart) / cardSlice;
+                  if (t < 0.25) {
+                    // Throw in from bottom-right (X = 1.2, Y = 1.2) to center (0.0, 0.0)
+                    double progress = t / 0.25;
+                    double ease = Curves.easeOutCubic.transform(progress);
+                    opacity = ease;
+                    translation = Offset(1.2 * (1.0 - ease), 1.2 * (1.0 - ease));
+                    scale = 0.9 + 0.1 * ease;
+                    rotation = 0.15 * (1.0 - ease);
+                  } else if (t < 0.75) {
+                    // Pause in center
+                    opacity = 1.0;
+                    translation = Offset.zero;
+                    scale = 1.0;
+                    rotation = 0.0;
+                  } else {
+                    // Slide out to top-left (X = -1.2, Y = -1.2)
+                    double progress = (t - 0.75) / 0.25;
+                    double ease = Curves.easeInCubic.transform(progress);
+                    opacity = 1.0 - ease;
+                    translation = Offset(-1.2 * ease, -1.2 * ease);
+                    scale = 1.0 - 0.05 * ease;
+                    rotation = -0.15 * ease;
+                  }
+                }
+
+                if (opacity <= 0.0) return const SizedBox.shrink();
+
+                return Positioned.fill(
+                  child: Opacity(
+                    opacity: opacity,
+                    child: Transform.scale(
+                      scale: scale,
+                      child: FractionalTranslation(
+                        translation: translation,
+                        child: Transform.rotate(
+                          angle: rotation,
+                          child: _buildPricingCardByIndex(index, isDesktop ? 300.0 : double.infinity),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStaticPricingGrid(bool isDesktop) {
     final double cardWidth = isDesktop ? 300.0 : double.infinity;
     return Center(
       child: Wrap(
         spacing: 16,
         runSpacing: 16,
         alignment: WrapAlignment.center,
-        children: [
-          // 1. Free Plan
-          ScrollFadeIn(
-            controller: _scrollController,
-            delayMs: 0.0,
-            beginOffset: const Offset(0.2, 0.0),
-            beginRotation: 2 * pi,
-            child: _buildPricingCard(
-              title: 'Free Plan 📚',
-              price: 'Free',
-              subtitle: 'Essential features for single students',
-              features: [
-                'Limited AI Tutor chats',
-                '5 doubt solutions/day',
-                'Basic notes',
-                'Limited tests',
-                'Community support',
-              ],
-              ctaText: 'Start Free',
-              isPremium: false,
-              width: cardWidth,
-            ),
-          ),
-
-          // 2. Basic Plan
-          ScrollFadeIn(
-            controller: _scrollController,
-            delayMs: 100.0,
-            beginOffset: const Offset(0.2, 0.0),
-            beginRotation: 2 * pi,
-            child: _buildPricingCard(
-              title: 'Basic Plan ⚡',
-              price: '₹99',
-              subtitle: 'Affordable booster for self-study',
-              features: [
-                'Unlimited doubts',
-                'AI Tutor access',
-                'Notes generation',
-                'Homework help',
-                'Weekly mock tests',
-                'Progress tracking',
-              ],
-              ctaText: 'Get Basic',
-              isPremium: false,
-              width: cardWidth,
-            ),
-          ),
-
-          // 3. Campus Plan
-          ScrollFadeIn(
-            controller: _scrollController,
-            delayMs: 200.0,
-            beginOffset: const Offset(0.2, 0.0),
-            beginRotation: 2 * pi,
-            child: _buildPricingCard(
-              title: 'Campus Plan 🏫',
-              price: '₹49–99',
-              subtitle: 'For schools and institutions',
-              features: [
-                'School Dashboard',
-                'Teacher Dashboard',
-                'Parent Dashboard',
-                'Attendance Management',
-                'Homework Management',
-                'School Analytics',
-                'Bulk Student Accounts',
-                'Custom Branding',
-                'Dedicated Support',
-              ],
-              ctaText: 'Contact School Admin',
-              isPremium: false,
-              width: cardWidth,
-            ),
-          ),
-
-          // 4. Pro Student
-          ScrollFadeIn(
-            controller: _scrollController,
-            delayMs: 300.0,
-            beginOffset: const Offset(0.2, 0.0),
-            beginRotation: 2 * pi,
-            child: _buildPricingCard(
-              title: 'Pro Student 🚀',
-              price: '₹299',
-              subtitle: 'Unlimited learning & AI tools',
-              features: [
-                'Everything in Basic',
-                'Unlimited AI chats',
-                'Personalized study plans',
-                'Voice AI Tutor',
-                'AI summaries',
-                'AI quizzes',
-                'Priority support',
-              ],
-              ctaText: 'Upgrade to Pro',
-              isPremium: true,
-              width: cardWidth,
-            ),
-          ),
-
-          // 5. Exam Aspirant
-          ScrollFadeIn(
-            controller: _scrollController,
-            delayMs: 400.0,
-            beginOffset: const Offset(0.2, 0.0),
-            beginRotation: 2 * pi,
-            child: _buildPricingCard(
-              title: 'Exam Aspirant 🎯',
-              price: '₹499',
-              subtitle: 'Cracking competitive tests',
-              features: [
-                'Everything in Pro',
-                'CBT Mock Tests',
-                'Previous Year Questions',
-                'Performance analytics',
-                'Revision planner',
-                'Exam-specific AI mentor',
-              ],
-              ctaText: 'Get Aspirant Plan',
-              isPremium: false,
-              width: cardWidth,
-            ),
-          ),
-
-          // 6. Premium AI
-          ScrollFadeIn(
-            controller: _scrollController,
-            delayMs: 500.0,
-            beginOffset: const Offset(0.2, 0.0),
-            beginRotation: 2 * pi,
-            child: _buildPricingCard(
-              title: 'Premium AI 🤖',
-              price: '₹999',
-              subtitle: 'Ultimate researcher & advisor tools',
-              features: [
-                'Everything in Exam Aspirant',
-                'AI Research Assistant',
-                'AI Presentation Maker',
-                'AI Image Generator',
-                'AI Coding Tutor',
-                'AI Career Counselor',
-                'Early access features',
-              ],
-              ctaText: 'Get Ultimate AI',
-              isPremium: false,
-              width: cardWidth,
-            ),
-          ),
-        ],
+        children: List.generate(6, (index) {
+          return _buildPricingCardByIndex(index, cardWidth);
+        }),
       ),
     );
+  }
+
+  Widget _buildPricingCardByIndex(int index, double cardWidth) {
+    switch (index) {
+      case 0:
+        return _buildPricingCard(
+          title: 'Free Plan 📚',
+          price: 'Free',
+          subtitle: 'Essential features for single students',
+          features: [
+            'Limited AI Tutor chats',
+            '5 doubt solutions/day',
+            'Basic notes',
+            'Limited tests',
+            'Community support',
+          ],
+          ctaText: 'Start Free',
+          isPremium: false,
+          width: cardWidth,
+        );
+      case 1:
+        return _buildPricingCard(
+          title: 'Basic Plan ⚡',
+          price: '₹99',
+          subtitle: 'Affordable booster for self-study',
+          features: [
+            'Unlimited doubts',
+            'AI Tutor access',
+            'Notes generation',
+            'Homework help',
+            'Weekly mock tests',
+            'Progress tracking',
+          ],
+          ctaText: 'Get Basic',
+          isPremium: false,
+          width: cardWidth,
+        );
+      case 2:
+        return _buildPricingCard(
+          title: 'Campus Plan 🏫',
+          price: '₹49–99',
+          subtitle: 'For schools and institutions',
+          features: [
+            'School Dashboard',
+            'Teacher Dashboard',
+            'Parent Dashboard',
+            'Attendance Management',
+            'Homework Management',
+            'School Analytics',
+            'Bulk Student Accounts',
+            'Custom Branding',
+            'Dedicated Support',
+          ],
+          ctaText: 'Contact School Admin',
+          isPremium: false,
+          width: cardWidth,
+        );
+      case 3:
+        return _buildPricingCard(
+          title: 'Pro Student 🚀',
+          price: '₹299',
+          subtitle: 'Unlimited learning & AI tools',
+          features: [
+            'Everything in Basic',
+            'Unlimited AI chats',
+            'Personalized study plans',
+            'Voice AI Tutor',
+            'AI summaries',
+            'AI quizzes',
+            'Priority support',
+          ],
+          ctaText: 'Upgrade to Pro',
+          isPremium: true,
+          width: cardWidth,
+        );
+      case 4:
+        return _buildPricingCard(
+          title: 'Exam Aspirant 🎯',
+          price: '₹499',
+          subtitle: 'Cracking competitive tests',
+          features: [
+            'Everything in Pro',
+            'CBT Mock Tests',
+            'Previous Year Questions',
+            'Performance analytics',
+            'Revision planner',
+            'Exam-specific AI mentor',
+          ],
+          ctaText: 'Get Aspirant Plan',
+          isPremium: false,
+          width: cardWidth,
+        );
+      case 5:
+      default:
+        return _buildPricingCard(
+          title: 'Premium AI 🤖',
+          price: '₹999',
+          subtitle: 'Ultimate researcher & advisor tools',
+          features: [
+            'Everything in Exam Aspirant',
+            'AI Research Assistant',
+            'AI Presentation Maker',
+            'AI Image Generator',
+            'AI Coding Tutor',
+            'AI Career Counselor',
+            'Early access features',
+          ],
+          ctaText: 'Get Ultimate AI',
+          isPremium: false,
+          width: cardWidth,
+        );
+    }
   }
 
   Widget _buildPricingCard({

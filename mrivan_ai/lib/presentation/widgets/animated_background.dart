@@ -47,10 +47,10 @@ class _AnimatedBackgroundState extends State<AnimatedBackground> with TickerProv
     }
 
     _clouds = [
-      FloatingCloud(xOffset: -0.2, yOffset: 0.12, speed: 0.015, scale: 1.3, opacity: 0.7),
-      FloatingCloud(xOffset: 0.25, yOffset: 0.35, speed: 0.01, scale: 0.9, opacity: 0.5),
-      FloatingCloud(xOffset: 0.65, yOffset: 0.18, speed: 0.02, scale: 1.1, opacity: 0.65),
-      FloatingCloud(xOffset: 1.05, yOffset: 0.42, speed: 0.008, scale: 1.5, opacity: 0.8),
+      FloatingCloud(xOffset: -0.2, yOffset: 0.12, speed: 0.015, scale: 1.3, opacity: 0.85),
+      FloatingCloud(xOffset: 0.25, yOffset: 0.22, speed: 0.01, scale: 1.6, opacity: 0.75), // Peeks the sun/moon area!
+      FloatingCloud(xOffset: 0.65, yOffset: 0.16, speed: 0.02, scale: 1.2, opacity: 0.8),
+      FloatingCloud(xOffset: 1.05, yOffset: 0.38, speed: 0.008, scale: 1.5, opacity: 0.9),
     ];
   }
 
@@ -219,8 +219,8 @@ class SkyPainter extends CustomPainter {
 
   void _drawCloudShape(Canvas canvas, Offset center, double scale, double opacity) {
     final Color cloudColor = Color.lerp(
-      Colors.white.withValues(alpha: opacity * 0.85),
-      const Color(0xFF2E384D).withValues(alpha: opacity * 0.55),
+      Colors.white.withValues(alpha: opacity * 0.95),
+      const Color(0xFF334155).withValues(alpha: opacity * 0.8),
       themeTransition,
     )!;
 
@@ -228,10 +228,10 @@ class SkyPainter extends CustomPainter {
       ..color = cloudColor
       ..style = PaintingStyle.fill;
 
-    final double blurSigma = lerpDouble(12.0, 18.0, themeTransition)!;
+    final double blurSigma = lerpDouble(6.0, 10.0, themeTransition)!;
     cloudPaint.maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma * scale);
 
-    final double baseRadius = 35 * scale;
+    final double baseRadius = 45 * scale;
     canvas.drawCircle(center, baseRadius, cloudPaint);
     canvas.drawCircle(center + Offset(-baseRadius * 0.85, baseRadius * 0.15), baseRadius * 0.7, cloudPaint);
     canvas.drawCircle(center + Offset(baseRadius * 0.85, baseRadius * 0.2), baseRadius * 0.65, cloudPaint);
