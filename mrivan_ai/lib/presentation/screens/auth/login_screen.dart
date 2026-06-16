@@ -85,8 +85,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
       // Mobile (Android / iOS) flows
       final GoogleSignIn googleSignIn = GoogleSignIn(
-        scopes: ['email', 'profile'],
-        clientId: LoginScreen.androidClientId,
+        scopes: ['email', 'profile', 'openid'],
+        // Do not pass clientId for Android as it overrides and breaks returning the ID token.
+        clientId: defaultTargetPlatform == TargetPlatform.iOS ? LoginScreen.iosClientId : null,
         serverClientId: LoginScreen.webClientId,
       );
 
