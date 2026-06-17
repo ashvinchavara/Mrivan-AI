@@ -167,12 +167,14 @@ class _DashboardRouterState extends State<DashboardRouter> {
     if (_paymentPlan == 'Campus Plan') return false;
     // If profile was successfully saved this session, never re-ask
     if (_profileSavedThisSession) return false;
-    if (_userName == null || _userName!.trim().isEmpty) return true;
-    if (_userName!.contains('@')) return true; // email fallback means name wasn't set
-    if (_className == null || _className!.trim().isEmpty) return true;
-    if (_age == null || _age!.trim().isEmpty) return true;
-    if (_phoneNumber == null || _phoneNumber!.trim().isEmpty) return true;
-    return false;
+    
+    // Existing users: if they already have a name set (and it doesn't contain '@' fallback),
+    // they are considered complete and we should not show the setup screen again.
+    if (_userName != null && _userName!.trim().isNotEmpty && !_userName!.contains('@')) {
+      return false;
+    }
+    
+    return true;
   }
 
   Future<void> _saveProfileDetails({
@@ -2113,6 +2115,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
         children: [
           // Active Study Workspace Label
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
@@ -2155,6 +2158,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
 
           // Streak & XP Metrics
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               // 3 Day Streak
               Row(
@@ -2189,7 +2193,20 @@ class _DashboardRouterState extends State<DashboardRouter> {
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              // Theme Toggle
+              Tooltip(
+                message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                child: IconButton(
+                  icon: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    color: isDark ? Colors.amber : const Color(0xFF155DFC),
+                  ),
+                  onPressed: () {
+                    isDarkModeNotifier.value = !isDark;
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
 
               // Landing Home Button
               ElevatedButton.icon(
@@ -2227,40 +2244,11 @@ class _DashboardRouterState extends State<DashboardRouter> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.search_rounded, color: Colors.blueAccent, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'WORKSPACE SEARCH ENGINE / DIRECTORY',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                          color: isDark ? Colors.white70 : Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Search folders, educational modules, study suites, or specific subjects instantly.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isDark ? Colors.white38 : Colors.black45,
-                    ),
-                  ),
-                ],
-              ),
-              // Search Input Box
-              SizedBox(
-                width: 300,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 650;
+              final searchField = SizedBox(
+                width: isWide ? 300 : double.infinity,
                 child: TextField(
                   controller: _searchController,
                   style: const TextStyle(fontSize: 12),
@@ -2284,8 +2272,79 @@ class _DashboardRouterState extends State<DashboardRouter> {
                     ),
                   ),
                 ),
-              ),
-            ],
+              );
+
+              if (isWide) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.search_rounded, color: Colors.blueAccent, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                'WORKSPACE SEARCH ENGINE / DIRECTORY',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                  color: isDark ? Colors.white70 : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Search folders, educational modules, study suites, or specific subjects instantly.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white38 : Colors.black45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    searchField,
+                  ],
+                );
+              } else {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.search_rounded, color: Colors.blueAccent, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'WORKSPACE SEARCH ENGINE / DIRECTORY',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Search folders, educational modules, study suites, or specific subjects instantly.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.white38 : Colors.black45,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    searchField,
+                  ],
+                );
+              }
+            },
           ),
           const SizedBox(height: 12),
 
