@@ -87,11 +87,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (kIsWeb) {
         // For Web, use Supabase's native OAuth flow to bypass google_sign_in package limitations
         final uri = Uri.base;
+        final safePath = uri.path.isEmpty ? '/' : uri.path;
+        
         String redirectUrl = Uri(
           scheme: uri.scheme,
           host: uri.host,
           port: uri.port,
-          path: uri.path,
+          path: safePath,
         ).toString();
 
         if (widget.pendingPlanTitle != null && widget.pendingPlanPrice != null) {
@@ -99,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             scheme: uri.scheme,
             host: uri.host,
             port: uri.port,
-            path: uri.path,
+            path: safePath,
             queryParameters: {
               'plan_title': widget.pendingPlanTitle,
               'plan_price': widget.pendingPlanPrice,
@@ -370,10 +372,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                               ),
                                             ],
                                           ),
-                                          child: Icon(
-                                            Icons.login_rounded,
-                                            size: 26,
-                                            color: _isDarkMode ? Colors.white : Colors.black87,
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(16),
+                                            child: Image.asset(
+                                              'assets/logo.jpeg',
+                                              width: 58,
+                                              height: 58,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Icon(
+                                                Icons.login_rounded,
+                                                size: 26,
+                                                color: _isDarkMode ? Colors.white : Colors.black87,
+                                              ),
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(height: 24),

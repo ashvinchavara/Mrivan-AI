@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../data/services/database_service.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
 import 'login_screen.dart';
@@ -134,12 +137,32 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
       });
     });
 
-    Timer(const Duration(milliseconds: 5500), () {
+    Timer(const Duration(milliseconds: 5500), () async {
       if (!mounted) return;
       setState(() {
-        _isProcessing = false;
-        _isSuccess = true;
+        _processingMessage = 'Activating your subscription plan...';
       });
+
+      try {
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          await DatabaseService.instance.updateUserProfile(
+            userId: user.id,
+            paymentPlan: widget.planTitle,
+          );
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error updating user payment plan: $e');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _isSuccess = true;
+        });
+      }
     });
   }
 

@@ -386,4 +386,39 @@ class DatabaseService {
       throw Exception('Failed to save study note: ${e.toString()}');
     }
   }
+
+  Future<Map<String, dynamic>> updateUserProfile({
+    required String userId,
+    String? fullName,
+    String? schoolId,
+    String? classId,
+    String? paymentPlan,
+    String? className,
+    String? age,
+    String? phoneNumber,
+  }) async {
+    try {
+      final updates = <String, dynamic>{};
+      if (fullName != null) updates['full_name'] = fullName;
+      if (schoolId != null) updates['school_id'] = schoolId;
+      if (classId != null) updates['class_id'] = classId;
+      if (paymentPlan != null) updates['payment_plan'] = paymentPlan;
+      if (className != null) updates['class'] = className;
+      if (age != null) updates['age'] = age;
+      if (phoneNumber != null) updates['phone_number'] = phoneNumber;
+
+      final response = await _client
+          .from('profiles')
+          .update(updates)
+          .eq('id', userId)
+          .select()
+          .single();
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in updateUserProfile: $e');
+      }
+      throw Exception('Failed to update profile: ${e.toString()}');
+    }
+  }
 }

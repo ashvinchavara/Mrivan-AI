@@ -79,10 +79,19 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                             // Logo and Branding
                             Row(
                               children: [
-                                Icon(
-                                  Icons.school_rounded,
-                                  color: const Color(0xFF155DFC),
-                                  size: 26,
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.asset(
+                                    'assets/logo.jpeg',
+                                    width: 28,
+                                    height: 28,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => const Icon(
+                                      Icons.school_rounded,
+                                      color: Color(0xFF155DFC),
+                                      size: 26,
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
