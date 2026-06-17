@@ -20,54 +20,53 @@ class LoginScreen extends StatefulWidget {
     this.pendingPlanSubtitle,
   });
 
-  static const String webClientId = '524472321619-ft3dc0catvgplebulv2bqrpakdi8uo18.apps.googleusercontent.com';
-  // Android client ID registered with Package name com.ash.mrivan_ai
-  static const String androidClientId = '524472321619-06jghr6deij7ig11u2smbk2gts6scn1k.apps.googleusercontent.com';
+  static const String webClientId =
+      '524472321619-ft3dc0catvgplebulv2bqrpakdi8uo18.apps.googleusercontent.com';
+  static const String androidClientId =
+      '524472321619-06jghr6deij7ig11u2smbk2gts6scn1k.apps.googleusercontent.com';
   static const String iosClientId = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
-  bool get _isDarkMode => isDarkModeNotifier.value;
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
+  static const Color _primary = Color(0xFF155DFC);
+  static const Color _ink = Color(0xFF0F172A);
+  static const Color _teal = Color(0xFF0FBAA6);
+  static const Color _amber = Color(0xFFFFB020);
+  static const Color _rose = Color(0xFFF05A7E);
+
   late final StreamSubscription<AuthState> _authSubscription;
-  
+  late final AnimationController _entryController;
   bool _isLoading = false;
 
-  // Animation Controller for Login Card
-  late final AnimationController _cardFadeController;
+  bool get _hasPendingPlan =>
+      widget.pendingPlanTitle != null && widget.pendingPlanPrice != null;
 
   @override
   void initState() {
     super.initState();
-
-    _cardFadeController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
+    _entryController = AnimationController(
+      duration: const Duration(milliseconds: 900),
       vsync: this,
     )..forward();
 
-    // Listen to Supabase auth state changes
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      final Session? session = data.session;
-      final AuthChangeEvent event = data.event;
-
-      if (kDebugMode) {
-        print('Supabase Auth Event: $event');
-      }
-
-      if (event == AuthChangeEvent.signedIn && session != null) {
-        if (kDebugMode) {
-          print('SUCCESS: User successfully logged in!');
-        }
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Successfully logged in as ${session.user.email}'),
-              backgroundColor: Colors.green,
+    _authSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      if (data.event == AuthChangeEvent.signedIn && session != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Signed in as ${session.user.email}'),
+            backgroundColor: const Color(0xFF059669),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
             ),
-          );
-        }
+          ),
+        );
       }
     });
   }
@@ -75,20 +74,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   void dispose() {
     _authSubscription.cancel();
-    _cardFadeController.dispose();
+    _entryController.dispose();
     super.dispose();
   }
 
-  // Native Google ID Token authentication (Mobile) or OAuth Redirect (Web)
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
 
     try {
       if (kIsWeb) {
-        // For Web, use Supabase's native OAuth flow to bypass google_sign_in package limitations
         final uri = Uri.base;
         final safePath = uri.path.isEmpty ? '/' : uri.path;
-        
+
         String redirectUrl = Uri(
           scheme: uri.scheme,
           host: uri.host,
@@ -96,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           path: safePath,
         ).toString();
 
-        if (widget.pendingPlanTitle != null && widget.pendingPlanPrice != null) {
+        if (_hasPendingPlan) {
           redirectUrl = Uri(
             scheme: uri.scheme,
             host: uri.host,
@@ -117,15 +114,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         return;
       }
 
-      // Mobile (Android / iOS) flows
-      final GoogleSignIn googleSignIn = GoogleSignIn(
+      final googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile', 'openid'],
-        // Do not pass clientId for Android as it overrides and breaks returning the ID token.
-        clientId: defaultTargetPlatform == TargetPlatform.iOS ? LoginScreen.iosClientId : null,
+        clientId: defaultTargetPlatform == TargetPlatform.iOS
+            ? LoginScreen.iosClientId
+            : null,
         serverClientId: LoginScreen.webClientId,
       );
 
-      await googleSignIn.signOut().catchError((_) {}); // Ignore sign-out errors
+      await googleSignIn.signOut().catchError((_) => null);
 
       final googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
@@ -134,24 +131,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       }
 
       final googleAuth = await googleUser.authentication;
-
       final idToken = googleAuth.idToken;
       final accessToken = googleAuth.accessToken;
-
-      if (kDebugMode) {
-        print('Google Sign-In Account Info:');
-        print(' - Email: ${googleUser.email}');
-        print(' - ID Token: ${idToken != null ? "FOUND (Length: ${idToken.length})" : "NULL"}');
-        print(' - Access Token: ${accessToken != null ? "FOUND (Length: ${accessToken.length})" : "NULL"}');
-      }
 
       if (idToken == null) {
         throw Exception(
           "Google did not return an ID token.\n\n"
-          "To fix this, please verify:\n"
-          "1. You have registered your Android SHA-1 fingerprint in the Google Cloud Console under your Android Client ID.\n"
-          "2. The 'serverClientId' in code matches the Web Client ID from your Google Cloud Console.\n"
-          "3. The OAuth Consent Screen is configured and published in Google Cloud Console."
+          "Verify your Android SHA-1 fingerprint, web client ID, package name, "
+          "and OAuth consent screen in Google Cloud Console.",
         );
       }
 
@@ -162,44 +149,44 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       );
 
       if (response.session == null) {
-        throw Exception("Supabase login failed");
+        throw Exception('Supabase login failed');
       }
 
-      if (widget.pendingPlanTitle != null && widget.pendingPlanPrice != null) {
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PaymentScreen(
+      if (_hasPendingPlan && mounted) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 360),
+            pageBuilder: (_, animation, __) => FadeTransition(
+              opacity: animation,
+              child: PaymentScreen(
                 planTitle: widget.pendingPlanTitle!,
                 planPrice: widget.pendingPlanPrice!,
                 planSubtitle: widget.pendingPlanSubtitle ?? '',
               ),
             ),
-          );
-        }
-      } else {
-        if (mounted) {
-          Navigator.pop(context);
-        }
+          ),
+        );
+      } else if (mounted) {
+        Navigator.pop(context);
       }
     } catch (e) {
-      String errorMessage = e.toString();
+      var errorMessage = e.toString();
       if (errorMessage.contains('ApiException: 10')) {
-        errorMessage = "Google Sign-In Developer Error (ApiException 10).\n\n"
-            "This typically means your Android SHA-1 certificate fingerprint is not registered "
-            "in the Google Cloud Console under your Android Client ID, or the package name "
-            "com.ash.mrivan_ai does not match the registration.";
+        errorMessage =
+            'Google Sign-In Developer Error (ApiException 10).\n\n'
+            'Register the Android SHA-1 certificate fingerprint in Google Cloud Console '
+            'and confirm package name com.ash.mrivan_ai matches the OAuth client.';
       } else if (errorMessage.contains('ApiException: 12500')) {
-        errorMessage = "Google Sign-In Error (ApiException 12500).\n\n"
-            "This typically indicates a mismatch in the OAuth Consent Screen configuration, "
-            "or the Google Cloud project configuration is incomplete.";
+        errorMessage =
+            'Google Sign-In Error (ApiException 12500).\n\n'
+            'Check the OAuth consent screen and Google Cloud project configuration.';
       }
-      
+
       if (kDebugMode) {
         print('Google Sign-In Error Details: $e');
       }
-      
+
       if (mounted) {
         _showErrorDialog(errorMessage);
       }
@@ -216,24 +203,29 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       builder: (context) {
         final isDark = isDarkModeNotifier.value;
         return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          backgroundColor: isDark ? const Color(0xFF101827) : Colors.white,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(
-              color: isDark ? Colors.white12 : Colors.black12,
-              width: 1,
-            ),
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
           ),
           title: Row(
             children: [
-              Icon(Icons.error_outline_rounded, color: Colors.red[400], size: 28),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _rose.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.error_outline_rounded, color: _rose),
+              ),
               const SizedBox(width: 12),
               Text(
                 'Authentication Error',
                 style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black87,
-                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : _ink,
+                  fontWeight: FontWeight.w900,
                   fontSize: 18,
                 ),
               ),
@@ -252,12 +244,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF155DFC),
-              ),
+              style: TextButton.styleFrom(foregroundColor: _primary),
               child: const Text(
                 'Close',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
           ],
@@ -268,234 +258,809 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 900;
+
     return ValueListenableBuilder<bool>(
       valueListenable: isDarkModeNotifier,
       builder: (context, isDarkMode, child) {
         return Scaffold(
           body: AnimatedBackground(
-            isDarkMode: _isDarkMode,
+            isDarkMode: isDarkMode,
             child: Stack(
               children: [
-                // 1. Light / Dark Mode Toggle Button (Top Right)
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + 16,
+                  top: MediaQuery.of(context).padding.top + 14,
+                  left: 16,
                   right: 16,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        color: _isDarkMode ? Colors.black26 : Colors.white24,
-                        child: IconButton(
-                          icon: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            transitionBuilder: (child, anim) => RotationTransition(
-                              turns: child.key == const ValueKey('dark')
-                                  ? Tween<double>(begin: 0.75, end: 1.0).animate(anim)
-                                  : Tween<double>(begin: 0.25, end: 0.5).animate(anim),
-                              child: FadeTransition(opacity: anim, child: child),
-                            ),
-                            child: _isDarkMode
-                                ? const Icon(Icons.lightbulb_rounded, key: ValueKey('light'), color: Colors.amber)
-                                : const Icon(Icons.school_rounded, key: ValueKey('dark'), color: Color(0xFF155DFC)),
+                  child: _buildTopBar(isDarkMode),
+                ),
+                Positioned.fill(
+                  top: MediaQuery.of(context).padding.top + 82,
+                  child: SafeArea(
+                    top: false,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isDesktop ? 36 : 18,
+                          vertical: 24,
+                        ),
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: _entryController,
+                            curve: Curves.easeOut,
                           ),
-                          onPressed: () {
-                            isDarkModeNotifier.value = !_isDarkMode;
-                          },
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.04),
+                              end: Offset.zero,
+                            ).animate(CurvedAnimation(
+                              parent: _entryController,
+                              curve: Curves.easeOutCubic,
+                            )),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1080),
+                              child: isDesktop
+                                  ? Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              _buildStoryPanel(isDarkMode),
+                                              const SizedBox(height: 18),
+                                              _buildHowItWorks(isDarkMode),
+                                              const SizedBox(height: 18),
+                                              _buildSocialProof(isDarkMode),
+                                              const SizedBox(height: 18),
+                                              _buildFooter(isDarkMode),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 24),
+                                        SizedBox(
+                                          width: 420,
+                                          child: _buildLoginCard(isDarkMode),
+                                        ),
+                                      ],
+                                    )
+                                  : Column(
+                                      children: [
+                                        _buildLoginCard(isDarkMode),
+                                        const SizedBox(height: 18),
+                                        _buildStoryPanel(isDarkMode),
+                                        const SizedBox(height: 18),
+                                        _buildHowItWorks(isDarkMode),
+                                        const SizedBox(height: 18),
+                                        _buildSocialProof(isDarkMode),
+                                        const SizedBox(height: 18),
+                                        _buildFooter(isDarkMode),
+                                      ],
+                                    ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-            // 2. Central Login Card
-            Positioned.fill(
-              child: SafeArea(
-                child: Center(
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: FadeTransition(
-                        opacity: _cardFadeController,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0.0, 0.05),
-                            end: Offset.zero,
-                          ).animate(CurvedAnimation(
-                            parent: _cardFadeController,
-                            curve: Curves.easeOutBack,
-                          )),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 380),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(28),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: _isDarkMode
-                                        ? Colors.black.withValues(alpha: 0.25)
-                                        : Colors.white.withValues(alpha: 0.35),
-                                    borderRadius: BorderRadius.circular(28),
-                                    border: Border.all(
-                                      color: _isDarkMode
-                                          ? Colors.white.withValues(alpha: 0.08)
-                                          : Colors.white.withValues(alpha: 0.45),
-                                      width: 1.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.05),
-                                        blurRadius: 24,
-                                        spreadRadius: 4,
-                                        offset: const Offset(0, 10),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(32.0),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        // Top Icon (Rounded square container)
-                                        Container(
-                                          width: 58,
-                                          height: 58,
-                                          decoration: BoxDecoration(
-                                            color: _isDarkMode ? Colors.white.withValues(alpha: 0.1) : Colors.white,
-                                            borderRadius: BorderRadius.circular(16),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withValues(alpha: 0.04),
-                                                blurRadius: 8,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ],
-                                          ),
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(16),
-                                            child: Image.asset(
-                                              'assets/logo.jpeg',
-                                              width: 58,
-                                              height: 58,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) => Icon(
-                                                Icons.login_rounded,
-                                                size: 26,
-                                                color: _isDarkMode ? Colors.white : Colors.black87,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 24),
-
-                                        // Sign in header
-                                        Text(
-                                          'Sign in to Mrivan AI',
-                                          style: TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.bold,
-                                            color: _isDarkMode ? Colors.white : Colors.black87,
-                                            letterSpacing: -0.5,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          'Access your CRM dashboard and subjects tutor instantly.',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: _isDarkMode ? Colors.white70 : Colors.black54,
-                                            height: 1.35,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 32),
-
-                                        // Google Sign-In Card Button
-                                        if (_isLoading)
-                                          const CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF155DFC)),
-                                          )
-                                        else
-                                          InkWell(
-                                            onTap: _handleGoogleSignIn,
-                                            borderRadius: BorderRadius.circular(12),
-                                            child: Container(
-                                              width: double.infinity,
-                                              height: 50,
-                                              decoration: BoxDecoration(
-                                                color: _isDarkMode ? Colors.white.withValues(alpha: 0.08) : Colors.white,
-                                                borderRadius: BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: _isDarkMode
-                                                      ? Colors.white.withValues(alpha: 0.1)
-                                                      : Colors.black.withValues(alpha: 0.06),
-                                                  width: 1,
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black.withValues(alpha: 0.02),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 4),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Image.network(
-                                                    'https://developers.google.com/identity/images/g-logo.png',
-                                                    height: 20,
-                                                    errorBuilder: (context, error, stackTrace) => Icon(
-                                                      Icons.g_mobiledata_rounded,
-                                                      color: _isDarkMode ? Colors.white70 : Colors.blue,
-                                                      size: 26,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Text(
-                                                    'Continue with Google',
-                                                    style: TextStyle(
-                                                      fontSize: 15,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: _isDarkMode ? Colors.white : Colors.black87,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        const SizedBox(height: 32),
-
-                                        // Terms and conditions disclaimer
-                                        Text(
-                                          'By continuing, you agree to our Terms of Service and Privacy Policy.',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: _isDarkMode ? Colors.white30 : Colors.black38,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+  Widget _buildTopBar(bool isDarkMode) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1080),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: isDarkMode
+                    ? Colors.black.withValues(alpha: 0.30)
+                    : Colors.white.withValues(alpha: 0.62),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDarkMode ? Colors.white12 : Colors.white70,
+                ),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/logo.jpeg',
+                      width: 34,
+                      height: 34,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.school_rounded, color: _primary),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Mrivan AI',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      color: _primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  Tooltip(
+                    message: isDarkMode ? 'Switch to focus mode' : 'Switch to night study mode',
+                    child: IconButton(
+                      onPressed: () => isDarkModeNotifier.value = !isDarkMode,
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 240),
+                        child: Icon(
+                          isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                          key: ValueKey(isDarkMode),
+                          color: isDarkMode ? _amber : _primary,
                         ),
                       ),
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginCard(bool isDarkMode) {
+    return _glassCard(
+      isDarkMode: isDarkMode,
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: _primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: _primary.withValues(alpha: isDarkMode ? 0.22 : 0.14),
+                    blurRadius: 28,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/logo.jpeg',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.login_rounded,
+                    color: _primary,
+                    size: 34,
                   ),
                 ),
               ),
             ),
+          ),
+          const SizedBox(height: 22),
+          Text(
+            _hasPendingPlan ? 'Secure your plan' : 'Welcome back',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 28,
+              height: 1.12,
+              fontWeight: FontWeight.w900,
+              color: isDarkMode ? Colors.white : _ink,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _hasPendingPlan
+                ? 'Sign in once to activate checkout and keep your learning workspace synced.'
+                : 'Sign in to continue to your AI tutor, study cockpit, and school CRM tools.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: isDarkMode ? Colors.white60 : Colors.black54,
+            ),
+          ),
+          if (_hasPendingPlan) ...[
+            const SizedBox(height: 20),
+            _buildPendingPlanCard(isDarkMode),
           ],
+          const SizedBox(height: 26),
+          _isLoading
+              ? Container(
+                  height: 54,
+                  alignment: Alignment.center,
+                  child: const SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(_primary),
+                    ),
+                  ),
+                )
+              : _AnimatedPressButton(
+                  onTap: _handleGoogleSignIn,
+                  isDarkMode: isDarkMode,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.network(
+                        'https://developers.google.com/identity/images/g-logo.png',
+                        height: 20,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.g_mobiledata_rounded, color: _primary),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Continue with Google',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: isDarkMode ? Colors.white : _ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+          const SizedBox(height: 18),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _trustPill(Icons.security_rounded, 'Secure login', isDarkMode),
+              _trustPill(Icons.sync_rounded, 'Synced workspace', isDarkMode),
+              _trustPill(Icons.school_rounded, 'Role aware', isDarkMode),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Text(
+            'By continuing, you agree to our Terms of Service and Privacy Policy.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.35,
+              color: isDarkMode ? Colors.white30 : Colors.black38,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingPlanCard(bool isDarkMode) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _primary.withValues(alpha: isDarkMode ? 0.14 : 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _primary.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: _primary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.workspace_premium_rounded, color: _primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.pendingPlanTitle ?? 'Selected plan',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: isDarkMode ? Colors.white : _ink,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  widget.pendingPlanSubtitle ?? 'Ready for checkout',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode ? Colors.white54 : Colors.black45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            widget.pendingPlanPrice ?? '',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: _primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStoryPanel(bool isDarkMode) {
+    return _glassCard(
+      isDarkMode: isDarkMode,
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionPill(Icons.auto_awesome_rounded, 'Your learning command center', isDarkMode),
+          const SizedBox(height: 22),
+          Text(
+            'One sign-in opens the tutor, CRM, tests, notes, and progress trail.',
+            style: TextStyle(
+              fontSize: 34,
+              height: 1.08,
+              fontWeight: FontWeight.w900,
+              color: isDarkMode ? Colors.white : _ink,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Mrivan AI keeps the student flow simple: authenticate, complete your profile, choose a study mode, and continue learning with synced dashboards.',
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.55,
+              color: isDarkMode ? Colors.white60 : Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 22),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final twoColumns = constraints.maxWidth > 520;
+              final cards = [
+                _StoryCardData(Icons.psychology_rounded, 'AI Tutor', 'Doubts, voice help, explanations'),
+                _StoryCardData(Icons.fact_check_rounded, 'CBT Tests', 'Mock tests and weak-area analytics'),
+                _StoryCardData(Icons.assignment_rounded, 'Homework', 'Tasks, notes, and study planner'),
+                _StoryCardData(Icons.dashboard_customize_rounded, 'CRM', 'School, parent, and teacher views'),
+              ];
+              return GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: twoColumns ? 2 : 1,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: twoColumns ? 2.45 : 3.5,
+                children: cards.map((card) => _storyTile(card, isDarkMode)).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _storyTile(_StoryCardData card, bool isDarkMode) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? Colors.white.withValues(alpha: 0.055)
+            : Colors.white.withValues(alpha: 0.66),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDarkMode ? Colors.white10 : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(card.icon, color: _primary, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  card.title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: isDarkMode ? Colors.white : _ink,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  card.subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode ? Colors.white54 : Colors.black45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _glassCard({
+    required bool isDarkMode,
+    required Widget child,
+    required EdgeInsets padding,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: isDarkMode
+                ? Colors.black.withValues(alpha: 0.28)
+                : Colors.white.withValues(alpha: 0.46),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(
+              color: isDarkMode
+                  ? Colors.white.withValues(alpha: 0.09)
+                  : Colors.white.withValues(alpha: 0.72),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDarkMode ? 0.22 : 0.06),
+                blurRadius: 28,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: child,
         ),
       ),
     );
-      },
+  }
+
+  Widget _sectionPill(IconData icon, String label, bool isDarkMode) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _primary.withValues(alpha: isDarkMode ? 0.16 : 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: _primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: isDarkMode ? Colors.white70 : _primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _trustPill(IconData icon, String label, bool isDarkMode) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15, color: _teal),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: isDarkMode ? Colors.white54 : Colors.black45,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHowItWorks(bool isDarkMode) {
+    return _glassCard(
+      isDarkMode: isDarkMode,
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionPill(Icons.route_rounded, 'How it works', isDarkMode),
+          const SizedBox(height: 20),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 500;
+              final steps = [
+                _stepItem('1', 'Sign in with Google', 'Secure OAuth login', _primary, isDarkMode),
+                _stepItem('2', 'Set up your profile', 'Name, class & grade', _teal, isDarkMode),
+                _stepItem('3', 'Start learning', 'AI tutor, notes & tests', _amber, isDarkMode),
+              ];
+
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: steps[0]),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 18.0, left: 8.0, right: 8.0),
+                      child: Container(
+                        height: 1,
+                        width: 28,
+                        color: isDarkMode ? Colors.white12 : Colors.black12,
+                      ),
+                    ),
+                    Expanded(child: steps[1]),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 18.0, left: 8.0, right: 8.0),
+                      child: Container(
+                        height: 1,
+                        width: 28,
+                        color: isDarkMode ? Colors.white12 : Colors.black12,
+                      ),
+                    ),
+                    Expanded(child: steps[2]),
+                  ],
+                );
+              } else {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    steps[0],
+                    const SizedBox(height: 18),
+                    steps[1],
+                    const SizedBox(height: 18),
+                    steps[2],
+                  ],
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepItem(String number, String title, String subtitle, Color color, bool isDarkMode) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              number,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: isDarkMode ? Colors.white : _ink,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 11,
+            color: isDarkMode ? Colors.white54 : Colors.black54,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSocialProof(bool isDarkMode) {
+    return _glassCard(
+      isDarkMode: isDarkMode,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _metricItem(Icons.people_rounded, '500+', 'Students', _primary, isDarkMode),
+          _metricItem(Icons.psychology_rounded, '10k+', 'AI Sessions', _teal, isDarkMode),
+          _metricItem(Icons.thumb_up_rounded, '98%', 'Satisfaction', _amber, isDarkMode),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricItem(IconData icon, String value, String label, Color color, bool isDarkMode) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 22),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: isDarkMode ? Colors.white : _ink,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: isDarkMode ? Colors.white54 : Colors.black45,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooter(bool isDarkMode) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.asset(
+                  'assets/logo.jpeg',
+                  width: 20,
+                  height: 20,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: _primary,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.school_rounded,
+                      size: 12,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Mrivan AI',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: isDarkMode ? Colors.white : _ink,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '© 2025 Mrivan AI • Privacy • Terms',
+            style: TextStyle(
+              fontSize: 10,
+              color: isDarkMode ? Colors.white30 : Colors.black38,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
+class _AnimatedPressButton extends StatefulWidget {
+  final VoidCallback onTap;
+  final Widget child;
+  final bool isDarkMode;
+
+  const _AnimatedPressButton({
+    required this.onTap,
+    required this.child,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<_AnimatedPressButton> createState() => _AnimatedPressButtonState();
+}
+
+class _AnimatedPressButtonState extends State<_AnimatedPressButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedScale(
+        scale: _hovered ? 1.018 : 1,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 54,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: widget.isDarkMode
+                    ? Colors.white.withValues(alpha: _hovered ? 0.12 : 0.08)
+                    : Colors.white.withValues(alpha: 0.86),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _hovered
+                      ? const Color(0xFF155DFC)
+                      : (widget.isDarkMode ? Colors.white12 : Colors.black12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF155DFC).withValues(alpha: _hovered ? 0.18 : 0.08),
+                    blurRadius: _hovered ? 22 : 12,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: widget.child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StoryCardData {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _StoryCardData(this.icon, this.title, this.subtitle);
+}

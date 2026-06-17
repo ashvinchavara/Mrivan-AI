@@ -24,6 +24,12 @@ class DashboardRouter extends StatefulWidget {
 }
 
 class _DashboardRouterState extends State<DashboardRouter> {
+  static const Color _primary = Color(0xFF155DFC);
+  static const Color _ink = Color(0xFF0F172A);
+  static const Color _teal = Color(0xFF0FBAA6);
+  static const Color _amber = Color(0xFFFFB020);
+  static const Color _rose = Color(0xFFF05A7E);
+
   final SupabaseClient _client = Supabase.instance.client;
   bool get _isDarkMode => isDarkModeNotifier.value;
   bool _isLoadingProfile = true;
@@ -704,73 +710,95 @@ class _DashboardRouterState extends State<DashboardRouter> {
     return ValueListenableBuilder<bool>(
       valueListenable: isDarkModeNotifier,
       builder: (context, isDarkMode, child) {
+        final isDesktop = MediaQuery.of(context).size.width >= 820;
         return Scaffold(
           body: AnimatedBackground(
-            isDarkMode: _isDarkMode,
+            isDarkMode: isDarkMode,
             child: Stack(
               children: [
-                // 1. Dashboard Top Header Panel
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + 16,
-                  left: 16,
-                  right: 16,
+                  top: MediaQuery.of(context).padding.top + 14,
+                  left: isDesktop ? 32 : 16,
+                  right: isDesktop ? 32 : 16,
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(18),
                     child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                       child: Container(
-                        color: _isDarkMode ? Colors.black26 : Colors.white24,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? Colors.black.withValues(alpha: 0.30)
+                              : Colors.white.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: isDarkMode ? Colors.white12 : Colors.white70,
+                          ),
+                        ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            // App Brand Logo
-                            Row(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Image.asset(
-                                    'assets/logo.jpeg',
-                                    width: 28,
-                                    height: 28,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => const Icon(
-                                      Icons.school_rounded,
-                                      color: Color(0xFF155DFC),
-                                      size: 26,
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.asset(
+                                'assets/logo.jpeg',
+                                width: 34,
+                                height: 34,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(Icons.school_rounded, color: _primary),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _isLoadingProfile
+                                        ? 'Preparing workspace'
+                                        : 'Profile setup',
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w900,
+                                      color: isDarkMode ? Colors.white : _ink,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Mrivan AI',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: _isDarkMode ? Colors.white : Colors.black87,
-                                  ),
-                                ),
-                              ],
+                                  if (isDesktop)
+                                    Text(
+                                      'Sync your student details before opening the AI cockpit.',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: isDarkMode ? Colors.white54 : Colors.black45,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-
-                            // Actions: Theme Switcher & Logout
-                            Row(
-                              children: [
-                                IconButton(
-                                  icon: Icon(
-                                    _isDarkMode ? Icons.lightbulb_rounded : Icons.school_rounded,
-                                    color: _isDarkMode ? Colors.amber : const Color(0xFF155DFC),
+                            Tooltip(
+                              message: isDarkMode ? 'Switch to focus mode' : 'Switch to night study mode',
+                              child: IconButton(
+                                icon: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 240),
+                                  child: Icon(
+                                    isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                                    key: ValueKey(isDarkMode),
+                                    color: isDarkMode ? _amber : _primary,
                                   ),
-                                  onPressed: () {
-                                    isDarkModeNotifier.value = !_isDarkMode;
-                                  },
                                 ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                                  onPressed: _handleSignOut,
+                                onPressed: () => isDarkModeNotifier.value = !isDarkMode,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Tooltip(
+                              message: 'Sign out',
+                              child: IconButton.filledTonal(
+                                icon: const Icon(Icons.logout_rounded, color: _rose),
+                                onPressed: _handleSignOut,
+                                style: IconButton.styleFrom(
+                                  backgroundColor: _rose.withValues(alpha: 0.10),
                                 ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
@@ -779,18 +807,16 @@ class _DashboardRouterState extends State<DashboardRouter> {
                   ),
                 ),
 
-                // 2. Main Dashboard Panel View
                 Positioned.fill(
-                  top: MediaQuery.of(context).padding.top + 80,
+                  top: MediaQuery.of(context).padding.top + 78,
                   child: SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 28.0 : 16.0,
+                        vertical: 10.0,
+                      ),
                       child: _isLoadingProfile
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF155DFC)),
-                              ),
-                            )
+                          ? _buildWorkspaceLoadingView(isDarkMode)
                           : _isProfileIncomplete()
                               ? _buildProfileCompletionView()
                               : _buildRoleDashboard(),
@@ -802,6 +828,67 @@ class _DashboardRouterState extends State<DashboardRouter> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildWorkspaceLoadingView(bool isDark) {
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            width: 420,
+            padding: const EdgeInsets.all(30),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.28)
+                  : Colors.white.withValues(alpha: 0.48),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: isDark ? Colors.white12 : Colors.white70),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: _primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(_primary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  'Loading your AI cockpit',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : _ink,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Fetching profile, plan access, attendance, and workspace preferences.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: isDark ? Colors.white60 : Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -820,36 +907,65 @@ class _DashboardRouterState extends State<DashboardRouter> {
     }
   }
 
-  // A. Student Dashboard View
   Widget _buildStudentDashboard() {
     final presentCount = _attendanceRecords.where((r) => r['status'] == 'present').length;
     final totalCount = _attendanceRecords.length;
     final attendanceRate = totalCount > 0 ? (presentCount / totalCount * 100).toStringAsFixed(1) : '100.0';
+    final isDark = _isDarkMode;
 
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 800),
         child: Column(
           children: [
-            // Student Welcome frosted card
-            _buildGlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Welcome banner
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF155DFC), Color(0xFF3B82F6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    'Welcome back, $_userName 👋',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: _isDarkMode ? Colors.white : Colors.black87,
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: Colors.white.withValues(alpha: 0.24),
+                    child: Text(
+                      (_userName != null && _userName!.isNotEmpty) ? _userName![0].toUpperCase() : 'S',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Access your subjects, attendance history, and AI tutor helper.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _isDarkMode ? Colors.white70 : Colors.black54,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome back, $_userName 👋',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Access your subjects, attendance history, and AI tutor helper.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -857,26 +973,109 @@ class _DashboardRouterState extends State<DashboardRouter> {
             ),
             const SizedBox(height: 16),
 
-            // Quick Stats & AI Tutor Widget Grid
+            // Quick Actions Row
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _quickActionChip(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    label: 'AI Tutor',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AITutorScreen(isDarkMode: _isDarkMode),
+                        ),
+                      );
+                    },
+                    isDark: isDark,
+                  ),
+                  const SizedBox(width: 10),
+                  _quickActionChip(
+                    icon: Icons.auto_stories_outlined,
+                    label: 'Study Notes',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AINotesScreen(isDarkMode: _isDarkMode),
+                        ),
+                      );
+                    },
+                    isDark: isDark,
+                  ),
+                  const SizedBox(width: 10),
+                  _quickActionChip(
+                    icon: Icons.assignment_outlined,
+                    label: 'Homework',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => StudentHomeworkScreen(
+                            isDarkMode: _isDarkMode,
+                            classId: classId,
+                          ),
+                        ),
+                      );
+                    },
+                    isDark: isDark,
+                  ),
+                  const SizedBox(width: 10),
+                  _quickActionChip(
+                    icon: Icons.quiz_outlined,
+                    label: 'Mock Tests',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Mock Tests coming soon!')),
+                      );
+                    },
+                    isDark: isDark,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Grid of 4 cards
             Expanded(
               child: GridView.count(
                 crossAxisCount: MediaQuery.of(context).size.width > 600 ? 2 : 1,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: 1.5,
+                childAspectRatio: MediaQuery.of(context).size.width > 600 ? 1.8 : 1.4,
                 children: [
-                  // Attendance stats card
+                  // Attendance card
                   _buildGlassCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Attendance Registry',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: _isDarkMode ? Colors.white70 : Colors.black54,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.calendar_today_rounded,
+                                color: Colors.green,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Attendance Registry',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: _isDarkMode ? Colors.white70 : Colors.black54,
+                              ),
+                            ),
+                          ],
                         ),
                         const Spacer(),
                         Row(
@@ -885,7 +1084,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                             Text(
                               '$attendanceRate%',
                               style: TextStyle(
-                                fontSize: 40,
+                                fontSize: 34,
                                 fontWeight: FontWeight.bold,
                                 color: _isDarkMode ? Colors.greenAccent : Colors.green,
                               ),
@@ -893,7 +1092,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                             Text(
                               '$presentCount / $totalCount Days',
                               style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 13,
                                   color: _isDarkMode ? Colors.white54 : Colors.black45),
                             ),
                           ],
@@ -919,10 +1118,18 @@ class _DashboardRouterState extends State<DashboardRouter> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 36,
-                          color: const Color(0xFF155DFC),
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF155DFC).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 20,
+                            color: Color(0xFF155DFC),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -962,10 +1169,18 @@ class _DashboardRouterState extends State<DashboardRouter> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.assignment_turned_in_outlined,
-                          size: 36,
-                          color: _isDarkMode ? Colors.orangeAccent : Colors.orange,
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.assignment_turned_in_outlined,
+                            size: 20,
+                            color: _isDarkMode ? Colors.orangeAccent : Colors.orange,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -1002,10 +1217,18 @@ class _DashboardRouterState extends State<DashboardRouter> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.auto_stories_outlined,
-                          size: 36,
-                          color: _isDarkMode ? Colors.lightBlueAccent : Colors.blue,
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.auto_stories_outlined,
+                            size: 20,
+                            color: _isDarkMode ? Colors.lightBlueAccent : Colors.blue,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -1037,6 +1260,42 @@ class _DashboardRouterState extends State<DashboardRouter> {
     );
   }
 
+  Widget _quickActionChip({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark ? Colors.white10 : Colors.black12,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: const Color(0xFF155DFC)),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // B. Teacher Dashboard View
   Widget _buildTeacherDashboard() {
     return Center(
@@ -1044,30 +1303,150 @@ class _DashboardRouterState extends State<DashboardRouter> {
         constraints: const BoxConstraints(maxWidth: 800),
         child: Column(
           children: [
-            _buildGlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Teal gradient welcome banner
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0FBAA6), Color(0xFF14B8A6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    'Teacher Console - Welcome, $_userName',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: _isDarkMode ? Colors.white : Colors.black87,
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: Colors.white.withValues(alpha: 0.24),
+                    child: Text(
+                      (_userName != null && _userName!.isNotEmpty) ? _userName![0].toUpperCase() : 'T',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Manage your classes, log student attendance, and assign homework.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _isDarkMode ? Colors.white70 : Colors.black54,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Teacher Console — $_userName',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Manage classes, attendance & assignments.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // Quick stats row
+            Row(
+              children: [
+                Expanded(
+                  child: _buildGlassCard(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'N/A',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Classes',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _isDarkMode ? Colors.white54 : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildGlassCard(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'N/A',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Students',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _isDarkMode ? Colors.white54 : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildGlassCard(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'N/A',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Pending',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _isDarkMode ? Colors.white54 : Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             
             Expanded(
               child: ListView(
@@ -1140,42 +1519,111 @@ class _DashboardRouterState extends State<DashboardRouter> {
         constraints: const BoxConstraints(maxWidth: 800),
         child: Column(
           children: [
-            _buildGlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Gradient welcome banner
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF7C3AED), Color(0xFF8B5CF6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    'Admin Dashboard',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: _isDarkMode ? Colors.white : Colors.black87,
-                    ),
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: Colors.white.withValues(alpha: 0.24),
+                    child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 28),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Configure school tenants, assign user roles, and check analytics.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _isDarkMode ? Colors.white70 : Colors.black54,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'School Administration',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Users, classrooms, analytics & configuration.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
+            // Scrollable area for stats and actions
             Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 1.5,
+              child: ListView(
                 children: [
-                  _buildStatCard('Total Users', '140', Icons.people_alt_rounded),
-                  _buildStatCard('Classrooms', '12', Icons.meeting_room_rounded),
-                  _buildStatCard('Attendance Rate', '94.2%', Icons.trending_up_rounded),
-                  _buildStatCard('AI Queries Today', '1,420', Icons.bolt_rounded),
+                  // Stat Cards Grid
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 1.6,
+                    children: [
+                      _buildStatCard('Total Users', '142', Icons.people_alt_rounded),
+                      _buildStatCard('Classrooms', '14', Icons.meeting_room_rounded),
+                      _buildStatCard('Attendance Rate', '95.8%', Icons.trending_up_rounded),
+                      _buildStatCard('AI Queries Today', '2,840', Icons.bolt_rounded),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Action cards
+                  _buildListCard(
+                    title: 'Manage Users',
+                    subtitle: 'Create, modify, and delete user profiles',
+                    icon: Icons.people_outline_rounded,
+                    color: Colors.blue,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Manage Users coming soon!')),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _buildListCard(
+                    title: 'School Settings',
+                    subtitle: 'Configure school details and academic calendars',
+                    icon: Icons.settings_outlined,
+                    color: Colors.grey,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('School Settings coming soon!')),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _buildListCard(
+                    title: 'View Reports',
+                    subtitle: 'Access student performance and query logs',
+                    icon: Icons.analytics_outlined,
+                    color: Colors.green,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Reports coming soon!')),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -1192,51 +1640,144 @@ class _DashboardRouterState extends State<DashboardRouter> {
         constraints: const BoxConstraints(maxWidth: 800),
         child: Column(
           children: [
-            _buildGlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Rose gradient welcome banner
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF05A7E), Color(0xFFFB7185)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    'Parent Portal',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: _isDarkMode ? Colors.white : Colors.black87,
-                    ),
+                  CircleAvatar(
+                    radius: 26,
+                    backgroundColor: Colors.white.withValues(alpha: 0.24),
+                    child: const Icon(Icons.family_restroom_rounded, color: Colors.white, size: 28),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Monitor your child\'s school attendance records and performance metrics.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _isDarkMode ? Colors.white70 : Colors.black54,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Parent Portal',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          "Monitor your child's progress and attendance.",
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            
-            _buildGlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 16),
+
+            // Scrollable area
+            Expanded(
+              child: ListView(
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.child_care_rounded, color: _isDarkMode ? Colors.white : Colors.black54),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Student Child Profile',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: _isDarkMode ? Colors.white : Colors.black87,
+                  // Recent Attendance glass card
+                  _buildGlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_month_outlined, color: Color(0xFFFB7185), size: 22),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Recent Attendance',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: _isDarkMode ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const Divider(height: 24),
+                        Text(
+                          "No attendance data available yet. Once linked to your child's profile, attendance records will appear here.",
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.45,
+                            color: _isDarkMode ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const Divider(height: 24),
-                  const Text('No child accounts are currently linked. Please contact your school administrator to link your profile.'),
+                  const SizedBox(height: 16),
+
+                  // Homework Status glass card
+                  _buildGlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.assignment_outlined, color: Color(0xFFFB7185), size: 22),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Homework Status',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: _isDarkMode ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+                        Text(
+                          "Homework submissions and grades will be visible once your child's profile is connected.",
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.45,
+                            color: _isDarkMode ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Info card
+                  _buildGlassCard(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 22),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Contact your school administrator to link your parent account to your child\'s student profile.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.45,
+                              color: _isDarkMode ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1250,45 +1791,140 @@ class _DashboardRouterState extends State<DashboardRouter> {
   Widget _buildPendingDashboard() {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
+        constraints: const BoxConstraints(maxWidth: 440),
         child: _buildGlassCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.hourglass_empty_rounded,
-                size: 60,
-                color: _isDarkMode ? Colors.amberAccent : Colors.amber,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Approval Pending',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _isDarkMode ? Colors.white : Colors.black87,
-                ),
+              const SizedBox(height: 12),
+              // Step progress indicator
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Step 1: Registered
+                  _buildPendingStep(
+                    icon: Icons.check_circle_rounded,
+                    color: Colors.green,
+                    isActive: false,
+                    isCompleted: true,
+                  ),
+                  Container(
+                    width: 40,
+                    height: 2,
+                    color: Colors.green,
+                  ),
+                  // Step 2: Approval
+                  _buildPendingStep(
+                    icon: Icons.hourglass_empty_rounded,
+                    color: Colors.amber,
+                    isActive: true,
+                    isCompleted: false,
+                  ),
+                  Container(
+                    width: 40,
+                    height: 2,
+                    color: _isDarkMode ? Colors.white24 : Colors.black12,
+                  ),
+                  // Step 3: Active
+                  _buildPendingStep(
+                    icon: Icons.lock_outline_rounded,
+                    color: Colors.grey,
+                    isActive: false,
+                    isCompleted: false,
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildStepLabel('Registered', Colors.green),
+                  _buildStepLabel('Approval', Colors.amber),
+                  _buildStepLabel('Active', Colors.grey),
+                ],
+              ),
+              const SizedBox(height: 24),
               Text(
-                'Your account registration was successful. Please wait for a School Administrator to assign your profile role (Student, Teacher, or Parent) and school association.',
+                'Awaiting Approval',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: _isDarkMode ? Colors.white : _ink,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your account registration was successful. Please wait for a School Administrator to assign your profile role and association.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
                   color: _isDarkMode ? Colors.white70 : Colors.black54,
-                  height: 1.4,
+                  height: 1.45,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _loadUserProfile,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(120, 40),
+                  backgroundColor: const Color(0xFF155DFC),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(140, 44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text('Refresh Status'),
+                child: const Text(
+                  'Refresh Status',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
+              const SizedBox(height: 8),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPendingStep({
+    required IconData icon,
+    required Color color,
+    required bool isActive,
+    required bool isCompleted,
+  }) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: isCompleted
+            ? color.withValues(alpha: 0.12)
+            : (isActive ? color.withValues(alpha: 0.16) : Colors.transparent),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isCompleted || isActive ? color : Colors.grey.shade400,
+          width: 2,
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          icon,
+          size: 18,
+          color: isCompleted || isActive ? color : Colors.grey,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepLabel(String label, Color color) {
+    return SizedBox(
+      width: 70,
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
         ),
       ),
     );
@@ -1333,6 +1969,15 @@ class _DashboardRouterState extends State<DashboardRouter> {
       onTap: onTap,
       child: Row(
         children: [
+          Container(
+            width: 4,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 12),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1380,7 +2025,19 @@ class _DashboardRouterState extends State<DashboardRouter> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFF155DFC), size: 24),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF155DFC), Color(0xFF3B82F6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
           const Spacer(),
           Text(
             val,
@@ -2060,45 +2717,179 @@ class _DashboardRouterState extends State<DashboardRouter> {
       return _buildCockpitChatSection(isDark, primaryColor);
     }
 
-    // Otherwise show mode placeholder
-    return Container(
-      height: 500,
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.black26 : Colors.white24,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _activeMode == 'Study Studio' ? Icons.timer_rounded : Icons.folder_zip_rounded,
-              size: 48,
-              color: Colors.blueAccent,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '$_activeMode Module',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
+    final isFree = _paymentPlan == 'Free Plan';
+    final isLocked = isFree && (_activeMode == 'CBT Diagnostics' || _activeMode == 'Lecture Slides' || _activeMode == 'Deep Research');
+
+    // Details for each mode:
+    IconData icon;
+    String title;
+    String description;
+    List<String> features;
+
+    if (_activeMode == 'CBT Diagnostics') {
+      icon = Icons.quiz_rounded;
+      title = 'CBT Diagnostics Engine';
+      description = 'Practice computer-based tests with adaptive difficulty.';
+      features = [
+        'Timed mock examinations',
+        'Weak area identification',
+        'Performance analytics',
+        'Question bank rotation',
+      ];
+    } else if (_activeMode == 'Lecture Slides') {
+      icon = Icons.slideshow_rounded;
+      title = 'AI Lecture Slides';
+      description = 'Auto-generate presentation slides from any topic.';
+      features = [
+        'Topic-based slide generation',
+        'Visual diagrams & charts',
+        'Export to PDF',
+        'Multi-language support',
+      ];
+    } else if (_activeMode == 'Deep Research') {
+      icon = Icons.biotech_rounded;
+      title = 'Deep Research Assistant';
+      description = 'Research any academic topic with AI-powered analysis.';
+      features = [
+        'Academic paper summaries',
+        'Citation generation',
+        'Cross-reference analysis',
+        'Topic deep-dives',
+      ];
+    } else {
+      // Default: 'Study Studio'
+      icon = Icons.timer_rounded;
+      title = 'Study Studio';
+      description = 'Pomodoro timer, flashcards, and focus tools.';
+      features = [
+        'Pomodoro focus timer',
+        'Spaced repetition flashcards',
+        'Study streak tracking',
+        'Ambient study sounds',
+      ];
+    }
+
+    return Stack(
+      children: [
+        Container(
+          height: 500,
+          width: double.infinity,
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.black26 : Colors.white24,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, size: 28, color: Colors.blueAccent),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Interactive workspaces for this workspace package are fully loaded and operational.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: isDark ? Colors.white38 : Colors.black45,
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : _ink,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white54 : Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ...features.map((feature) => Padding(
+                padding: const EdgeInsets.only(bottom: 10.0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Colors.blueAccent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      feature,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+              if (isLocked) ...[
+                const Spacer(),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // Open upgrade checkout
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PaymentScreen(
+                          planTitle: 'Pro Student 🚀',
+                          planPrice: '₹299',
+                          planSubtitle: 'Unlimited learning & AI tools',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.bolt_rounded),
+                  label: const Text('Unlock Premium Features'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
-      ),
+        if (isLocked)
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lock_outline_rounded, size: 12, color: Colors.amber),
+                  SizedBox(width: 4),
+                  Text(
+                    'PRO FEATURE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.amber,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
