@@ -46,6 +46,7 @@ class _LandingPageScreenState extends State<LandingPageScreen>
     String? planTitle,
     String? planPrice,
     String? planSubtitle,
+    bool isCampus = false,
   }) {
     Navigator.push(
       context,
@@ -66,6 +67,7 @@ class _LandingPageScreenState extends State<LandingPageScreen>
               pendingPlanTitle: planTitle,
               pendingPlanPrice: planPrice,
               pendingPlanSubtitle: planSubtitle,
+              isCampus: isCampus,
             ),
           ),
         ),
@@ -1222,8 +1224,9 @@ class _LandingPageScreenState extends State<LandingPageScreen>
                             } else {
                               _navigateToLogin(
                                 planTitle: plan.title,
-                                planPrice: plan.paymentPrice,
+                                planPrice: plan.price,
                                 planSubtitle: plan.subtitle,
+                                isCampus: plan.isCampus,
                               );
                             }
                           },

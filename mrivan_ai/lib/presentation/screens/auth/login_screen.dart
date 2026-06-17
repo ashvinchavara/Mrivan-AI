@@ -7,17 +7,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
 import 'payment_screen.dart';
+import 'campus_payment_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? pendingPlanTitle;
   final String? pendingPlanPrice;
   final String? pendingPlanSubtitle;
+  final bool isCampus;
 
   const LoginScreen({
     super.key,
     this.pendingPlanTitle,
     this.pendingPlanPrice,
     this.pendingPlanSubtitle,
+    this.isCampus = false,
   });
 
   static const String webClientId =
@@ -159,11 +162,17 @@ class _LoginScreenState extends State<LoginScreen>
             transitionDuration: const Duration(milliseconds: 360),
             pageBuilder: (_, animation, __) => FadeTransition(
               opacity: animation,
-              child: PaymentScreen(
-                planTitle: widget.pendingPlanTitle!,
-                planPrice: widget.pendingPlanPrice!,
-                planSubtitle: widget.pendingPlanSubtitle ?? '',
-              ),
+              child: widget.isCampus
+                  ? CampusPaymentScreen(
+                      planTitle: widget.pendingPlanTitle!,
+                      planPrice: widget.pendingPlanPrice!,
+                      planSubtitle: widget.pendingPlanSubtitle ?? '',
+                    )
+                  : PaymentScreen(
+                      planTitle: widget.pendingPlanTitle!,
+                      planPrice: widget.pendingPlanPrice!,
+                      planSubtitle: widget.pendingPlanSubtitle ?? '',
+                    ),
             ),
           ),
         );
