@@ -94,12 +94,22 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'Mrivan AI',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: _isDarkMode ? Colors.white : Colors.black87,
+                                RichText(
+                                  text: const TextSpan(
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                    children: [
+                                      TextSpan(
+                                        text: 'Mrivan',
+                                        style: TextStyle(color: Color(0xFF72E1FF)),
+                                      ),
+                                      TextSpan(
+                                        text: ' AI',
+                                        style: TextStyle(color: Color(0xFFFF8B53)),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
