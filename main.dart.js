@@ -96919,7 +96919,7 @@ l=A.Q("Flexible Pricing for Everyone",q,q,q,A.T(q,q,p.a?B.f:B.m,q,q,q,q,q,q,q,q,
 l=A.aN(A.b([l,B.bJ,A.Q("Choose the tier that matches your goals. Get started for free, upgrade as you grow.",q,q,q,A.T(q,q,p.a?B.aq:B.v,q,q,q,q,q,q,q,q,14,q,q,q,q,q,!0,q,q,q,q,q,q,q,q),q,q,q)],i),B.o,B.k,B.l)
 j=e.acJ(j)
 h=A.Q("Join the Classroom of the Future",q,q,q,A.T(q,q,p.a?B.f:B.m,q,q,q,q,q,q,q,q,24,q,q,B.r,q,q,!0,q,q,q,q,q,q,q,q),q,q,q)
-h=e.S2(A.aN(A.b([h,B.bn,A.Q("Ready to boost your classroom experience? Setup your account as a student, teacher, admin, or parent in seconds.",q,q,q,A.T(q,q,p.a?B.w:B.v,q,q,q,q,q,q,q,q,13,q,q,q,q,q,!0,q,q,q,q,q,q,q,q),B.aV,q,q),B.bI,A.hm(B.a3F,s,A.i_(q,q,B.t,q,q,q,q,q,q,B.f,q,B.Y7,q,q,new A.ch(A.ad(12),B.u),q,q,q,q,q))],i),B.o,B.k,B.l),B.L_)
+h=e.S2(A.aN(A.b([h,B.bn,A.Q("Ready to boost your classroom experience? Setup your account as a student, teacher, admin, or parent in seconds.",q,q,q,A.T(q,q,p.a?B.w:B.v,q,q,q,q,q,q,q,q,13,q,q,q,q,q,!0,q,q,q,q,q,q,q,q),B.aV,q,q),B.bI,A.hm(B.a3E,s,A.i_(q,q,B.t,q,q,q,q,q,q,B.f,q,B.Y7,q,q,new A.ch(A.ad(12),B.u),q,q,q,q,q))],i),B.o,B.k,B.l),B.L_)
 return A.lc(A.kn(A.e2(B.aP,A.b([m,A.ii(0,A.wQ(A.aN(A.b([B.Yy,new A.oN(r,k,0,B.mM,q),B.CS,new A.oN(l,k,0,B.mM,e.e),B.bI,j,B.YB,new A.oN(new A.cU(B.em,h,q),k,0,B.mM,q),B.CS,A.Q("\xa9 2026 Mrivan AI CRM & AI Tutor. All rights reserved.",q,q,q,A.T(q,q,p.a?B.bC:B.ce,q,q,q,q,q,q,q,q,12,q,q,q,q,q,!0,q,q,q,q,q,q,q,q),q,q,q),B.dj],i),B.o,B.k,B.l),k,B.KT,B.oy),n.r.b+80)],i),B.y,B.ay,q),o))},
 $S:82}
 A.axW.prototype={
@@ -97679,7 +97679,7 @@ j=h.ax
 i=A.a1(j).i("a2<1,eT<l>>")
 j=A.a4(new A.a2(j,new A.apC(),i),i.i("al.E"))
 i=t.p
-k=A.b([s,B.ac,r,B.bn,f,B.bI,q,B.ac,p,B.ac,A.vc(o,n,j,new A.apD(h),l,m,k),B.jK,A.hm(B.a3z,h.gagd(),A.i_(g,g,B.t,g,g,g,g,g,g,B.f,g,B.nr,g,g,new A.ch(A.ad(12),B.u),g,g,g,g,g))],i)
+k=A.b([s,B.ac,r,B.bn,f,B.bI,q,B.ac,p,B.ac,A.vc(o,n,j,new A.apD(h),l,m,k),B.jK,A.hm(B.a3y,h.gagd(),A.i_(g,g,B.t,g,g,g,g,g,g,B.f,g,B.nr,g,g,new A.ch(A.ad(12),B.u),g,g,g,g,g))],i)
 f=h.c
 f.toString
 if(A.aO(f,g,t.w).w.a.a<=750&&J.nl(h.f))B.b.L(k,A.b([B.ac,A.j8(B.a3K,h.gaqq(),g)],i))
@@ -97858,7 +97858,7 @@ a9(){var s,r,q=$.ez().b
 q===$&&A.a()
 s=$.ak()
 r=t.H7
-return new A.GR(q,new A.ef(B.aW,s),new A.ef(B.aW,s),new A.ef(B.aW,s),new A.ef(B.aW,s),new A.ef(B.aW,s),new A.ef(B.aW,s),A.b([A.ab(["sender","ai","content","Hello! I am MRVN AI, your dedicated 24/7 personal tutor. I can explain any subject, solve math equations, analyze source images, or guide you through exam preps. Adjust your academic profile to the left, and let me know what we are learning today!","time","1:24:28 PM"],t.N,t.z)],r),A.b([],r))}}
+return new A.GR(q,new A.ef(B.aW,s),new A.ef(B.aW,s),new A.ef(B.aW,s),new A.ef(B.aW,s),new A.ef(B.aW,s),new A.ef(B.aW,s),A.b([A.ab(["sender","ai","content","Hello! I am Mrivan AI, your dedicated 24/7 personal tutor. I can explain any subject, solve math equations, analyze source images, or guide you through exam preps. Adjust your academic profile to the left, and let me know what we are learning today!","time","1:24:28 PM"],t.N,t.z)],r),A.b([],r))}}
 A.GR.prototype={
 l(){var s=this,r=s.ch,q=r.a0$=$.ak()
 r.U$=0
@@ -98070,7 +98070,7 @@ q=A.ad(20)
 p=A.cT(s?B.ak:B.V,1)
 o=A.aV(f,B.MH,B.p,f,f,new A.aW(B.t.Z(0.1),f,f,f,f,f,B.d1),f,f,f,B.KE,f,f,f)
 n=t.p
-o=A.aG(A.b([o,B.cm,A.aN(A.b([A.Q("Active Study Workspace",f,f,f,A.T(f,f,s?B.f:B.m,f,f,f,f,f,f,f,f,16,f,f,B.r,f,f,!0,f,f,f,f,f,f,f,f),f,f,f),B.jL,B.a3y],n),B.K,B.k,B.l)],n),B.o,B.k,B.l,0,f)
+o=A.aG(A.b([o,B.cm,A.aN(A.b([A.Q("Active Study Workspace",f,f,f,A.T(f,f,s?B.f:B.m,f,f,f,f,f,f,f,f,16,f,f,B.r,f,f,!0,f,f,f,f,f,f,f,f),f,f,f),B.jL,B.a3I],n),B.K,B.k,B.l)],n),B.o,B.k,B.l,0,f)
 m=A.aG(A.b([B.Mu,B.ns,A.Q("3 Day Streak",f,f,f,A.T(f,f,s?B.f:B.m,f,f,f,f,f,f,f,f,12,f,f,B.r,f,f,!0,f,f,f,f,f,f,f,f),f,f,f)],n),B.o,B.k,B.l,0,f)
 l=A.aV(f,B.a3t,B.p,f,f,new A.aW(B.Tj.Z(0.15),f,f,A.ad(20),f,f,B.C),f,f,f,B.KF,f,f,f)
 k=s?B.bX:B.py
@@ -98100,7 +98100,7 @@ r=t.p
 s=p.n2(A.aN(A.b([s,B.bn,A.Q("Monitor your child's school attendance records and performance metrics.",o,o,o,A.T(o,o,n.a?B.w:B.v,o,o,o,o,o,o,o,o,14,o,o,o,o,o,!0,o,o,o,o,o,o,o,o),o,o,o)],r),B.K,B.k,B.l))
 n=n.a
 q=A.c0(B.M1,n?B.f:B.v,o,o)
-return A.c7(new A.cU(B.em,A.aN(A.b([s,B.dj,p.n2(A.aN(A.b([A.aG(A.b([q,B.am,A.Q("Student Child Profile",o,o,o,A.T(o,o,n?B.f:B.m,o,o,o,o,o,o,o,o,16,o,o,B.r,o,o,!0,o,o,o,o,o,o,o,o),o,o,o)],r),B.o,B.k,B.l,0,o),B.qg,B.a3D],r),B.K,B.k,B.l))],r),B.o,B.k,B.l),o),o,o)}else{n=$.bO()
+return A.c7(new A.cU(B.em,A.aN(A.b([s,B.dj,p.n2(A.aN(A.b([A.aG(A.b([q,B.am,A.Q("Student Child Profile",o,o,o,A.T(o,o,n?B.f:B.m,o,o,o,o,o,o,o,o,16,o,o,B.r,o,o,!0,o,o,o,o,o,o,o,o),o,o,o)],r),B.o,B.k,B.l,0,o),B.qg,B.a3C],r),B.K,B.k,B.l))],r),B.o,B.k,B.l),o),o,o)}else{n=$.bO()
 s=n.a
 r=A.c0(B.M5,s?B.Tg:B.eK,o,60)
 q=A.Q("Approval Pending",o,o,o,A.T(o,o,s?B.f:B.m,o,o,o,o,o,o,o,o,20,o,o,B.r,o,o,!0,o,o,o,o,o,o,o,o),o,o,o)
@@ -98188,7 +98188,7 @@ p=A.c0(n==="Study Studio"?B.Mi:B.Mm,B.e_,o,48)
 n=A.Q(n+" Module",o,o,o,A.T(o,o,a?B.f:B.m,o,o,o,o,o,o,o,o,18,o,o,B.r,o,o,!0,o,o,o,o,o,o,o,o),o,o,o)
 return A.aV(o,A.c7(A.aN(A.b([p,B.bd,n,B.bJ,A.Q("Interactive workspaces for this workspace package are fully loaded and operational.",o,o,o,A.T(o,o,a?B.bC:B.cd,o,o,o,o,o,o,o,o,12,o,o,o,o,o,!0,o,o,o,o,o,o,o,o),B.aV,o,o)],t.p),B.o,B.bO,B.l),o,o),B.p,o,o,new A.aW(s,o,q,r,o,o,B.C),o,500,o,B.lt,o,o,o)},
 acm(a,b){var s,r,q,p,o,n,m=this,l=null,k=a?B.a7:B.ah,j=A.ad(20),i=A.cT(a?B.ak:B.V,1),h=a?B.f.Z(0.03):B.q.Z(0.02),g=a?B.ak:B.V,f=A.aV(l,l,B.p,l,l,B.EK,l,8,l,l,l,l,8),e=t.p
-g=A.aV(l,A.aG(A.b([A.aG(A.b([f,B.am,A.aN(A.b([A.Q("MRVN AI Tutor",l,l,l,A.T(l,l,a?B.f:B.m,l,l,l,l,l,l,l,l,12,l,l,B.r,l,l,!0,l,l,l,l,l,l,l,l),l,l,l),A.Q("High School \u2022 "+m.fy+" Teacher",l,l,l,B.a1r,l,l,l)],e),B.K,B.k,B.l)],e),B.o,B.k,B.l,0,l),A.aV(l,B.a3q,B.p,l,l,new A.aW(B.cP.Z(0.15),l,l,A.ad(12),l,l,B.C),l,l,l,B.qy,l,l,l)],e),B.o,B.bb,B.l,0,l),B.p,l,l,new A.aW(h,l,new A.dh(B.u,B.u,new A.aQ(g,1,B.B,-1),B.u),l,l,l,B.C),l,l,l,B.cf,l,l,l)
+g=A.aV(l,A.aG(A.b([A.aG(A.b([f,B.am,A.aN(A.b([A.Q("Mrivan AI Tutor",l,l,l,A.T(l,l,a?B.f:B.m,l,l,l,l,l,l,l,l,12,l,l,B.r,l,l,!0,l,l,l,l,l,l,l,l),l,l,l),A.Q("High School \u2022 "+m.fy+" Teacher",l,l,l,B.a1r,l,l,l)],e),B.K,B.k,B.l)],e),B.o,B.k,B.l,0,l),A.aV(l,B.a3q,B.p,l,l,new A.aW(B.cP.Z(0.15),l,l,A.ad(12),l,l,B.C),l,l,l,B.qy,l,l,l)],e),B.o,B.bb,B.l,0,l),B.p,l,l,new A.aW(h,l,new A.dh(B.u,B.u,new A.aQ(g,1,B.B,-1),B.u),l,l,l,B.C),l,l,l,B.cf,l,l,l)
 h=A.md(l,new A.atd(m,a,b),m.fr.length,B.bh)
 f=a?B.m:B.f
 s=A.ad(24)
@@ -98201,7 +98201,7 @@ q=A.ad(12)
 p=a?B.ak:B.V
 o=A.ad(12)
 n=a?B.ak:B.V
-return A.aV(l,A.aN(A.b([g,s,A.aV(l,A.aG(A.b([A.bM(A.k3(l,B.bt,!1,l,!0,B.y,l,A.lC(),m.dy,l,l,l,l,l,2,A.iP(l,new A.dn(4,q,new A.aQ(p,1,B.B,-1)),l,B.KH,l,l,l,l,!0,new A.dn(4,o,new A.aQ(n,1,B.B,-1)),l,l,l,l,l,l,l,l,l,l,l,new A.dn(4,A.ad(12),B.ow),l,l,l,l,l,l,l,l,l,"Ask MRVN anything about "+r+"...",l,l,l,l,l,l,l,l,l,!0,!0,!1,l,l,l,l,l,l,l,l,l,l,l,l,l,l),B.a2,!0,l,!0,l,!1,l,B.bo,l,l,l,l,l,l,l,l,1,l,l,!1,"\u2022",l,l,l,new A.ate(m),l,!1,l,l,!1,l,!0,l,B.bD,l,l,l,l,l,l,l,l,l,l,l,B.a_0,!0,B.af,l,B.c5,l,l,l,l),1),B.am,A.ea(l,l,B.Mt,l,l,new A.atf(m),l,l,l),A.ea(l,l,B.MN,l,l,new A.atg(m),l,l,l)],e),B.o,B.k,B.l,0,l),B.p,l,l,new A.aW(h,l,new A.dh(new A.aQ(f,1,B.B,-1),B.u,B.u,B.u),l,l,l,B.C),l,l,l,B.fT,l,l,l)],e),B.o,B.k,B.l),B.p,l,l,new A.aW(k,l,i,j,l,l,B.C),l,600,l,l,l,l,l)},
+return A.aV(l,A.aN(A.b([g,s,A.aV(l,A.aG(A.b([A.bM(A.k3(l,B.bt,!1,l,!0,B.y,l,A.lC(),m.dy,l,l,l,l,l,2,A.iP(l,new A.dn(4,q,new A.aQ(p,1,B.B,-1)),l,B.KH,l,l,l,l,!0,new A.dn(4,o,new A.aQ(n,1,B.B,-1)),l,l,l,l,l,l,l,l,l,l,l,new A.dn(4,A.ad(12),B.ow),l,l,l,l,l,l,l,l,l,"Ask Mrivan anything about "+r+"...",l,l,l,l,l,l,l,l,l,!0,!0,!1,l,l,l,l,l,l,l,l,l,l,l,l,l,l),B.a2,!0,l,!0,l,!1,l,B.bo,l,l,l,l,l,l,l,l,1,l,l,!1,"\u2022",l,l,l,new A.ate(m),l,!1,l,l,!1,l,!0,l,B.bD,l,l,l,l,l,l,l,l,l,l,l,B.a_0,!0,B.af,l,B.c5,l,l,l,l),1),B.am,A.ea(l,l,B.Mt,l,l,new A.atf(m),l,l,l),A.ea(l,l,B.MN,l,l,new A.atg(m),l,l,l)],e),B.o,B.k,B.l,0,l),B.p,l,l,new A.aW(h,l,new A.dh(new A.aQ(f,1,B.B,-1),B.u,B.u,B.u),l,l,l,B.C),l,l,l,B.fT,l,l,l)],e),B.o,B.k,B.l),B.p,l,l,new A.aW(k,l,i,j,l,l,B.C),l,600,l,l,l,l,l)},
 Xf(a){var s,r,q,p,o=B.c.dK(a)
 if(o.length===0)return
 s=new A.bR(Date.now(),0,!1)
@@ -99072,7 +99072,7 @@ r=!r
 p.push(A.k3(k,B.bt,!1,k,!0,B.y,k,A.lC(),h,k,k,k,k,k,2,A.iP(k,new A.dn(4,A.ad(12),B.d0),k,k,k,k,k,k,r,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,"Type your solution here...",k,k,k,k,k,k,k,k,k,!0,!0,!1,k,k,k,k,k,k,k,k,k,k,k,k,k,k),B.a2,!0,k,!0,k,!1,k,B.bo,k,k,k,k,k,k,k,k,4,k,k,!1,"\u2022",k,k,k,k,k,!1,k,k,!1,k,!0,k,B.bD,k,k,k,k,k,k,k,k,k,k,k,n,!0,B.af,k,B.c5,k,k,k,k))
 p=A.aN(p,B.K,B.k,B.as)
 o=A.b([A.j8(B.a3p,new A.aCI(a),k)],o)
-if(r)o.push(A.hm(B.a3I,new A.aCJ(i,h,l.f,a),k))
+if(r)o.push(A.hm(B.a3H,new A.aCJ(i,h,l.f,a),k))
 return A.zt(o,s,p,k,k,q)},
 $S:67}
 A.aCI.prototype={
@@ -99722,7 +99722,7 @@ k=A.k3(m,B.bt,!1,m,!0,B.y,m,A.lC(),q,m,m,m,m,m,2,B.Nn,B.a2,!0,m,!0,m,!1,m,B.bo,m
 p=n.c
 o=t.p
 k=A.aN(A.b([k,B.bd,A.k3(m,B.bt,!1,m,!0,B.y,m,A.lC(),p,m,m,m,m,m,2,B.Nk,B.a2,!0,m,!0,m,!1,m,B.bo,m,m,m,m,m,m,m,m,2,m,m,!1,"\u2022",m,m,m,m,m,!1,m,m,!1,m,!0,m,B.bD,m,m,m,m,m,m,m,m,m,m,m,A.T(m,m,l.d?B.f:B.m,m,m,m,m,m,m,m,m,m,m,m,m,m,m,!0,m,m,m,m,m,m,m,m),!0,B.af,m,B.c5,m,m,m,m)],o),B.o,B.k,B.as)
-return A.zt(A.b([A.j8(B.nH,new A.awT(a),m),A.hm(B.a3B,new A.awU(l,q,p,n.d,a),m)],o),s,k,m,m,r)},
+return A.zt(A.b([A.j8(B.nH,new A.awT(a),m),A.hm(B.a3A,new A.awU(l,q,p,n.d,a),m)],o),s,k,m,m,r)},
 $S:67}
 A.awT.prototype={
 $0(){A.c2(this.a,!1).dE(null)
@@ -106982,8 +106982,8 @@ B.PY=s([35,30,20,25,30,35,30,25,25],t.n)
 B.MI=new A.cs(B.rf,16,B.e_,null,null)
 B.hC=new A.cb(6,null,null,null)
 B.Dj=new A.n(!0,B.e_,null,null,null,null,10,B.r,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a3C=new A.c4("Deep Thought Active",null,B.Dj,null,null,null,null,null,null,null)
-B.Q0=s([B.MI,B.hC,B.a3C],t.p)
+B.a3B=new A.c4("Deep Thought Active",null,B.Dj,null,null,null,null,null,null,null)
+B.Q0=s([B.MI,B.hC,B.a3B],t.p)
 B.Q1=s(["click","scroll"],t.s)
 B.Fs=new A.no()
 B.jt=new A.RI(1,"page")
@@ -107027,8 +107027,8 @@ B.h2=s([B.dx,B.cD,B.hV,B.hW,B.kz],t.QP)
 B.QE=s([B.dy,B.fs,B.om,B.hZ,B.on],A.ax("I<jx>"))
 B.Mo=new A.b6(984e3,"MaterialIcons",!1)
 B.MB=new A.cs(B.Mo,null,B.eK,null,null)
-B.a3G=new A.c4("Upgrade Required",null,null,null,null,null,null,null,null,null)
-B.QG=s([B.MB,B.am,B.a3G],t.p)
+B.a3F=new A.c4("Upgrade Required",null,null,null,null,null,null,null,null,null)
+B.QG=s([B.MB,B.am,B.a3F],t.p)
 B.OQ=s([0.001200833568784504,0.002389694492170889,0.0002795742885861124],t.n)
 B.Q4=s([0.0005891086651375999,0.0029785502573438758,0.0003270666104008398],t.n)
 B.P4=s([0.00010146692491640572,0.0005364214359186694,0.0032979401770712076],t.n)
@@ -108627,12 +108627,12 @@ B.a3N=new A.c4("Study guide copied to clipboard!",null,null,null,null,null,null,
 B.YK=new A.j6(B.a3N,null,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
 B.a3k=new A.c4("Attendance recorded successfully!",null,null,null,null,null,null,null,null,null)
 B.YL=new A.j6(B.a3k,B.c2,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
-B.a3E=new A.c4("Homework submitted successfully!",null,null,null,null,null,null,null,null,null)
-B.YM=new A.j6(B.a3E,B.c2,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
-B.a3A=new A.c4("Homework assigned successfully!",null,null,null,null,null,null,null,null,null)
-B.YN=new A.j6(B.a3A,B.c2,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
-B.a3H=new A.c4("Audio speech-to-text simulation active",null,null,null,null,null,null,null,null,null)
-B.YO=new A.j6(B.a3H,null,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
+B.a3D=new A.c4("Homework submitted successfully!",null,null,null,null,null,null,null,null,null)
+B.YM=new A.j6(B.a3D,B.c2,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
+B.a3z=new A.c4("Homework assigned successfully!",null,null,null,null,null,null,null,null,null)
+B.YN=new A.j6(B.a3z,B.c2,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
+B.a3G=new A.c4("Audio speech-to-text simulation active",null,null,null,null,null,null,null,null,null)
+B.YO=new A.j6(B.a3G,null,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
 B.a3n=new A.c4("Graded successfully!",null,null,null,null,null,null,null,null,null)
 B.YP=new A.j6(B.a3n,B.c2,null,null,null,null,null,null,null,null,null,null,null,B.bZ,!1,null,null,null,B.y,null)
 B.CX=new A.EU(0,"permissive")
@@ -109051,13 +109051,13 @@ B.a3v=new A.c4("Upgrade Plan",null,null,null,null,null,null,null,null,null)
 B.a_e=new A.n(!0,B.aq,null,null,null,null,12,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.a3w=new A.c4("Please do not press back or refresh the page",null,B.a_e,null,null,null,null,null,null,null)
 B.a3x=new A.c4("Save & Submit Attendance",null,B.jU,null,null,null,null,null,null,null)
+B.a3y=new A.c4("Generate Outline",null,null,null,null,null,null,null,null,null)
+B.a3A=new A.c4("Save Grade",null,null,null,null,null,null,null,null,null)
+B.a3C=new A.c4("No child accounts are currently linked. Please contact your school administrator to link your profile.",null,null,null,null,null,null,null,null,null)
+B.a3E=new A.c4("Get Started Now",null,B.hK,null,null,null,null,null,null,null)
+B.a3H=new A.c4("Submit Answer",null,null,null,null,null,null,null,null,null)
 B.a_g=new A.n(!0,B.e_,null,null,null,null,9,B.r,null,1.1,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.a3y=new A.c4("MRVN COCKPIT NODE",null,B.a_g,null,null,null,null,null,null,null)
-B.a3z=new A.c4("Generate Outline",null,null,null,null,null,null,null,null,null)
-B.a3B=new A.c4("Save Grade",null,null,null,null,null,null,null,null,null)
-B.a3D=new A.c4("No child accounts are currently linked. Please contact your school administrator to link your profile.",null,null,null,null,null,null,null,null,null)
-B.a3F=new A.c4("Get Started Now",null,B.hK,null,null,null,null,null,null,null)
-B.a3I=new A.c4("Submit Answer",null,null,null,null,null,null,null,null,null)
+B.a3I=new A.c4("Mrivan COCKPIT NODE",null,B.a_g,null,null,null,null,null,null,null)
 B.a3K=new A.c4("Open Saved Guides",null,null,null,null,null,null,null,null,null)
 B.a3L=new A.c4("Close",null,B.hK,null,null,null,null,null,null,null)
 B.a0H=new A.n(!0,B.t,null,null,null,null,10,B.r,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
