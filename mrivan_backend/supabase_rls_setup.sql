@@ -10,22 +10,20 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Allow all authenticated users to read profiles (needed for checking roles/schools)
+DROP POLICY IF EXISTS select_all_authenticated_profiles ON public.profiles;
 CREATE POLICY select_all_authenticated_profiles ON public.profiles
     FOR SELECT
     TO authenticated
     USING (true);
 
--- Allow users to update their own profile
-CREATE POLICY update_own_profile ON public.profiles
-    FOR UPDATE
+-- Allow users to manage (INSERT, UPDATE, DELETE) their own profile
+DROP POLICY IF EXISTS update_own_profile ON public.profiles;
+DROP POLICY IF EXISTS insert_own_profile ON public.profiles;
+DROP POLICY IF EXISTS manage_own_profile ON public.profiles;
+CREATE POLICY manage_own_profile ON public.profiles
+    FOR ALL
     TO authenticated
     USING (auth.uid() = id)
-    WITH CHECK (auth.uid() = id);
-
--- Allow users to insert their own profile (necessary for upsert operations)
-CREATE POLICY insert_own_profile ON public.profiles
-    FOR INSERT
-    TO authenticated
     WITH CHECK (auth.uid() = id);
 
 
