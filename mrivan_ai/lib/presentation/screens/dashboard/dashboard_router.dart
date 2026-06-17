@@ -50,7 +50,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
   final List<Map<String, dynamic>> _chatMessages = [
     {
       'sender': 'ai',
-      'content': 'Hello! I am MRVN AI, your dedicated 24/7 personal tutor. I can explain any subject, solve math equations, analyze source images, or guide you through exam preps. Adjust your academic profile to the left, and let me know what we are learning today!',
+      'content': 'Hello! I am Mrivan AI, your dedicated 24/7 personal tutor. I can explain any subject, solve math equations, analyze source images, or guide you through exam preps. Adjust your academic profile to the left, and let me know what we are learning today!',
       'time': '1:24:28 PM'
     }
   ];
@@ -1483,7 +1483,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                   ),
                   const SizedBox(height: 2),
                   const Text(
-                    'MRVN COCKPIT NODE',
+                    'Mrivan COCKPIT NODE',
                     style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
@@ -2137,7 +2137,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'MRVN AI Tutor',
+                          'Mrivan AI Tutor',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -2265,7 +2265,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
                     controller: _chatInputController,
                     style: const TextStyle(fontSize: 13),
                     decoration: InputDecoration(
-                      hintText: 'Ask MRVN anything about $_selectedSubject...',
+                      hintText: 'Ask Mrivan anything about $_selectedSubject...',
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
