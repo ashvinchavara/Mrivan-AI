@@ -398,7 +398,7 @@ class DatabaseService {
     String? phoneNumber,
   }) async {
     try {
-      final updates = <String, dynamic>{};
+      final updates = <String, dynamic>{'id': userId};
       if (fullName != null) updates['full_name'] = fullName;
       if (schoolId != null) updates['school_id'] = schoolId;
       if (classId != null) updates['class_id'] = classId;
@@ -409,8 +409,7 @@ class DatabaseService {
 
       final response = await _client
           .from('profiles')
-          .update(updates)
-          .eq('id', userId)
+          .upsert(updates)
           .select()
           .single();
       return response;

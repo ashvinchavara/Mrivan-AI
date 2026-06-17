@@ -375,7 +375,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                           child: ClipRRect(
                                             borderRadius: BorderRadius.circular(16),
                                             child: Image.asset(
-                                              'assets/logo.jpeg',
+                                              'assets/large_logo.jpeg',
                                               width: 58,
                                               height: 58,
                                               fit: BoxFit.cover,
