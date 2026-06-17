@@ -15,11 +15,17 @@ CREATE POLICY select_all_authenticated_profiles ON public.profiles
     TO authenticated
     USING (true);
 
--- Allow users to update their own full name
+-- Allow users to update their own profile
 CREATE POLICY update_own_profile ON public.profiles
     FOR UPDATE
     TO authenticated
     USING (auth.uid() = id)
+    WITH CHECK (auth.uid() = id);
+
+-- Allow users to insert their own profile (necessary for upsert operations)
+CREATE POLICY insert_own_profile ON public.profiles
+    FOR INSERT
+    TO authenticated
     WITH CHECK (auth.uid() = id);
 
 

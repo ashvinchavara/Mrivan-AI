@@ -114,3 +114,9 @@ CREATE INDEX IF NOT EXISTS idx_homework_class ON homework(class_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_homework ON homework_submissions(homework_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON ai_chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_test_attempts_student ON test_attempts(student_id);
+
+-- Additional profile fields for custom registration
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS class TEXT,
+ADD COLUMN IF NOT EXISTS age TEXT,
+ADD COLUMN IF NOT EXISTS phone_number TEXT;
