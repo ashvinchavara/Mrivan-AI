@@ -37,6 +37,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
   String? _phoneNumber;
   String? _email;
   bool _isSavingProfile = false;
+  bool _profileSavedThisSession = false; // persists across reloads within session
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _classController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
@@ -92,7 +93,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
 
     if (planTitle != null && planPrice != null) {
       // Clear query parameters in URL to prevent redirect loop on reload
-      SystemNavigator.routeInformationUpdated(location: '/');
+      SystemNavigator.routeInformationUpdated(uri: Uri.parse('/'));
       
       Navigator.push(
         context,
@@ -156,10 +157,12 @@ class _DashboardRouterState extends State<DashboardRouter> {
   }
 
   bool _isProfileIncomplete() {
-    // Campus plan users never see the setup card — they go to CRM dashboards.
+    // Campus Plan users have their own CRM dashboards — skip this onboarding
     if (_paymentPlan == 'Campus Plan') return false;
+    // If profile was successfully saved this session, never re-ask
+    if (_profileSavedThisSession) return false;
     if (_userName == null || _userName!.trim().isEmpty) return true;
-    if (_userName!.contains('@')) return true; // email is fallback name = not set yet
+    if (_userName!.contains('@')) return true; // email fallback means name wasn't set
     if (_className == null || _className!.trim().isEmpty) return true;
     if (_age == null || _age!.trim().isEmpty) return true;
     if (_phoneNumber == null || _phoneNumber!.trim().isEmpty) return true;
@@ -174,7 +177,9 @@ class _DashboardRouterState extends State<DashboardRouter> {
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-    setState(() => _isSavingProfile = true);
+    setState(() {
+      _isSavingProfile = true;
+    });
     try {
       await DatabaseService.instance.updateUserProfile(
         userId: user.id,
@@ -184,34 +189,44 @@ class _DashboardRouterState extends State<DashboardRouter> {
         phoneNumber: phoneNumber,
         paymentPlan: _paymentPlan,
       );
-      // Immediately update local state so _isProfileIncomplete() returns false
-      // without needing another network round-trip.
-      if (mounted) {
-        setState(() {
-          _userName = name;
-          _className = className;
-          _age = age;
-          _phoneNumber = phoneNumber;
-          _isSavingProfile = false;
-        });
-      }
-      // Now reload from DB to confirm persistence, but UI already shows cockpit.
-      await _loadUserProfile();
+      // Mark saved so we never show setup again this session
+      setState(() {
+        _userName = name;
+        _className = className;
+        _age = age;
+        _phoneNumber = phoneNumber;
+        _profileSavedThisSession = true;
+      });
+      // Background reload to sync any server-side changes
+      _loadUserProfile();
     } catch (e) {
       if (mounted) {
-        setState(() => _isSavingProfile = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save profile: $e'),
-            backgroundColor: Colors.redAccent,
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Failed to save profile: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingProfile = false;
+        });
       }
     }
   }
 
   Widget _buildProfileCompletionView() {
-    // Pre-fill controllers from state (only if empty to avoid cursor jumping)
+    // Pre-fill controllers with any existing data (e.g. name from Google)
     if (_nameController.text.isEmpty && _userName != null && !_userName!.contains('@')) {
       _nameController.text = _userName!;
     }
@@ -225,384 +240,348 @@ class _DashboardRouterState extends State<DashboardRouter> {
       _phoneController.text = _phoneNumber!;
     }
     final isDark = _isDarkMode;
+    const primaryColor = Color(0xFF155DFC);
+    const accentColor = Color(0xFF72E1FF);
 
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+        physics: const BouncingScrollPhysics(),
         child: Container(
           width: 520,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(32),
+            borderRadius: BorderRadius.circular(28),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [const Color(0xFF0D1B2A), const Color(0xFF111827)]
+                  : [Colors.white, const Color(0xFFF0F6FF)],
+            ),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : primaryColor.withValues(alpha: 0.12),
+              width: 1.2,
+            ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF155DFC).withValues(alpha: isDark ? 0.18 : 0.10),
-                blurRadius: 48,
-                spreadRadius: 2,
+                color: primaryColor.withValues(alpha: isDark ? 0.18 : 0.10),
+                blurRadius: 40,
+                spreadRadius: 0,
                 offset: const Offset(0, 16),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(32),
+            borderRadius: BorderRadius.circular(28),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.55)
-                      : Colors.white.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(32),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.10)
-                        : Colors.white.withValues(alpha: 0.70),
-                    width: 1.5,
-                  ),
-                ),
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(32, 36, 32, 36),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Gradient Header Banner ──
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF155DFC), Color(0xFF0EA5E9)],
-                        ),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(31),
-                          topRight: Radius.circular(31),
-                        ),
-                      ),
-                      child: Column(
+
+                    // ── Logo + Glow Halo ─────────────────────────────
+                    Center(
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          // Logo + Brand
-                          Row(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(14),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.25),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(14),
-                                  child: Image.asset(
-                                    'assets/logo.jpeg',
-                                    height: 52,
-                                    width: 52,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      height: 52,
-                                      width: 52,
-                                      color: Colors.white24,
-                                      child: const Icon(Icons.person_rounded,
-                                          color: Colors.white, size: 28),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Mrivan AI',
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                      letterSpacing: -0.3,
-                                    ),
-                                  ),
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 3),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Text(
-                                      'PROFILE SETUP',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.3,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
+                          // Outer glow ring
+                          Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  primaryColor.withValues(alpha: 0.30),
+                                  primaryColor.withValues(alpha: 0.0),
                                 ],
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Complete your profile',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Tell us about yourself to personalise your study workspace.',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: Colors.white.withValues(alpha: 0.80),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.asset(
+                              'assets/logo.jpeg',
+                              height: 76,
+                              width: 76,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                height: 76,
+                                width: 76,
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Icon(Icons.person_rounded, color: primaryColor, size: 40),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                          // Step indicator pills
-                          Row(
-                            children: [
-                              _buildStepPill('1', 'Identity', true),
-                              _buildStepConnector(),
-                              _buildStepPill('2', 'Academic', true),
-                              _buildStepConnector(),
-                              _buildStepPill('3', 'Contact', true),
-                            ],
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 22),
 
-                    // ── Form Body ──
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(28, 28, 28, 28),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    // ── Title ────────────────────────────────────────
+                    Center(
+                      child: Text(
+                        'Set Up Your Profile',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Center(
+                      child: Text(
+                        'Tell us about yourself to personalise your study cockpit.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.white54 : Colors.black45,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Step Indicator ────────────────────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(4, (i) {
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: i == 0 ? 24 : 8,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: i == 0 ? primaryColor : (isDark ? Colors.white12 : Colors.black12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 28),
+
+                    // ── Email chip ────────────────────────────────────
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? primaryColor.withValues(alpha: 0.06)
+                            : primaryColor.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: primaryColor.withValues(alpha: 0.18),
+                        ),
+                      ),
+                      child: Row(
                         children: [
-                          // Email read-only chip
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.04)
-                                  : const Color(0xFF155DFC)
-                                      .withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.08)
-                                    : const Color(0xFF155DFC)
-                                        .withValues(alpha: 0.15),
+                          const Icon(Icons.verified_user_rounded, color: primaryColor, size: 16),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Signed in as  ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              _email ?? '',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? accentColor : primaryColor,
                               ),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.email_outlined,
-                                  size: 14,
-                                  color: isDark
-                                      ? Colors.white38
-                                      : const Color(0xFF155DFC),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 26),
+
+                    // ── Input Fields ──────────────────────────────────
+                    _buildInputLabel('FULL NAME', isDark),
+                    const SizedBox(height: 7),
+                    _buildInputField(
+                      controller: _nameController,
+                      hintText: 'e.g. Aryan Sharma',
+                      icon: Icons.person_outline_rounded,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 18),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildInputLabel('CLASS / GRADE', isDark),
+                              const SizedBox(height: 7),
+                              _buildInputField(
+                                controller: _classController,
+                                hintText: 'e.g. Class 10',
+                                icon: Icons.school_outlined,
+                                isDark: isDark,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildInputLabel('AGE', isDark),
+                              const SizedBox(height: 7),
+                              _buildInputField(
+                                controller: _ageController,
+                                hintText: 'e.g. 16',
+                                icon: Icons.cake_outlined,
+                                isDark: isDark,
+                                keyboardType: TextInputType.number,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+
+                    _buildInputLabel('PHONE NUMBER', isDark),
+                    const SizedBox(height: 7),
+                    _buildInputField(
+                      controller: _phoneController,
+                      hintText: 'e.g. +91 98765 43210',
+                      icon: Icons.phone_outlined,
+                      isDark: isDark,
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 32),
+
+                    // ── Save Button ───────────────────────────────────
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: _isSavingProfile
+                              ? LinearGradient(colors: [Colors.grey[600]!, Colors.grey[700]!])
+                              : const LinearGradient(
+                                  colors: [Color(0xFF155DFC), Color(0xFF3B82F6)],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
                                 ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _email ?? '',
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark
-                                        ? Colors.white60
-                                        : Colors.black87,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 7, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Text(
-                                    'VERIFIED',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Section label
-                          _buildSectionLabel('PERSONAL DETAILS', isDark),
-                          const SizedBox(height: 12),
-
-                          // Full Name
-                          _buildPremiumInputField(
-                            controller: _nameController,
-                            label: 'Full Name',
-                            hintText: 'e.g. Ashvin Chavara',
-                            icon: Icons.badge_outlined,
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Age
-                          _buildPremiumInputField(
-                            controller: _ageController,
-                            label: 'Age',
-                            hintText: 'e.g. 16',
-                            icon: Icons.cake_outlined,
-                            isDark: isDark,
-                            keyboardType: TextInputType.number,
-                          ),
-                          const SizedBox(height: 24),
-
-                          _buildSectionLabel('ACADEMIC DETAILS', isDark),
-                          const SizedBox(height: 12),
-
-                          // Class / Grade
-                          _buildPremiumInputField(
-                            controller: _classController,
-                            label: 'Class / Grade',
-                            hintText: 'e.g. Class 10 / 12th Science',
-                            icon: Icons.school_outlined,
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 24),
-
-                          _buildSectionLabel('CONTACT', isDark),
-                          const SizedBox(height: 12),
-
-                          // Phone Number
-                          _buildPremiumInputField(
-                            controller: _phoneController,
-                            label: 'Phone Number',
-                            hintText: 'e.g. +91 98765 43210',
-                            icon: Icons.phone_outlined,
-                            isDark: isDark,
-                            keyboardType: TextInputType.phone,
-                          ),
-                          const SizedBox(height: 32),
-
-                          // CTA Save Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 54,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFF155DFC), Color(0xFF0EA5E9)],
-                                ),
-                                boxShadow: [
+                          boxShadow: _isSavingProfile
+                              ? []
+                              : [
                                   BoxShadow(
-                                    color: const Color(0xFF155DFC)
-                                        .withValues(alpha: 0.40),
+                                    color: primaryColor.withValues(alpha: 0.40),
                                     blurRadius: 18,
                                     offset: const Offset(0, 6),
                                   ),
                                 ],
-                              ),
-                              child: ElevatedButton(
-                                onPressed: _isSavingProfile
-                                    ? null
-                                    : () async {
-                                        final name =
-                                            _nameController.text.trim();
-                                        final className =
-                                            _classController.text.trim();
-                                        final age =
-                                            _ageController.text.trim();
-                                        final phone =
-                                            _phoneController.text.trim();
+                        ),
+                        child: ElevatedButton(
+                          onPressed: _isSavingProfile
+                              ? null
+                              : () async {
+                                  final name = _nameController.text.trim();
+                                  final className = _classController.text.trim();
+                                  final age = _ageController.text.trim();
+                                  final phone = _phoneController.text.trim();
 
-                                        if (name.isEmpty ||
-                                            className.isEmpty ||
-                                            age.isEmpty ||
-                                            phone.isEmpty) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                  'Please fill out all fields to continue.'),
-                                              backgroundColor: Colors.redAccent,
-                                            ),
-                                          );
-                                          return;
-                                        }
-                                        await _saveProfileDetails(
-                                          name: name,
-                                          className: className,
-                                          age: age,
-                                          phoneNumber: phone,
-                                        );
-                                      },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: _isSavingProfile
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2.5,
+                                  if (name.isEmpty || className.isEmpty || age.isEmpty || phone.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Row(
+                                          children: [
+                                            Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+                                            SizedBox(width: 10),
+                                            Text('Please fill in all fields to continue.'),
+                                          ],
                                         ),
-                                      )
-                                    : const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.rocket_launch_rounded,
-                                              size: 18),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            'Save & Enter Workspace',
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.2,
-                                            ),
-                                          ),
-                                        ],
+                                        backgroundColor: Colors.orange[700],
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                       ),
-                              ),
+                                    );
+                                    return;
+                                  }
+                                  await _saveProfileDetails(
+                                    name: name,
+                                    className: className,
+                                    age: age,
+                                    phoneNumber: phone,
+                                  );
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
+                            elevation: 0,
                           ),
+                          child: _isSavingProfile
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.rocket_launch_rounded, size: 18),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Save & Launch Cockpit',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
 
-                          const SizedBox(height: 16),
-                          Center(
-                            child: Text(
-                              'Your data is encrypted and never shared.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isDark
-                                    ? Colors.white30
-                                    : Colors.black38,
-                              ),
+                    const SizedBox(height: 18),
+
+                    // ── Privacy Note ──────────────────────────────────
+                    Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_outline_rounded, size: 11,
+                              color: isDark ? Colors.white24 : Colors.black26),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Your data is encrypted and never shared.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white24 : Colors.black38,
                             ),
                           ),
                         ],
@@ -618,144 +597,69 @@ class _DashboardRouterState extends State<DashboardRouter> {
     );
   }
 
-  Widget _buildStepPill(String number, String label, bool active) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            color: active ? Colors.white : Colors.white30,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              number,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: active ? const Color(0xFF155DFC) : Colors.white,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: active ? Colors.white : Colors.white54,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStepConnector() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Container(
-        width: 20,
-        height: 1,
-        color: Colors.white38,
+  Widget _buildInputLabel(String text, bool isDark) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.4,
+        color: isDark ? Colors.white38 : Colors.black45,
       ),
     );
   }
 
-  Widget _buildSectionLabel(String text, bool isDark) {
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 14,
-          decoration: BoxDecoration(
-            color: const Color(0xFF155DFC),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.4,
-            color: isDark ? Colors.white38 : Colors.black45,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPremiumInputField({
+  Widget _buildInputField({
     required TextEditingController controller,
-    required String label,
     required String hintText,
     required IconData icon,
     required bool isDark,
     TextInputType keyboardType = TextInputType.text,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white60 : Colors.black54,
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: TextStyle(
+        color: isDark ? Colors.white : const Color(0xFF0F172A),
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: TextStyle(
+          color: isDark ? Colors.white24 : Colors.black26,
+          fontSize: 13,
+        ),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 14, right: 10),
+          child: Icon(
+            icon,
+            color: const Color(0xFF155DFC),
+            size: 18,
           ),
         ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          style: TextStyle(
-            color: isDark ? Colors.white : Colors.black87,
-            fontSize: 14.5,
-            fontWeight: FontWeight.w500,
-          ),
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(
-              color: isDark ? Colors.white24 : Colors.black26,
-              fontWeight: FontWeight.normal,
-            ),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(
-                icon,
-                color: isDark ? Colors.white38 : const Color(0xFF155DFC).withValues(alpha: 0.6),
-                size: 20,
-              ),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-            filled: true,
-            fillColor: isDark
-                ? Colors.white.withValues(alpha: 0.055)
-                : Colors.black.withValues(alpha: 0.03),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(13),
-              borderSide: BorderSide(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.10)
-                    : Colors.black.withValues(alpha: 0.10),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(13),
-              borderSide: const BorderSide(
-                color: Color(0xFF155DFC),
-                width: 2,
-              ),
-            ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        filled: true,
+        fillColor: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : const Color(0xFF155DFC).withValues(alpha: 0.03),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : const Color(0xFF155DFC).withValues(alpha: 0.15),
           ),
         ),
-      ],
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
+            color: Color(0xFF155DFC),
+            width: 1.8,
+          ),
+        ),
+      ),
     );
   }
 
@@ -793,8 +697,7 @@ class _DashboardRouterState extends State<DashboardRouter> {
 
   @override
   Widget build(BuildContext context) {
-    // Non-campus plan users with complete profile → Study Cockpit
-    if (!_isLoadingProfile && !_isProfileIncomplete()) {
+    if (!_isLoadingProfile && !_isProfileIncomplete() && _paymentPlan != 'Campus Plan') {
       return _buildStudyCockpitDashboard();
     }
 
