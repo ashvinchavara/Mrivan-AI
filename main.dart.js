@@ -95447,7 +95447,7 @@ s===$&&A.a()
 q=B.c.ct(s.a.a)
 s=t.p
 p=A.aV(A.b([B.qT,B.bm,A.a_("Campus Details",n,n,n,A.ab(n,n,$.cL().a?B.e:B.G,n,n,n,n,n,n,n,n,16,n,n,B.A,n,n,!0,n,n,n,n,n,n,n,n),n,n)],s),B.p,B.l,B.k,0)
-return o.yA(A.aT(A.b([p,B.b3,o.ov("Institution Name",m),B.d0,o.ov("Students Count",r+" students (\u20b949/student)"),B.d0,o.ov("Teachers Count",q+" teachers")],s),B.v,B.l,B.k))}else return o.aa2()},
+return o.yA(A.aT(A.b([p,B.b3,o.ov("Institution Name",m),B.d0,o.ov("Students Count",r+" students (\u20b9149/student)"),B.d0,o.ov("Teachers Count",q+" teachers")],s),B.v,B.l,B.k))}else return o.aa2()},
 aa2(){var s,r,q=this,p=null,o=t.p,n=A.aV(A.b([B.qT,B.bm,A.a_("Campus Details",p,p,p,A.ab(p,p,$.cL().a?B.e:B.G,p,p,p,p,p,p,p,p,16,p,p,B.A,p,p,!0,p,p,p,p,p,p,p,p),p,p)],o),B.p,B.l,B.k,0),m=q.Q
 m===$&&A.a()
 m=q.Qf(m,"e.g. Mrivan Public School",B.eF,"School / Institution Name")
@@ -95488,7 +95488,7 @@ return A.dH(m.Q4(A.aT(r,B.p,B.l,B.k),B.Jp),l,l)},
 ov(a,b){var s=null,r=$.cL(),q=A.a_(a,s,s,s,A.ab(s,s,r.a?B.eo:B.db,s,s,s,s,s,s,s,s,12,s,s,s,s,s,!0,s,s,s,s,s,s,s,s),s,s)
 return A.aV(A.b([q,A.a_(b,s,s,s,A.ab(s,s,r.a?B.B:B.G,s,s,s,s,s,s,s,s,12,s,s,B.dK,s,s,!0,s,s,s,s,s,s,s,s),s,s)],t.p),B.p,B.bj,B.k,0)}}
 A.awm.prototype={
-$0(){this.a.cx=this.b*49},
+$0(){this.a.cx=this.b*149},
 $S:0}
 A.awn.prototype={
 $0(){this.a.cx=this.b},
@@ -95607,11 +95607,11 @@ s=this.a
 if(!s.CW){r=s.a.c
 q=r==="Campus Plan"
 r=A.a_(r,m,m,m,A.ab(m,m,l.a?B.e:B.G,m,m,m,m,m,m,m,m,20,m,m,B.A,m,m,!0,m,m,m,m,m,m,m,m),m,m)
-p=q?"\u20b949 / student / month":s.a.e
+p=q?"\u20b9149 / student / month":s.a.e
 r=A.aT(A.b([r,B.jJ,A.a_(p,m,m,m,A.ab(m,m,l.a?B.bE:B.I,m,m,m,m,m,m,m,m,12,m,m,m,m,m,!0,m,m,m,m,m,m,m,m),m,m)],i),B.v,B.l,B.k)
 p=B.t.af(0.15)
 o=A.aw(12)
-r=A.aV(A.b([r,A.aK(m,A.a_(q?"\u20b949/stud":s.a.d,m,m,m,B.Zn,m,m),B.n,m,m,new A.aD(p,m,m,o,m,m,B.r),m,m,m,m,B.Jc,m,m,m)],i),B.p,B.bj,B.k,0)
+r=A.aV(A.b([r,A.aK(m,A.a_(q?"\u20b9149/stud":s.a.d,m,m,m,B.Zn,m,m),B.n,m,m,new A.aD(p,m,m,o,m,m,B.r),m,m,m,m,B.Jc,m,m,m)],i),B.p,B.bj,B.k,0)
 p=l.a
 o=A.aEO(p?B.bF:B.ae,1)
 r=A.b([s.yA(A.aT(A.b([r,B.b3,o,B.b3,A.aV(A.b([A.a_("Total Payable",m,m,m,A.ab(m,m,p?B.e:B.G,m,m,m,m,m,m,m,m,16,m,m,B.A,m,m,!0,m,m,m,m,m,m,m,m),m,m),A.a_("\u20b9"+B.d.ad(s.cx,2),m,m,m,B.a0t,m,m)],i),B.p,B.bj,B.k,0)],i),B.v,B.l,B.k)),B.bd],i)
@@ -95823,7 +95823,7 @@ h=a0==null?100:a0
 a1=A.hg(B.c.ct(m.as.a.a),null)
 g=a1==null?10:a1
 $.pk="Campus Plan"
-$.pj="\u20b9"+A.j(h*49)
+$.pj="\u20b9"+A.j(h*149)
 $.tU="For "+A.j(i)+" ("+A.j(h)+" students, "+A.j(g)+" teachers)"
 $.zi=!0
 $.aIx=i
@@ -95877,7 +95877,7 @@ Fg(a,b,c,d,e,f,g){return this.Fh(a,b,c,d,e,f,null,g)},
 aaj(a){var s,r,q,p,o,n=this,m=null,l=t.p,k=A.b([A.a_("Select Payment Plan",m,m,m,A.ab(m,m,a?B.e.af(0.8):B.Q.af(0.8),m,m,m,m,m,m,m,m,14,m,m,B.bZ,m,m,!0,m,m,m,m,m,m,m,m),m,m)],l),j=n.d
 j===$&&A.a()
 if(j==="Campus Plan"){s=A.hg(B.c.ct(n.Q.a.a),m)
-k.push(A.a_("Total: \u20b9"+(s==null?100:s)*49,m,m,m,B.XB,m,m))}k=A.aV(k,B.p,B.bj,B.k,0)
+k.push(A.a_("Total: \u20b9"+(s==null?100:s)*149,m,m,m,B.XB,m,m))}k=A.aV(k,B.p,B.bj,B.k,0)
 j=n.d
 r=a?B.pE:B.e
 q=A.ab(m,m,a?B.e:B.Q,m,m,m,m,m,m,m,m,15,m,m,m,m,m,!0,m,m,m,m,m,m,m,m)
@@ -103431,6 +103431,14 @@ B.NF=s([0.2126,0.7152,0.0722],t.n)
 B.Pe=s([0.01932141,0.11916382,0.95034478],t.n)
 B.dO=s([B.O5,B.NF,B.Pe],t.zg)
 B.rc=s([0,4,12,1,5,13,3,7,15],t.t)
+B.eR={title:0,price:1,subtitle:2}
+B.R5=new A.bD(B.eR,["Free Plan","Free","For first-time learners"],t.l)
+B.R6=new A.bD(B.eR,["Basic Plan","Rs 99","Affordable daily study help"],t.l)
+B.R8=new A.bD(B.eR,["Campus Plan","Rs 149/student","For schools and institutions"],t.l)
+B.Ra=new A.bD(B.eR,["Pro Student","Rs 299","For personalized AI learning"],t.l)
+B.R7=new A.bD(B.eR,["Exam Aspirant","Rs 499","For exam-focused preparation"],t.l)
+B.R9=new A.bD(B.eR,["Premium AI","Rs 999","For advanced AI productivity"],t.l)
+B.iT=s([B.R5,B.R6,B.R8,B.Ra,B.R7,B.R9],t.m0)
 B.Nm=s([65533],t.t)
 B.a3H=new A.hs(0,1)
 B.a3M=new A.hs(0.5,1)
@@ -103568,14 +103576,6 @@ B.a3j=new A.mq(B.Do,B.Dp)
 B.a3k=new A.mq(B.Dp,B.Do)
 B.Oo=s([B.a3i,B.a3l,B.a3j,B.a3k],A.aB("A<mq>"))
 B.Oq=s([35,30,20,25,30,35,30,25,25],t.n)
-B.eR={title:0,price:1,subtitle:2}
-B.R5=new A.bD(B.eR,["Free Plan","Free","For first-time learners"],t.l)
-B.R7=new A.bD(B.eR,["Basic Plan","Rs 99","Affordable daily study help"],t.l)
-B.R6=new A.bD(B.eR,["Campus Plan","Rs 49/student","For schools and institutions"],t.l)
-B.Ra=new A.bD(B.eR,["Pro Student","Rs 299","For personalized AI learning"],t.l)
-B.R8=new A.bD(B.eR,["Exam Aspirant","Rs 499","For exam-focused preparation"],t.l)
-B.R9=new A.bD(B.eR,["Premium AI","Rs 999","For advanced AI productivity"],t.l)
-B.iT=s([B.R5,B.R7,B.R6,B.Ra,B.R8,B.R9],t.m0)
 B.Ou=s(["click","scroll"],t.s)
 B.Fd=new A.mO()
 B.jq=new A.Rl(1,"page")
