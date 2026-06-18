@@ -22,7 +22,6 @@ class PremiumDashboard extends StatefulWidget {
 
 class _PremiumDashboardState extends State<PremiumDashboard> {
   int _currentIndex = 0;
-  bool get _isDarkMode => isDarkModeNotifier.value;
 
   final List<String> _tabs = [
     'Dashboard',
@@ -46,8 +45,6 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
     final isDesktop = size.width >= 950;
     
     // Primary aesthetic theme values
-    final primaryColor = const Color(0xFF4F46E5);
-    final secondaryColor = const Color(0xFF10B981);
     final bgDark = const Color(0xFF111116);
     final bgLight = const Color(0xFFF8FAFC);
     final cardDark = const Color(0xFF181824);
@@ -57,86 +54,6 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
     final borderDark = Colors.white10;
     final borderLight = const Color(0xFFE2E8F0);
 
-    final currentBg = _isDarkMode ? bgDark : bgLight;
-    final currentCard = _isDarkMode ? cardDark : cardLight;
-    final currentText = _isDarkMode ? textDark : textLight;
-    final currentBorder = _isDarkMode ? borderDark : borderLight;
-
-    Widget currentScreen;
-    switch (_currentIndex) {
-      case 0:
-        currentScreen = DashboardTab(
-          userName: widget.userName,
-          paymentPlan: widget.paymentPlan,
-          isDarkMode: _isDarkMode,
-          onUpgrade: () {
-            setState(() {
-              _currentIndex = 4;
-            });
-          },
-        );
-        break;
-      case 1:
-        currentScreen = AiTeacherTab(
-          paymentPlan: widget.paymentPlan,
-          isDarkMode: _isDarkMode,
-          onUpgrade: () {
-            setState(() {
-              _currentIndex = 4;
-            });
-          },
-        );
-        break;
-      case 2:
-        final plan = widget.paymentPlan.toLowerCase();
-        final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
-        currentScreen = PlanFeatureGate(
-          isUnlocked: hasAccess,
-          requiredPlan: 'Pro Student Plan',
-          isDarkMode: _isDarkMode,
-          onUpgrade: () {
-            setState(() {
-              _currentIndex = 4;
-            });
-          },
-          child: CareerCoachTab(isDarkMode: _isDarkMode),
-        );
-        break;
-      case 3:
-        final plan = widget.paymentPlan.toLowerCase();
-        final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
-        currentScreen = PlanFeatureGate(
-          isUnlocked: hasAccess,
-          requiredPlan: 'Pro Student/Exam Plan',
-          isDarkMode: _isDarkMode,
-          onUpgrade: () {
-            setState(() {
-              _currentIndex = 4;
-            });
-          },
-          child: PerformanceAnalyticsTab(isDarkMode: _isDarkMode),
-        );
-        break;
-      case 4:
-        currentScreen = PricingVipTab(
-          paymentPlan: widget.paymentPlan,
-          email: widget.email,
-          isDarkMode: _isDarkMode,
-        );
-        break;
-      default:
-        currentScreen = DashboardTab(
-          userName: widget.userName,
-          paymentPlan: widget.paymentPlan,
-          isDarkMode: _isDarkMode,
-          onUpgrade: () {
-            setState(() {
-              _currentIndex = 4;
-            });
-          },
-        );
-    }
-
     final String initialText = widget.userName.isNotEmpty
         ? widget.userName[0].toUpperCase()
         : 'U';
@@ -144,6 +61,86 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
     return ValueListenableBuilder<bool>(
       valueListenable: isDarkModeNotifier,
       builder: (context, isDarkMode, child) {
+        final currentBg = isDarkMode ? bgDark : bgLight;
+        final currentCard = isDarkMode ? cardDark : cardLight;
+        final currentText = isDarkMode ? textDark : textLight;
+        final currentBorder = isDarkMode ? borderDark : borderLight;
+
+        Widget currentScreen;
+        switch (_currentIndex) {
+          case 0:
+            currentScreen = DashboardTab(
+              userName: widget.userName,
+              paymentPlan: widget.paymentPlan,
+              isDarkMode: isDarkMode,
+              onUpgrade: () {
+                setState(() {
+                  _currentIndex = 4;
+                });
+              },
+            );
+            break;
+          case 1:
+            currentScreen = AiTeacherTab(
+              paymentPlan: widget.paymentPlan,
+              isDarkMode: isDarkMode,
+              onUpgrade: () {
+                setState(() {
+                  _currentIndex = 4;
+                });
+              },
+            );
+            break;
+          case 2:
+            final plan = widget.paymentPlan.toLowerCase();
+            final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
+            currentScreen = PlanFeatureGate(
+              isUnlocked: hasAccess,
+              requiredPlan: 'Pro Student Plan',
+              isDarkMode: isDarkMode,
+              onUpgrade: () {
+                setState(() {
+                  _currentIndex = 4;
+                });
+              },
+              child: CareerCoachTab(isDarkMode: isDarkMode),
+            );
+            break;
+          case 3:
+            final plan = widget.paymentPlan.toLowerCase();
+            final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
+            currentScreen = PlanFeatureGate(
+              isUnlocked: hasAccess,
+              requiredPlan: 'Pro Student/Exam Plan',
+              isDarkMode: isDarkMode,
+              onUpgrade: () {
+                setState(() {
+                  _currentIndex = 4;
+                });
+              },
+              child: PerformanceAnalyticsTab(isDarkMode: isDarkMode),
+            );
+            break;
+          case 4:
+            currentScreen = PricingVipTab(
+              paymentPlan: widget.paymentPlan,
+              email: widget.email,
+              isDarkMode: isDarkMode,
+            );
+            break;
+          default:
+            currentScreen = DashboardTab(
+              userName: widget.userName,
+              paymentPlan: widget.paymentPlan,
+              isDarkMode: isDarkMode,
+              onUpgrade: () {
+                setState(() {
+                  _currentIndex = 4;
+                });
+              },
+            );
+        }
+
         return Scaffold(
           backgroundColor: currentBg,
           appBar: !isDesktop
@@ -151,15 +148,14 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                   iconTheme: IconThemeData(color: currentText),
                   title: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF4F46E5), Color(0xFF10B981)],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.asset(
+                          'assets/logo.jpeg',
+                          width: 30,
+                          height: 30,
+                          fit: BoxFit.cover,
                         ),
-                        child: const Icon(Icons.bolt, size: 20, color: Colors.white),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -173,6 +169,18 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                       ),
                     ],
                   ),
+                  actions: [
+                    IconButton(
+                      icon: Icon(
+                        isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                        color: isDarkMode ? const Color(0xFFFFB020) : const Color(0xFF4F46E5),
+                      ),
+                      onPressed: () {
+                        isDarkModeNotifier.value = !isDarkMode;
+                      },
+                      tooltip: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+                    ),
+                  ],
                   backgroundColor: currentCard,
                   elevation: 0,
                   shape: Border(bottom: BorderSide(color: currentBorder, width: 1)),
@@ -187,7 +195,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                       children: [
                         DrawerHeader(
                           decoration: BoxDecoration(
-                            color: _isDarkMode ? const Color(0xFF1F1F2E) : const Color(0xFFF1F5F9),
+                            color: isDarkMode ? const Color(0xFF1F1F2E) : const Color(0xFFF1F5F9),
                             border: Border(bottom: BorderSide(color: currentBorder, width: 1)),
                           ),
                           child: Column(
@@ -196,13 +204,14 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                             children: [
                               Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF10B981)]),
-                                      borderRadius: BorderRadius.circular(8),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.asset(
+                                      'assets/logo.jpeg',
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
                                     ),
-                                    child: const Icon(Icons.bolt, color: Colors.white),
                                   ),
                                   const SizedBox(width: 12),
                                   Text(
@@ -218,7 +227,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                               const SizedBox(height: 12),
                               Text(
                                 'The Ultimate Productivity & Learning Suite', 
-                                style: TextStyle(fontSize: 12, color: _isDarkMode ? Colors.white60 : const Color(0xFF64748B))
+                                style: TextStyle(fontSize: 12, color: isDarkMode ? Colors.white60 : const Color(0xFF64748B))
                               ),
                             ],
                           ),
@@ -308,37 +317,38 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
               if (isDesktop) ...[
                 Container(
                   width: 250,
-                  color: const Color(0xFF13131A),
+                  color: isDarkMode ? const Color(0xFF13131A) : const Color(0xFFF1F5F9),
                   child: Column(
                     children: [
                       const SizedBox(height: 32),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [Color(0xFF6C63FF), Color(0xFF00F2FE)]),
-                              borderRadius: BorderRadius.circular(10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.asset(
+                              'assets/logo.jpeg',
+                              width: 44,
+                              height: 44,
+                              fit: BoxFit.cover,
                             ),
-                            child: const Icon(Icons.bolt, color: Colors.white, size: 24),
                           ),
                           const SizedBox(width: 12),
-                          const Text(
+                          Text(
                             'MRIVAN AI',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.5,
-                              color: Colors.white,
+                              color: currentText,
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'AI LEARNING / CAREER',
-                        style: TextStyle(fontSize: 10, color: Colors.grey, letterSpacing: 2),
+                        style: TextStyle(fontSize: 10, color: isDarkMode ? Colors.grey : const Color(0xFF64748B), letterSpacing: 2),
                       ),
                       const SizedBox(height: 40),
                       Expanded(
@@ -372,14 +382,18 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                                     children: [
                                       Icon(
                                         _getIcon(index),
-                                        color: isSelected ? const Color(0xFF00F2FE) : Colors.grey[400],
+                                        color: isSelected 
+                                            ? (isDarkMode ? const Color(0xFF00F2FE) : const Color(0xFF4F46E5))
+                                            : (isDarkMode ? Colors.grey[400] : const Color(0xFF64748B)),
                                         size: 20,
                                       ),
                                       const SizedBox(width: 16),
                                       Text(
                                         _tabs[index],
                                         style: TextStyle(
-                                          color: isSelected ? Colors.white : Colors.grey[400],
+                                          color: isSelected 
+                                              ? currentText
+                                              : (isDarkMode ? Colors.grey[400] : const Color(0xFF64748B)),
                                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                         ),
                                       ),
@@ -396,10 +410,10 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                         child: Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor: Colors.white10,
+                              backgroundColor: isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0),
                               child: Text(
                                 initialText, 
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                                style: TextStyle(color: currentText, fontWeight: FontWeight.bold)
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -410,7 +424,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                                   Text(
                                     widget.userName.split('@')[0],
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold),
                                   ),
                                   Text(
                                     widget.paymentPlan,
@@ -418,6 +432,17 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                                   ),
                                 ],
                               ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                                color: isDarkMode ? const Color(0xFFFFB020) : const Color(0xFF4F46E5),
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                isDarkModeNotifier.value = !isDarkMode;
+                              },
+                              tooltip: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
                             ),
                             IconButton(
                               icon: const Icon(Icons.power_settings_new, color: Colors.redAccent, size: 20),
@@ -433,11 +458,11 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E1E28),
+                            color: isDarkMode ? const Color(0xFF1E1E28) : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: widget.paymentPlan.toLowerCase().contains('free')
-                                  ? Colors.grey.withOpacity(0.2)
+                                  ? (isDarkMode ? Colors.grey.withOpacity(0.2) : const Color(0xFFE2E8F0))
                                   : Colors.amber.withOpacity(0.2),
                             ),
                           ),
@@ -475,7 +500,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                                 widget.paymentPlan.toLowerCase().contains('free')
                                     ? 'Core trial features only.'
                                     : 'All plan features unlocked.',
-                                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                style: TextStyle(fontSize: 10, color: isDarkMode ? Colors.grey : const Color(0xFF64748B)),
                               ),
                             ],
                           ),
@@ -485,7 +510,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                     ],
                   ),
                 ),
-                VerticalDivider(color: Colors.white.withOpacity(0.05), width: 1),
+                VerticalDivider(color: currentBorder, width: 1),
               ],
               Expanded(
                 child: SafeArea(
