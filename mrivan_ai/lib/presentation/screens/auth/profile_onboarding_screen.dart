@@ -1,12 +1,9 @@
 import 'dart:ui';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/services/database_service.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
-import 'payment_screen.dart';
-import 'campus_payment_screen.dart';
 import '../dashboard/app_router.dart';
 
 class ProfileOnboardingScreen extends StatefulWidget {
@@ -31,7 +28,6 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     with SingleTickerProviderStateMixin {
   static const Color _primary = Color(0xFF155DFC);
   static const Color _ink = Color(0xFF0F172A);
-  static const Color _teal = Color(0xFF0FBAA6);
   static const Color _rose = Color(0xFFF05A7E);
 
   static const List<Map<String, String>> _availablePlans = [
@@ -47,7 +43,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     },
     {
       'title': 'Campus Plan',
-      'price': 'Rs 149',
+      'price': 'Rs 49/student',
       'subtitle': 'For schools and institutions',
     },
     {
@@ -75,12 +71,18 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
   final TextEditingController _classController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _schoolNameController = TextEditingController();
+  final TextEditingController _studentsController = TextEditingController();
+  final TextEditingController _teachersController = TextEditingController();
 
   bool _isSaving = false;
 
   bool get _isDarkMode => isDarkModeNotifier.value;
-  bool get _hasPendingPlan =>
-      widget.pendingPlanTitle != null && widget.pendingPlanPrice != null;
+
+  int _calculateCampusPrice() {
+    final studentCount = int.tryParse(_studentsController.text.trim()) ?? 100;
+    return studentCount * 49;
+  }
 
   @override
   void initState() {
@@ -89,6 +91,9 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     if (!_availablePlans.any((p) => p['title'] == _selectedPlanTitle)) {
       _selectedPlanTitle = 'Free Plan';
     }
+
+    _studentsController.text = '100';
+    _teachersController.text = '10';
 
     _entryController = AnimationController(
       duration: const Duration(milliseconds: 900),
@@ -112,6 +117,9 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     _classController.dispose();
     _ageController.dispose();
     _phoneController.dispose();
+    _schoolNameController.dispose();
+    _studentsController.dispose();
+    _teachersController.dispose();
     super.dispose();
   }
 
@@ -124,11 +132,12 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw Exception('No authenticated user found');
 
+      final isCampus = _selectedPlanTitle == 'Campus Plan';
       await DatabaseService.instance.updateUserProfile(
         userId: user.id,
         fullName: _nameController.text.trim(),
-        className: _classController.text.trim(),
-        age: _ageController.text.trim(),
+        className: isCampus ? 'Campus Admin' : _classController.text.trim(),
+        age: isCampus ? 'N/A' : _ageController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
       );
 
@@ -143,12 +152,25 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         AppRouter.pendingPlanPrice = null;
         AppRouter.pendingPlanSubtitle = null;
         AppRouter.isCampus = false;
+      } else if (_selectedPlanTitle == 'Campus Plan') {
+        final schoolName = _schoolNameController.text.trim();
+        final studentCount = int.tryParse(_studentsController.text.trim()) ?? 100;
+        final teacherCount = int.tryParse(_teachersController.text.trim()) ?? 10;
+
+        AppRouter.pendingPlanTitle = 'Campus Plan';
+        AppRouter.pendingPlanPrice = '₹${studentCount * 49}';
+        AppRouter.pendingPlanSubtitle = 'For $schoolName ($studentCount students, $teacherCount teachers)';
+        AppRouter.isCampus = true;
+
+        AppRouter.schoolName = schoolName;
+        AppRouter.studentCount = studentCount;
+        AppRouter.teacherCount = teacherCount;
       } else {
         // Set pending plan
         AppRouter.pendingPlanTitle = selectedPlan['title'];
         AppRouter.pendingPlanPrice = selectedPlan['price'];
         AppRouter.pendingPlanSubtitle = selectedPlan['subtitle'];
-        AppRouter.isCampus = selectedPlan['title']!.toLowerCase().contains('campus');
+        AppRouter.isCampus = false;
       }
 
       if (mounted) {
@@ -352,28 +374,86 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                 ),
                 const SizedBox(height: 18),
 
-                // Class/Grade Input
-                _buildInputField(
-                  label: 'Class / Grade',
-                  controller: _classController,
-                  icon: Icons.school_rounded,
-                  hint: 'e.g. Grade 11, college sophomore, self-study',
-                  isDarkMode: isDarkMode,
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Class/Grade is required' : null,
-                ),
-                const SizedBox(height: 18),
+                if (_selectedPlanTitle != 'Campus Plan') ...[
+                  // Class/Grade Input
+                  _buildInputField(
+                    label: 'Class / Grade',
+                    controller: _classController,
+                    icon: Icons.school_rounded,
+                    hint: 'e.g. Grade 11, college sophomore, self-study',
+                    isDarkMode: isDarkMode,
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Class/Grade is required' : null,
+                  ),
+                  const SizedBox(height: 18),
 
-                // Age Input
-                _buildInputField(
-                  label: 'Age',
-                  controller: _ageController,
-                  icon: Icons.cake_rounded,
-                  hint: 'Enter your age',
-                  keyboardType: TextInputType.number,
-                  isDarkMode: isDarkMode,
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Age is required' : null,
-                ),
-                const SizedBox(height: 18),
+                  // Age Input
+                  _buildInputField(
+                    label: 'Age',
+                    controller: _ageController,
+                    icon: Icons.cake_rounded,
+                    hint: 'Enter your age',
+                    keyboardType: TextInputType.number,
+                    isDarkMode: isDarkMode,
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Age is required' : null,
+                  ),
+                  const SizedBox(height: 18),
+                ] else ...[
+                  // School / College Name
+                  _buildInputField(
+                    label: 'School / College Name',
+                    controller: _schoolNameController,
+                    icon: Icons.business_rounded,
+                    hint: 'Enter school/college name',
+                    isDarkMode: isDarkMode,
+                    validator: (val) => val == null || val.trim().isEmpty ? 'School/College name is required' : null,
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Number of Students
+                  _buildInputField(
+                    label: 'Number of Students',
+                    controller: _studentsController,
+                    icon: Icons.people_rounded,
+                    hint: 'Enter number of students (min 50)',
+                    keyboardType: TextInputType.number,
+                    isDarkMode: isDarkMode,
+                    onChanged: (val) {
+                      setState(() {});
+                    },
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Number of students is required';
+                      }
+                      final count = int.tryParse(val.trim());
+                      if (count == null || count < 50) {
+                        return 'Minimum 50 students required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Number of Teachers
+                  _buildInputField(
+                    label: 'Number of Teachers',
+                    controller: _teachersController,
+                    icon: Icons.person_outline_rounded,
+                    hint: 'Enter number of teachers',
+                    keyboardType: TextInputType.number,
+                    isDarkMode: isDarkMode,
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Number of teachers is required';
+                      }
+                      final count = int.tryParse(val.trim());
+                      if (count == null || count <= 0) {
+                        return 'Must be at least 1';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                ],
 
                 // Phone Number Input
                 _buildInputField(
@@ -434,6 +514,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     required bool isDarkMode,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    void Function(String)? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,6 +532,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
           controller: controller,
           keyboardType: keyboardType,
           validator: validator,
+          onChanged: onChanged,
           style: TextStyle(color: isDarkMode ? Colors.white : _ink, fontSize: 15),
           decoration: InputDecoration(
             hintText: hint,
@@ -481,13 +563,27 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Select Payment Plan',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: isDarkMode ? Colors.white.withValues(alpha: 0.8) : _ink.withValues(alpha: 0.8),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Select Payment Plan',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: isDarkMode ? Colors.white.withValues(alpha: 0.8) : _ink.withValues(alpha: 0.8),
+              ),
+            ),
+            if (_selectedPlanTitle == 'Campus Plan')
+              Text(
+                'Total: ₹${_calculateCampusPrice()}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: _primary,
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(

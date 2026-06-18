@@ -6,9 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
-import 'payment_screen.dart';
-import 'campus_payment_screen.dart';
-import 'profile_onboarding_screen.dart';
+
 
 
 class LoginScreen extends StatefulWidget {
@@ -157,33 +155,7 @@ class _LoginScreenState extends State<LoginScreen>
         throw Exception('Supabase login failed');
       }
 
-      final user = response.user;
-      bool isProfileIncomplete = true;
-      if (user != null) {
-        try {
-          final profileResponse = await Supabase.instance.client
-              .from('profiles')
-              .select('full_name, class, age, phone_number')
-              .eq('id', user.id)
-              .maybeSingle();
-          if (profileResponse != null) {
-            final fullName = profileResponse['full_name'] as String?;
-            final className = profileResponse['class'] as String?;
-            final age = profileResponse['age'] as String?;
-            final phoneNumber = profileResponse['phone_number'] as String?;
-            if (fullName != null && fullName.isNotEmpty && !fullName.contains('@') &&
-                className != null && className.isNotEmpty &&
-                age != null && age.isNotEmpty &&
-                phoneNumber != null && phoneNumber.isNotEmpty) {
-              isProfileIncomplete = false;
-            }
-          }
-        } catch (e) {
-          if (kDebugMode) {
-            print('Error checking profile completion: $e');
-          }
-        }
-      }
+
 
       if (!mounted) return;
 

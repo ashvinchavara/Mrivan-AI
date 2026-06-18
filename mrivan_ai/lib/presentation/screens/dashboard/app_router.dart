@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'premium_dashboard.dart';
 import '../auth/profile_onboarding_screen.dart';
 import '../auth/payment_screen.dart';
-import '../auth/campus_payment_screen.dart';
 import '../../theme/theme_config.dart';
 import '../../widgets/animated_background.dart';
 
@@ -22,6 +21,10 @@ class AppRouter extends StatefulWidget {
   static String? pendingPlanPrice;
   static String? pendingPlanSubtitle;
   static bool isCampus = false;
+
+  static String? schoolName;
+  static int? studentCount;
+  static int? teacherCount;
 
   @override
   State<AppRouter> createState() => _AppRouterState();
@@ -135,7 +138,6 @@ class _AppRouterState extends State<AppRouter> {
       final title = AppRouter.pendingPlanTitle!;
       final price = AppRouter.pendingPlanPrice!;
       final subtitle = AppRouter.pendingPlanSubtitle ?? '';
-      final campus = AppRouter.isCampus;
 
       // Clear the static variables to prevent redirect loop on reload
       AppRouter.pendingPlanTitle = null;
@@ -147,17 +149,11 @@ class _AppRouterState extends State<AppRouter> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => campus
-                ? CampusPaymentScreen(
-                    planTitle: title,
-                    planPrice: price,
-                    planSubtitle: subtitle,
-                  )
-                : PaymentScreen(
-                    planTitle: title,
-                    planPrice: price,
-                    planSubtitle: subtitle,
-                  ),
+            builder: (context) => PaymentScreen(
+              planTitle: title,
+              planPrice: price,
+              planSubtitle: subtitle,
+            ),
           ),
         );
       });

@@ -7,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/services/database_service.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
-import 'login_screen.dart';
 import '../dashboard/app_router.dart';
 
 class PaymentScreen extends StatefulWidget {
@@ -45,35 +44,43 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
   // Net Banking variables
   String _selectedBank = 'SBI';
 
+  // Campus variables
+  late final TextEditingController _schoolNameController;
+  late final TextEditingController _studentsController;
+  late final TextEditingController _teachersController;
+  String? _inviteCode;
+
   // Transaction simulation states
   bool _isProcessing = false;
   String _processingMessage = '';
   bool _isSuccess = false;
 
   // Cost calculations
-  double _basePrice = 0.0;
-  double _gstAmount = 0.0;
   double _totalAmount = 0.0;
 
   @override
   void initState() {
     super.initState();
+    _schoolNameController = TextEditingController(text: AppRouter.schoolName ?? '');
+    _studentsController = TextEditingController(text: AppRouter.studentCount?.toString() ?? '100');
+    _teachersController = TextEditingController(text: AppRouter.teacherCount?.toString() ?? '10');
     _parsePrice();
   }
 
   void _parsePrice() {
-    // Extract numbers from price e.g., "₹299" -> 299.0
-    final numericStr = widget.planPrice.replaceAll(RegExp(r'[^0-9]'), '');
-    final parsed = double.tryParse(numericStr) ?? 0.0;
-    
-    setState(() {
-      _basePrice = parsed;
-      _gstAmount = 0.0;
-      _totalAmount = parsed;
-    });
+    if (widget.planTitle == 'Campus Plan') {
+      final studentCount = int.tryParse(_studentsController.text.trim()) ?? 100;
+      setState(() {
+        _totalAmount = studentCount * 49.0;
+      });
+    } else {
+      final numericStr = widget.planPrice.replaceAll(RegExp(r'[^0-9]'), '');
+      final parsed = double.tryParse(numericStr) ?? 0.0;
+      setState(() {
+        _totalAmount = parsed;
+      });
+    }
   }
-
-
 
   @override
   void dispose() {
@@ -82,6 +89,9 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     _cardNumberController.dispose();
     _cardExpiryController.dispose();
     _cardCvvController.dispose();
+    _schoolNameController.dispose();
+    _studentsController.dispose();
+    _teachersController.dispose();
     super.dispose();
   }
 
@@ -90,6 +100,23 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     FocusScope.of(context).unfocus();
 
     // Basic Validation
+    if (widget.planTitle == 'Campus Plan') {
+      if (_schoolNameController.text.trim().isEmpty) {
+        _showSnackbar('Please enter school name');
+        return;
+      }
+      final studentCount = int.tryParse(_studentsController.text.trim());
+      if (studentCount == null || studentCount < 50) {
+        _showSnackbar('Number of students must be at least 50');
+        return;
+      }
+      final teacherCount = int.tryParse(_teachersController.text.trim());
+      if (teacherCount == null || teacherCount <= 0) {
+        _showSnackbar('Number of teachers must be at least 1');
+        return;
+      }
+    }
+
     if (_selectedMethod == 'upi' && _upiIdController.text.trim().isEmpty) {
       _showSnackbar('Please enter a valid UPI ID');
       return;
@@ -141,12 +168,31 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     Timer(const Duration(milliseconds: 5500), () async {
       if (!mounted) return;
       setState(() {
-        _processingMessage = 'Activating your subscription plan...';
+        _processingMessage = widget.planTitle == 'Campus Plan'
+            ? 'Creating your campus workspace...'
+            : 'Activating your subscription plan...';
       });
 
       try {
         final user = Supabase.instance.client.auth.currentUser;
         if (user != null) {
+          if (widget.planTitle == 'Campus Plan') {
+            final response = await Supabase.instance.client.rpc(
+              'checkout_campus',
+              params: {
+                'p_school_name': _schoolNameController.text.trim(),
+                'p_student_count': int.tryParse(_studentsController.text.trim()) ?? 100,
+                'p_admin_id': user.id,
+              },
+            );
+
+            if (response != null && response['success'] == true) {
+              _inviteCode = response['invite_code'];
+            } else {
+              throw Exception(response?['message'] ?? 'Failed to create campus');
+            }
+          }
+
           await DatabaseService.instance.updateUserProfile(
             userId: user.id,
             paymentPlan: widget.planTitle,
@@ -154,7 +200,14 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
         }
       } catch (e) {
         if (kDebugMode) {
-          print('Error updating user payment plan: $e');
+          print('Error processing payment: $e');
+        }
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+          _showSnackbar(e.toString().replaceAll('Exception: ', ''));
+          return;
         }
       }
 
@@ -221,6 +274,11 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                         // 1. Plan Details and Pricing Breakdown
                         _buildPlanSummaryCard(),
                         const SizedBox(height: 24),
+
+                        if (widget.planTitle == 'Campus Plan') ...[
+                          _buildCampusDetailsCard(),
+                          const SizedBox(height: 24),
+                        ],
 
                         // 2. Select Payment Method
                         _buildSectionHeader('Choose Payment Method'),
@@ -298,6 +356,8 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
   }
 
   Widget _buildPlanSummaryCard() {
+    final isCampus = widget.planTitle == 'Campus Plan';
+
     return _buildGlassContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,7 +378,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    widget.planSubtitle,
+                    isCampus ? '₹49 / student / month' : widget.planSubtitle,
                     style: TextStyle(
                       fontSize: 12,
                       color: _isDarkMode ? Colors.white54 : Colors.black54,
@@ -333,7 +393,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  widget.planPrice,
+                  isCampus ? '₹49/stud' : widget.planPrice,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -639,6 +699,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     bool obscureText = false,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
+    void Function(String)? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -657,6 +718,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
           obscureText: obscureText,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
+          onChanged: onChanged,
           style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black87),
           decoration: InputDecoration(
             hintText: hint,
@@ -778,7 +840,111 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     );
   }
 
+  Widget _buildCampusDetailsCard() {
+    final hasSchoolName = _schoolNameController.text.trim().isNotEmpty;
+    
+    if (hasSchoolName) {
+      return _buildCampusDetailsSummary();
+    } else {
+      return _buildCampusDetailsFormFields();
+    }
+  }
+
+  Widget _buildCampusDetailsSummary() {
+    final schoolName = _schoolNameController.text.trim();
+    final students = _studentsController.text.trim();
+    final teachers = _teachersController.text.trim();
+
+    return _buildGlassContainer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.business_rounded, color: Color(0xFF155DFC), size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Campus Details',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: _isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildReceiptRow('Institution Name', schoolName.isNotEmpty ? schoolName : 'Not Provided'),
+          const SizedBox(height: 10),
+          _buildReceiptRow('Students Count', '$students students (₹49/student)'),
+          const SizedBox(height: 10),
+          _buildReceiptRow('Teachers Count', '$teachers teachers'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCampusDetailsFormFields() {
+    return _buildGlassContainer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.business_rounded, color: Color(0xFF155DFC), size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Campus Details',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: _isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildTextField(
+            controller: _schoolNameController,
+            label: 'School / Institution Name',
+            hint: 'e.g. Mrivan Public School',
+            icon: Icons.school_rounded,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTextField(
+                  controller: _studentsController,
+                  label: 'Number of Students',
+                  hint: 'Min 50',
+                  icon: Icons.people_rounded,
+                  keyboardType: TextInputType.number,
+                  onChanged: (val) {
+                    _parsePrice();
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildTextField(
+                  controller: _teachersController,
+                  label: 'Number of Teachers',
+                  hint: 'Min 1',
+                  icon: Icons.person_outline_rounded,
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSuccessView() {
+    final isCampus = widget.planTitle == 'Campus Plan';
+
     return Center(
       child: _buildGlassContainer(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
@@ -801,7 +967,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
             ),
             const SizedBox(height: 24),
             Text(
-              'Payment Successful!',
+              isCampus ? 'Campus Created Successfully!' : 'Payment Successful!',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -810,7 +976,9 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
             ),
             const SizedBox(height: 8),
             Text(
-              'Your subscription is now active',
+              isCampus 
+                  ? 'Share your invite code with teachers and students.'
+                  : 'Your subscription is now active',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -819,31 +987,84 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
             ),
             const SizedBox(height: 28),
 
-            // Receipt Container
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: _isDarkMode ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: _isDarkMode ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+            if (isCampus) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _isDarkMode ? Colors.white12 : Colors.black12),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Campus Invite Code',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _inviteCode ?? 'N/A',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        letterSpacing: 4,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF155DFC),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: _inviteCode ?? ''));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Code copied to clipboard'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_rounded, size: 16),
+                      label: const Text('Copy Code'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isDarkMode ? Colors.white10 : Colors.black12,
+                        foregroundColor: _isDarkMode ? Colors.white : Colors.black87,
+                        elevation: 0,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                children: [
-                  _buildReceiptRow('Transaction ID', 'TXN${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}'),
-                  const SizedBox(height: 10),
-                  _buildReceiptRow('Date & Time', DateTime.now().toLocal().toString().substring(0, 19)),
-                  const SizedBox(height: 10),
-                  _buildReceiptRow('Payment Mode', _selectedMethod == 'upi' 
-                      ? 'UPI ($_selectedUpiApp)' 
-                      : (_selectedMethod == 'card' ? 'Debit/Credit Card' : 'Net Banking ($_selectedBank)')),
-                  const SizedBox(height: 10),
-                  _buildReceiptRow('Amount Paid', '₹${_totalAmount.toStringAsFixed(2)}'),
-                ],
+              const SizedBox(height: 32),
+            ] else ...[
+              // Receipt Container
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _isDarkMode ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _isDarkMode ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _buildReceiptRow('Transaction ID', 'TXN${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}'),
+                    const SizedBox(height: 10),
+                    _buildReceiptRow('Date & Time', DateTime.now().toLocal().toString().substring(0, 19)),
+                    const SizedBox(height: 10),
+                    _buildReceiptRow('Payment Mode', _selectedMethod == 'upi' 
+                        ? 'UPI ($_selectedUpiApp)' 
+                        : (_selectedMethod == 'card' ? 'Debit/Credit Card' : 'Net Banking ($_selectedBank)')),
+                    const SizedBox(height: 10),
+                    _buildReceiptRow('Amount Paid', '₹${_totalAmount.toStringAsFixed(2)}'),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
+              const SizedBox(height: 32),
+            ],
 
             // Continue Button
             Container(
@@ -862,7 +1083,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
               ),
               child: ElevatedButton(
                 onPressed: () {
-                  // Pop all routes to return to the root widget (which is now AppRouter because of active session)
+                  // Pop all routes to return to the root widget
                   AppRouter.notifyProfileUpdated();
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
@@ -874,9 +1095,9 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
-                  'Activate & Get Started',
-                  style: TextStyle(
+                child: Text(
+                  isCampus ? 'Go to Campus Dashboard' : 'Activate & Get Started',
+                  style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
