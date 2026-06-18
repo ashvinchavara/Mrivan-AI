@@ -43,7 +43,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     },
     {
       'title': 'Campus Plan',
-      'price': 'Rs 49/student',
+      'price': 'Rs 149/student',
       'subtitle': 'For schools and institutions',
     },
     {
@@ -81,7 +81,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
 
   int _calculateCampusPrice() {
     final studentCount = int.tryParse(_studentsController.text.trim()) ?? 100;
-    return studentCount * 49;
+    return studentCount * 149;
   }
 
   @override
@@ -158,7 +158,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         final teacherCount = int.tryParse(_teachersController.text.trim()) ?? 10;
 
         AppRouter.pendingPlanTitle = 'Campus Plan';
-        AppRouter.pendingPlanPrice = '₹${studentCount * 49}';
+        AppRouter.pendingPlanPrice = '₹${studentCount * 149}';
         AppRouter.pendingPlanSubtitle = 'For $schoolName ($studentCount students, $teacherCount teachers)';
         AppRouter.isCampus = true;
 

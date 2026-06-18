@@ -71,7 +71,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     if (widget.planTitle == 'Campus Plan') {
       final studentCount = int.tryParse(_studentsController.text.trim()) ?? 100;
       setState(() {
-        _totalAmount = studentCount * 49.0;
+        _totalAmount = studentCount * 149.0;
       });
     } else {
       final numericStr = widget.planPrice.replaceAll(RegExp(r'[^0-9]'), '');
@@ -378,7 +378,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    isCampus ? '₹49 / student / month' : widget.planSubtitle,
+                    isCampus ? '₹149 / student / month' : widget.planSubtitle,
                     style: TextStyle(
                       fontSize: 12,
                       color: _isDarkMode ? Colors.white54 : Colors.black54,
@@ -393,7 +393,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  isCampus ? '₹49/stud' : widget.planPrice,
+                  isCampus ? '₹149/stud' : widget.planPrice,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -876,7 +876,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
           const SizedBox(height: 16),
           _buildReceiptRow('Institution Name', schoolName.isNotEmpty ? schoolName : 'Not Provided'),
           const SizedBox(height: 10),
-          _buildReceiptRow('Students Count', '$students students (₹49/student)'),
+          _buildReceiptRow('Students Count', '$students students (₹149/student)'),
           const SizedBox(height: 10),
           _buildReceiptRow('Teachers Count', '$teachers teachers'),
         ],
