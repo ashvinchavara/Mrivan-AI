@@ -1,0 +1,6 @@
+{
+  "name": "Mrivan AI Analyser",
+  "description": "Codebase analyzer and suggestion engine for Mrivan AI school CRM & AI tutor platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

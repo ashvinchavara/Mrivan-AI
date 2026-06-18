@@ -8,9 +8,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy();
 
+  const supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://hajwgwskgtwdmviviysq.supabase.co',
+  );
+
+  const supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhhandnd3NrZ3R3ZG12aXZpeXNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDc2MTIsImV4cCI6MjA5NzEyMzYxMn0.sxr1yCql0VWtBDk9qJvrjgpKLeEZx0PpQjh8svYCGFE',
+  );
+
   await Supabase.initialize(
-    url: 'https://hajwgwskgtwdmviviysq.supabase.co',
-    publishableKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhhandnd3NrZ3R3ZG12aXZpeXNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDc2MTIsImV4cCI6MjA5NzEyMzYxMn0.sxr1yCql0VWtBDk9qJvrjgpKLeEZx0PpQjh8svYCGFE',
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
 
   runApp(const MyApp());
