@@ -3,6 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
 import '../../theme/theme_config.dart';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../../../data/services/database_service.dart';
 
 class PremiumDashboard extends StatefulWidget {
   final String userName;
@@ -1029,196 +1033,415 @@ class AiTeacherTab extends StatefulWidget {
 }
 
 class _AiTeacherTabState extends State<AiTeacherTab> {
+  final SupabaseClient _client = Supabase.instance.client;
   final TextEditingController _chatController = TextEditingController();
-  final List<Map<String, String>> _messages = [
-    {
-      'role': 'assistant',
-      'text': 'Hello! I am your custom Adaptive AI Teacher. Name any topic, or submit a homework problem. I can adapt my teaching level instantly!'
-    }
-  ];
+  final ScrollController _scrollController = ScrollController();
+
+  List<Map<String, dynamic>> _sessions = [];
+  String? _selectedSessionId;
+  String? _selectedSubject = 'Math';
+  String _gradeLevel = '10th Grade';
+  List<Map<String, dynamic>> _messages = [];
+
+  bool _isLoadingSessions = false;
+  bool _isLoadingMessages = false;
+  bool _isSending = false;
 
   String _selectedLevel = 'Simple Explanation';
   int _queriesRemaining = 5;
 
+  final List<String> _subjects = ['Math', 'Physics', 'Chemistry', 'Biology', 'History', 'English', 'Computer Science'];
+  final List<String> _grades = ['8th Grade', '9th Grade', '10th Grade', '11th Grade', '12th Grade', 'College'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  Future<void> _loadSessions() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isLoadingSessions = true;
+    });
+
+    try {
+      final sessions = await DatabaseService.instance.fetchAIChatSessions(user.id);
+      setState(() {
+        _sessions = sessions;
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error loading sessions: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingSessions = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _selectSession(String sessionId) async {
+    setState(() {
+      _selectedSessionId = sessionId;
+      _isLoadingMessages = true;
+      _messages = [];
+    });
+
+    try {
+      final messages = await DatabaseService.instance.fetchAIChatMessages(sessionId);
+      setState(() {
+        _messages = messages;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      if (kDebugMode) print('Error loading messages: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMessages = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _createNewSession() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isLoadingMessages = true;
+    });
+
+    try {
+      final sessionTitle = 'Tutor: $_selectedSubject - ${DateTime.now().day}/${DateTime.now().month}';
+      final newSession = await DatabaseService.instance.createAIChatSession(
+        user.id,
+        sessionTitle,
+        _selectedSubject ?? 'General',
+      );
+
+      setState(() {
+        _selectedSessionId = newSession['id'];
+        _sessions.insert(0, newSession);
+        _messages = [];
+      });
+
+      // Insert welcoming message
+      final welcomeMsg = 'Hello! I am Mr. Ivan, your AI $_selectedSubject tutor for $_gradeLevel. How can I help you learn today?';
+      await DatabaseService.instance.insertChatMessage(
+        newSession['id'],
+        'ai',
+        welcomeMsg,
+      );
+
+      // Refresh local messages
+      final messages = await DatabaseService.instance.fetchAIChatMessages(newSession['id']);
+      setState(() {
+        _messages = messages;
+      });
+      
+    } catch (e) {
+      if (kDebugMode) print('Error creating session: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMessages = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _chatController.text.trim();
+    if (text.isEmpty || _selectedSessionId == null || _isSending) return;
+
+    final isFreePlan = widget.paymentPlan.toLowerCase().contains('free');
+    if (isFreePlan && _queriesRemaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Free Trial Limit reached. Upgrade to Pro for unlimited access.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    _chatController.clear();
+
+    setState(() {
+      _isSending = true;
+      if (isFreePlan) {
+        _queriesRemaining--;
+      }
+      // Optimistically insert user message locally
+      _messages.add({
+        'sender': 'user',
+        'content': text,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    });
+    _scrollToBottom();
+
+    try {
+      // 1. Insert user message in Database
+      await DatabaseService.instance.insertChatMessage(
+        _selectedSessionId!,
+        'user',
+        text,
+      );
+
+      // 2. Call backend (with simulated offline fallback)
+      String aiResponseText = '';
+      try {
+        final session = _sessions.firstWhere((s) => s['id'] == _selectedSessionId);
+        final subjectStr = session['subject'] ?? 'General';
+        
+        // Retrieve JWT token to authorize with backend
+        final jwtToken = _client.auth.currentSession?.accessToken;
+
+        // Try calling localhost/backend API
+        final backendUrl = kIsWeb 
+            ? 'http://localhost:3000/api/ai/tutor/chat'
+            : 'http://10.0.2.2:3000/api/ai/tutor/chat'; // Android emulator route
+
+        // Append the selected level to grade level for context
+        final combinedGradeLevel = '$_gradeLevel - $_selectedLevel';
+
+        final response = await http.post(
+          Uri.parse(backendUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+          },
+          body: jsonEncode({
+            'message': text,
+            'sessionId': _selectedSessionId,
+            'subject': subjectStr,
+            'gradeLevel': combinedGradeLevel,
+          }),
+        ).timeout(const Duration(seconds: 4));
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          aiResponseText = data['response'] ?? '';
+        } else {
+          throw Exception('Backend returned status code ${response.statusCode}');
+        }
+      } catch (backendError) {
+        if (kDebugMode) {
+          print('Backend offline or failed, using simulated response: $backendError');
+        }
+        // Fallback: Generate smart simulated pedagogical response
+        aiResponseText = _generateSimulatedResponse(text);
+        
+        // Save simulated response to Supabase directly
+        await DatabaseService.instance.insertChatMessage(
+          _selectedSessionId!,
+          'ai',
+          aiResponseText,
+        );
+      }
+
+      // 3. Load latest messages
+      final updatedMessages = await DatabaseService.instance.fetchAIChatMessages(_selectedSessionId!);
+      setState(() {
+        _messages = updatedMessages;
+      });
+      _scrollToBottom();
+
+    } catch (e) {
+      if (kDebugMode) print('Error sending message: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+      _scrollToBottom();
+    }
+  }
+
+  String _generateSimulatedResponse(String prompt) {
+    final cleanPrompt = prompt.toLowerCase();
+    
+    if (cleanPrompt.contains('hello') || cleanPrompt.contains('hi')) {
+      return "Hello! I'm here. Let's tackle any hard concept you have. Ask me about formulas, theories, or concepts you're finding tricky!";
+    }
+    if (cleanPrompt.contains('solve') || cleanPrompt.contains('calculate')) {
+      return "I can explain the steps! In physics or math, we start by list-identifying the given variables, selecting the appropriate formula, and solving systematically. Could you share the specific values you have?";
+    }
+    if (cleanPrompt.contains('why') || cleanPrompt.contains('how')) {
+      return "That's an excellent question! In science, we study the fundamental causes. Let's break it down: \n\n1. **First Principle**: Everything starts from basic definitions. \n2. **The Mechanism**: There is a cause-and-effect loop. \n3. **Practical Analogy**: Think of it like water flowing through a pipe - voltage is the pressure, current is the flow.\n\nDoes this analogy make sense, or would you like another example?";
+    }
+    if (cleanPrompt.contains('exam') || cleanPrompt.contains('quiz')) {
+      return "Preparing for a test can be smooth! Try writing down the 3 core formulas from memory. I can generate some practice questions for you if you'd like.";
+    }
+
+    return "Fascinating concept! To understand this deeply, let's explore the key ideas:\n\n* **Core Concept**: This relates to foundational parameters of this subject.\n* **Key takeaway**: Always double check the assumptions before formulating a solution.\n\nWould you like me to explain this in more detail, or give you a quick quiz to check your understanding?";
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    
     final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
     final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
     final chatBubbleBg = widget.isDarkMode ? const Color(0xFF1E1E2C) : const Color(0xFFF1F5F9);
     final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
-
-    final isFreePlan = widget.paymentPlan.toLowerCase().contains('free');
 
     return Container(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Personal AI Teacher Space 👨‍🏫',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '24/7 instant conceptual deep dives with custom learning pathways.',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Personal AI Teacher Space 👨‍🏫',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '24/7 instant conceptual deep dives with custom learning pathways.',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              if (_selectedSessionId != null) ...[
+                const SizedBox(width: 16),
+                IconButton(
+                  icon: const Icon(Icons.add_comment_rounded, color: Color(0xFF4F46E5)),
+                  onPressed: _showStartSessionDialog,
+                  tooltip: 'New Session',
+                ),
+              ]
+            ],
           ),
           const SizedBox(height: 20),
-
-          if (isFreePlan) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF2A6D).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFF2A6D).withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded, color: Color(0xFFFF2A6D), size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Free Trial Active: You have $_queriesRemaining trial queries remaining today.',
-                      style: const TextStyle(
-                        color: Color(0xFFFF2A6D),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: widget.onUpgrade,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Upgrade Now',
-                      style: TextStyle(
-                        color: Color(0xFFFF2A6D),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 12,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
 
           // CONFIGURATION HEADER ROW
           runConfigChips(),
           const SizedBox(height: 20),
 
-          // CHAT INTERFACE
+          // MAIN CONTAINER BODY (GRID / ROW)
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderCol),
-              ),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = _messages[index];
-                        final isUser = msg['role'] == 'user';
-                        return Align(
-                          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            padding: const EdgeInsets.all(14),
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width * 0.65,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isUser
-                                  ? const Color(0xFF4F46E5)
-                                  : chatBubbleBg,
-                              borderRadius: BorderRadius.only(
-                                topLeft: const Radius.circular(16),
-                                topRight: const Radius.circular(16),
-                                bottomLeft: Radius.circular(isUser ? 16 : 0),
-                                bottomRight: Radius.circular(isUser ? 0 : 16),
-                              ),
-                              border: isUser
-                                  ? null
-                                  : Border.all(color: borderCol),
-                            ),
-                            child: Text(
-                              msg['text'] ?? '',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  height: 1.4,
-                                  color: isUser ? Colors.white : currentText),
-                            ),
-                          ),
-                        );
-                      },
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Sessions list sidebar (Desktop only)
+                if (size.width > 750)
+                  Container(
+                    width: 240,
+                    margin: const EdgeInsets.only(right: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderCol),
                     ),
-                  ),
-                  Divider(color: borderCol, height: 1),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IconButton(
-                          onPressed: () {
-                            if (widget.paymentPlan.toLowerCase().contains('free') ||
-                                widget.paymentPlan.toLowerCase().contains('basic')) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Voice Assistant is a Pro feature. Upgrade to unlock.'),
-                                  backgroundColor: Color(0xFF4F46E5),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          },
-                          icon: Icon(
-                            Icons.mic,
-                            color: (widget.paymentPlan.toLowerCase().contains('free') ||
-                                    widget.paymentPlan.toLowerCase().contains('basic'))
-                                ? Colors.grey
-                                : const Color(0xFF00F2FE),
-                          ),
-                          tooltip: 'Speak Voice Input',
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _chatController,
-                            style: TextStyle(fontSize: 13, color: currentText),
-                            decoration: const InputDecoration(
-                              hintText: 'Enter topic (e.g. quantum entanglement or backpropagation)',
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                              hintStyle: TextStyle(color: Colors.grey),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'History',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: currentText,
+                              ),
                             ),
-                            onSubmitted: (_) => _sendMessage(),
-                          ),
+                            IconButton(
+                              icon: const Icon(Icons.add_comment_rounded, color: Color(0xFF4F46E5), size: 18),
+                              onPressed: _showStartSessionDialog,
+                              tooltip: 'New Session',
+                            ),
+                          ],
                         ),
-                        CircleAvatar(
-                          backgroundColor: const Color(0xFF4F46E5),
-                          child: IconButton(
-                            onPressed: _sendMessage,
-                            icon: const Icon(Icons.send, size: 16, color: Colors.white),
-                          ),
+                        const Divider(height: 8),
+                        Expanded(
+                          child: _isLoadingSessions
+                              ? const Center(child: CircularProgressIndicator())
+                              : _sessions.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        'No past chats',
+                                        style: TextStyle(color: widget.isDarkMode ? Colors.white54 : Colors.black54, fontSize: 12),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      itemCount: _sessions.length,
+                                      itemBuilder: (context, index) {
+                                        final session = _sessions[index];
+                                        final isSelected = session['id'] == _selectedSessionId;
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 6),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? (widget.isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.05))
+                                                : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: ListTile(
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                                            dense: true,
+                                            title: Text(
+                                              session['title'] ?? 'Chat Session',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                color: currentText,
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              session['subject'] ?? 'General',
+                                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                            ),
+                                            onTap: () => _selectSession(session['id']),
+                                          ),
+                                        );
+                                      },
+                                    ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
+
+                // Main panel
+                Expanded(
+                  child: _selectedSessionId == null
+                      ? _buildCreateSessionPanel(currentText, cardBg, borderCol)
+                      : _buildChatPanel(currentText, cardBg, borderCol, chatBubbleBg),
+                ),
+              ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -1280,40 +1503,423 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     );
   }
 
-  void _sendMessage() {
-    if (_chatController.text.trim().isEmpty) return;
-    final isFreePlan = widget.paymentPlan.toLowerCase().contains('free');
-    
-    if (isFreePlan && _queriesRemaining <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Free Trial Limit reached. Upgrade to Pro for unlimited access.'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
+  Widget _buildCreateSessionPanel(Color currentText, Color cardBg, Color borderCol) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: borderCol),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                size: 50,
+                color: Color(0xFF4F46E5),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Start a New Learning Session',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: currentText,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Select your subject and grade level to begin personalized tutoring.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Subject Dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedSubject,
+                dropdownColor: cardBg,
+                style: TextStyle(color: currentText, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Subject',
+                  labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                ),
+                items: _subjects.map((sub) {
+                  return DropdownMenuItem(value: sub, child: Text(sub));
+                }).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedSubject = val;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              // Grade Dropdown
+              DropdownButtonFormField<String>(
+                value: _gradeLevel,
+                dropdownColor: cardBg,
+                style: TextStyle(color: currentText, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Grade Level',
+                  labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                ),
+                items: _grades.map((gr) {
+                  return DropdownMenuItem(value: gr, child: Text(gr));
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _gradeLevel = val;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 28),
+              ElevatedButton(
+                onPressed: _createNewSession,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Start Chatting', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              if (MediaQuery.of(context).size.width <= 750 && _sessions.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: _showHistorySheet,
+                  child: const Text(
+                    'View Chat History',
+                    style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold),
+                  ),
+                )
+              ]
+            ],
+          ),
         ),
-      );
-      return;
-    }
+      ),
+    );
+  }
 
-    final text = _chatController.text;
-    setState(() {
-      _messages.add({'role': 'user', 'text': text});
-      _chatController.clear();
-      if (isFreePlan) {
-        _queriesRemaining--;
-      }
-    });
+  Widget _buildChatPanel(Color currentText, Color cardBg, Color borderCol, Color chatBubbleBg) {
+    final activeSession = _sessions.firstWhere(
+      (s) => s['id'] == _selectedSessionId,
+      orElse: () => {'title': 'AI Tutor Chat'},
+    );
+    final isFreePlan = widget.paymentPlan.toLowerCase().contains('free');
 
-    // Simulate smart tutor answering
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      if (!mounted) return;
-      setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'text': 'Insightful query on "$text"! Let me adjust my explanation model to "$_selectedLevel". This involves dividing the concept into visualizable building blocks. Let me generate interactive exercises next...'
-        });
-      });
-    });
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderCol),
+      ),
+      child: Column(
+        children: [
+          // Active chat sub-header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: widget.isDarkMode ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+              border: Border(bottom: BorderSide(color: borderCol)),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back_rounded, color: currentText, size: 20),
+                  onPressed: () {
+                    setState(() {
+                      _selectedSessionId = null;
+                    });
+                  },
+                  tooltip: 'Back to Sessions',
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    activeSession['title'] ?? 'AI Tutor Chat',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: currentText,
+                    ),
+                  ),
+                ),
+                if (isFreePlan) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF2A6D).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFF2A6D).withOpacity(0.2)),
+                    ),
+                    child: Text(
+                      '$_queriesRemaining remaining',
+                      style: const TextStyle(color: Color(0xFFFF2A6D), fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Messages View
+          Expanded(
+            child: _isLoadingMessages
+                ? const Center(child: CircularProgressIndicator())
+                : _messages.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No messages yet',
+                          style: TextStyle(color: widget.isDarkMode ? Colors.white54 : Colors.black54),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = _messages[index];
+                          final isAI = msg['sender'] == 'ai';
+                          return Align(
+                            alignment: isAI ? Alignment.centerLeft : Alignment.centerRight,
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(14),
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.of(context).size.width * 0.65,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isAI
+                                    ? chatBubbleBg
+                                    : const Color(0xFF4F46E5),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(16),
+                                  topRight: const Radius.circular(16),
+                                  bottomLeft: Radius.circular(isAI ? 0 : 16),
+                                  bottomRight: Radius.circular(isAI ? 16 : 0),
+                                ),
+                                border: isAI
+                                    ? Border.all(color: borderCol)
+                                    : null,
+                              ),
+                              child: Text(
+                                msg['content'] ?? '',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.4,
+                                  color: isAI ? currentText : Colors.white,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+
+          // Loading/Sending Indicator
+          if (_isSending)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    height: 12,
+                    width: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.5, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5))),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Mr. Ivan is thinking...',
+                    style: TextStyle(fontSize: 11, color: widget.isDarkMode ? Colors.white54 : Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+
+          Divider(color: borderCol, height: 1),
+          // Input Box
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: () {
+                    if (isFreePlan || widget.paymentPlan.toLowerCase().contains('basic')) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Voice Assistant is a Pro feature. Upgrade to unlock.'),
+                          backgroundColor: Color(0xFF4F46E5),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                  icon: Icon(
+                    Icons.mic,
+                    color: (isFreePlan || widget.paymentPlan.toLowerCase().contains('basic'))
+                        ? Colors.grey
+                        : const Color(0xFF00F2FE),
+                  ),
+                  tooltip: 'Speak Voice Input',
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _chatController,
+                    style: TextStyle(fontSize: 13, color: currentText),
+                    decoration: const InputDecoration(
+                      hintText: 'Ask a learning question...',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                      hintStyle: TextStyle(color: Colors.grey),
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                CircleAvatar(
+                  backgroundColor: const Color(0xFF4F46E5),
+                  child: IconButton(
+                    onPressed: _sendMessage,
+                    icon: const Icon(Icons.send, size: 16, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showStartSessionDialog() {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        String? localSubject = _selectedSubject;
+        String? localGrade = _gradeLevel;
+        return AlertDialog(
+          backgroundColor: cardBg,
+          title: Text('Start New Session', style: TextStyle(color: currentText, fontSize: 16, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: localSubject,
+                dropdownColor: cardBg,
+                style: TextStyle(color: currentText, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Subject',
+                  labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                ),
+                items: _subjects.map((sub) => DropdownMenuItem(value: sub, child: Text(sub))).toList(),
+                onChanged: (val) => localSubject = val,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: localGrade,
+                dropdownColor: cardBg,
+                style: TextStyle(color: currentText, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'Grade Level',
+                  labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                ),
+                items: _grades.map((gr) => DropdownMenuItem(value: gr, child: Text(gr))).toList(),
+                onChanged: (val) {
+                  if (val != null) localGrade = val;
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectedSubject = localSubject;
+                  _gradeLevel = localGrade!;
+                });
+                Navigator.pop(context);
+                _createNewSession();
+              },
+              child: const Text('Create', style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showHistorySheet() {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+          child: Container(
+            color: cardBg,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Chat Sessions',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: currentText,
+                  ),
+                ),
+                const Divider(),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _sessions.length,
+                    itemBuilder: (context, index) {
+                      final session = _sessions[index];
+                      return ListTile(
+                        title: Text(
+                          session['title'] ?? '',
+                          style: TextStyle(color: currentText),
+                        ),
+                        subtitle: Text(session['subject'] ?? 'General', style: const TextStyle(color: Colors.grey)),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _selectSession(session['id']);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
