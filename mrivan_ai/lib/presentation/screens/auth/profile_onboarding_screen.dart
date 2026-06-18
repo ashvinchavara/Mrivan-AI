@@ -34,6 +34,40 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
   static const Color _teal = Color(0xFF0FBAA6);
   static const Color _rose = Color(0xFFF05A7E);
 
+  static const List<Map<String, String>> _availablePlans = [
+    {
+      'title': 'Free Plan',
+      'price': 'Free',
+      'subtitle': 'For first-time learners',
+    },
+    {
+      'title': 'Basic Plan',
+      'price': 'Rs 99',
+      'subtitle': 'Affordable daily study help',
+    },
+    {
+      'title': 'Campus Plan',
+      'price': 'Rs 149',
+      'subtitle': 'For schools and institutions',
+    },
+    {
+      'title': 'Pro Student',
+      'price': 'Rs 299',
+      'subtitle': 'For personalized AI learning',
+    },
+    {
+      'title': 'Exam Aspirant',
+      'price': 'Rs 499',
+      'subtitle': 'For exam-focused preparation',
+    },
+    {
+      'title': 'Premium AI',
+      'price': 'Rs 999',
+      'subtitle': 'For advanced AI productivity',
+    },
+  ];
+
+  late String _selectedPlanTitle;
   late final AnimationController _entryController;
   final _formKey = GlobalKey<FormState>();
 
@@ -51,6 +85,11 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
   @override
   void initState() {
     super.initState();
+    _selectedPlanTitle = widget.pendingPlanTitle ?? 'Free Plan';
+    if (!_availablePlans.any((p) => p['title'] == _selectedPlanTitle)) {
+      _selectedPlanTitle = 'Free Plan';
+    }
+
     _entryController = AnimationController(
       duration: const Duration(milliseconds: 900),
       vsync: this,
@@ -92,6 +131,25 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         age: _ageController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
       );
+
+      final selectedPlan = _availablePlans.firstWhere(
+        (p) => p['title'] == _selectedPlanTitle,
+        orElse: () => _availablePlans.first,
+      );
+
+      if (_selectedPlanTitle == 'Free Plan') {
+        // Clear pending plan
+        AppRouter.pendingPlanTitle = null;
+        AppRouter.pendingPlanPrice = null;
+        AppRouter.pendingPlanSubtitle = null;
+        AppRouter.isCampus = false;
+      } else {
+        // Set pending plan
+        AppRouter.pendingPlanTitle = selectedPlan['title'];
+        AppRouter.pendingPlanPrice = selectedPlan['price'];
+        AppRouter.pendingPlanSubtitle = selectedPlan['subtitle'];
+        AppRouter.isCampus = selectedPlan['title']!.toLowerCase().contains('campus');
+      }
 
       if (mounted) {
         AppRouter.notifyProfileUpdated();
@@ -327,6 +385,9 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                   isDarkMode: isDarkMode,
                   validator: (val) => val == null || val.trim().isEmpty ? 'Phone number is required' : null,
                 ),
+                const SizedBox(height: 18),
+
+                _buildPlanDropdown(isDarkMode),
                 const SizedBox(height: 32),
 
                 _isSaving
@@ -350,7 +411,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                           elevation: 0,
                         ),
                         child: Text(
-                          _hasPendingPlan ? 'Continue to Checkout' : 'Complete Setup',
+                          _selectedPlanTitle == 'Free Plan' ? 'Complete Setup' : 'Continue to Checkout',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -411,6 +472,55 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
             ),
             errorStyle: const TextStyle(color: _rose, fontSize: 12),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlanDropdown(bool isDarkMode) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Select Payment Plan',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: isDarkMode ? Colors.white.withValues(alpha: 0.8) : _ink.withValues(alpha: 0.8),
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _selectedPlanTitle,
+          dropdownColor: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+          style: TextStyle(color: isDarkMode ? Colors.white : _ink, fontSize: 15),
+          decoration: InputDecoration(
+            prefixIcon: Icon(
+              Icons.star_rounded,
+              color: isDarkMode ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
+              size: 20,
+            ),
+            filled: true,
+            fillColor: isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          items: _availablePlans.map((plan) {
+            return DropdownMenuItem<String>(
+              value: plan['title'],
+              child: Text("${plan['title']} (${plan['price']})"),
+            );
+          }).toList(),
+          onChanged: (val) {
+            if (val != null) {
+              setState(() {
+                _selectedPlanTitle = val;
+              });
+            }
+          },
         ),
       ],
     );
