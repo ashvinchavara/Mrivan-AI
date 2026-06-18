@@ -8,6 +8,7 @@ import '../../../data/services/database_service.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
 import 'login_screen.dart';
+import '../dashboard/app_router.dart';
 
 class PaymentScreen extends StatefulWidget {
   final String planTitle;
@@ -233,6 +234,8 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
 
                         // 4. Pay Button
                         _buildPayButton(),
+                        const SizedBox(height: 12),
+                        _buildPayLaterButton(),
                         const SizedBox(height: 24),
                       ] else ...[
                         // Success View
@@ -712,6 +715,30 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
     );
   }
 
+  Widget _buildPayLaterButton() {
+    return Center(
+      child: TextButton(
+        onPressed: () {
+          // Return to root widget (AppRouter) without payment
+          AppRouter.notifyProfileUpdated();
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        },
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ),
+        child: Text(
+          'Pay Later',
+          style: TextStyle(
+            color: _isDarkMode ? Colors.white70 : Colors.black54,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProcessingOverlay() {
     return Positioned.fill(
       child: BackdropFilter(
@@ -835,7 +862,8 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
               ),
               child: ElevatedButton(
                 onPressed: () {
-                  // Pop all routes to return to the root widget (which is now DashboardRouter because of active session)
+                  // Pop all routes to return to the root widget (which is now AppRouter because of active session)
+                  AppRouter.notifyProfileUpdated();
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 style: ElevatedButton.styleFrom(

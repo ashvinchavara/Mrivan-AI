@@ -119,7 +119,7 @@ class _LandingPageScreenState extends State<LandingPageScreen>
                               controller: _scrollController,
                               child: _buildHeroSection(isDarkMode, isDesktop),
                             ),
-                            const SizedBox(height: 30),
+                            const SizedBox(height: 40),
                             ScrollFadeIn(
                               controller: _scrollController,
                               delayMs: 80,
@@ -1206,7 +1206,12 @@ class _LandingPageScreenState extends State<LandingPageScreen>
                   height: 48,
                   child: plan.isCampus
                       ? OutlinedButton.icon(
-                          onPressed: () => _navigateToLogin(),
+                          onPressed: () => _navigateToLogin(
+                            planTitle: plan.title,
+                            planPrice: plan.price,
+                            planSubtitle: plan.subtitle,
+                            isCampus: true,
+                          ),
                           icon: const Icon(Icons.business_rounded, size: 18),
                           label: Text(plan.cta),
                           style: OutlinedButton.styleFrom(

@@ -8,6 +8,8 @@ import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
 import 'payment_screen.dart';
 import 'campus_payment_screen.dart';
+import 'profile_onboarding_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   final String? pendingPlanTitle;
@@ -155,7 +157,53 @@ class _LoginScreenState extends State<LoginScreen>
         throw Exception('Supabase login failed');
       }
 
-      if (_hasPendingPlan && mounted) {
+      final user = response.user;
+      bool isProfileIncomplete = true;
+      if (user != null) {
+        try {
+          final profileResponse = await Supabase.instance.client
+              .from('profiles')
+              .select('full_name, class, age, phone_number')
+              .eq('id', user.id)
+              .maybeSingle();
+          if (profileResponse != null) {
+            final fullName = profileResponse['full_name'] as String?;
+            final className = profileResponse['class'] as String?;
+            final age = profileResponse['age'] as String?;
+            final phoneNumber = profileResponse['phone_number'] as String?;
+            if (fullName != null && fullName.isNotEmpty && !fullName.contains('@') &&
+                className != null && className.isNotEmpty &&
+                age != null && age.isNotEmpty &&
+                phoneNumber != null && phoneNumber.isNotEmpty) {
+              isProfileIncomplete = false;
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('Error checking profile completion: $e');
+          }
+        }
+      }
+
+      if (!mounted) return;
+
+      if (isProfileIncomplete) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 360),
+            pageBuilder: (_, animation, __) => FadeTransition(
+              opacity: animation,
+              child: ProfileOnboardingScreen(
+                pendingPlanTitle: widget.pendingPlanTitle,
+                pendingPlanPrice: widget.pendingPlanPrice,
+                pendingPlanSubtitle: widget.pendingPlanSubtitle,
+                isCampus: widget.isCampus,
+              ),
+            ),
+          ),
+        );
+      } else if (_hasPendingPlan) {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
@@ -176,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         );
-      } else if (mounted) {
+      } else {
         Navigator.pop(context);
       }
     } catch (e) {
@@ -282,7 +330,7 @@ class _LoginScreenState extends State<LoginScreen>
                   top: MediaQuery.of(context).padding.top + 14,
                   left: 16,
                   right: 16,
-                  child: _buildTopBar(isDarkMode),
+                  child: _buildNavBar(isDarkMode, isDesktop),
                 ),
                 Positioned.fill(
                   top: MediaQuery.of(context).padding.top + 82,
@@ -363,10 +411,10 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  Widget _buildTopBar(bool isDarkMode) {
+  Widget _buildNavBar(bool isDarkMode, bool isDesktop) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1080),
+        constraints: const BoxConstraints(maxWidth: 1220),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
           child: BackdropFilter(
@@ -376,11 +424,11 @@ class _LoginScreenState extends State<LoginScreen>
               decoration: BoxDecoration(
                 color: isDarkMode
                     ? Colors.black.withValues(alpha: 0.30)
-                    : Colors.white.withValues(alpha: 0.62),
-                borderRadius: BorderRadius.circular(18),
+                    : Colors.white.withValues(alpha: 0.60),
                 border: Border.all(
                   color: isDarkMode ? Colors.white12 : Colors.white70,
                 ),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Row(
                 children: [
@@ -391,17 +439,30 @@ class _LoginScreenState extends State<LoginScreen>
                       width: 34,
                       height: 34,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.school_rounded, color: _primary),
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.school_rounded,
+                        color: _primary,
+                        size: 30,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'Mrivan AI',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                      color: _primary,
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: 'Mrivan',
+                          style: TextStyle(color: Color(0xFF24BDEB)),
+                        ),
+                        TextSpan(
+                          text: ' AI',
+                          style: TextStyle(color: Color(0xFFFF8B53)),
+                        ),
+                      ],
                     ),
                   ),
                   const Spacer(),

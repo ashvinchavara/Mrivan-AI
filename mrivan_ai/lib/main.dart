@@ -2,7 +2,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'presentation/screens/auth/landing_page.dart';
-import 'presentation/screens/dashboard/dashboard_router.dart';
+import 'presentation/screens/dashboard/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,7 +43,7 @@ class AuthStateRouter extends StatelessWidget {
       builder: (context, snapshot) {
         final session = Supabase.instance.client.auth.currentSession;
         if (session != null) {
-          return const DashboardRouter();
+          return const AppRouter();
         } else {
           return const LandingPageScreen();
         }

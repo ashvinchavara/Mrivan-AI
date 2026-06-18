@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/services/database_service.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
+import '../dashboard/app_router.dart';
 
 class CampusPaymentScreen extends StatefulWidget {
   final String planTitle;
@@ -188,7 +189,14 @@ class _CampusPaymentScreenState extends State<CampusPaymentScreen> with SingleTi
           setState(() {
             _isProcessing = false;
           });
-          _showSnackbar('Payment failed. No charges were made.');
+          
+          String errorMessage = 'Payment failed. No charges were made.';
+          if (e is PostgrestException) {
+            errorMessage = 'Database error: ${e.message}';
+          } else if (e is Exception) {
+            errorMessage = e.toString().replaceAll('Exception: ', '');
+          }
+          _showSnackbar(errorMessage);
         }
       }
     });
@@ -328,6 +336,8 @@ class _CampusPaymentScreenState extends State<CampusPaymentScreen> with SingleTi
                             const SizedBox(height: 32),
 
                             _buildPayButton(),
+                            const SizedBox(height: 12),
+                            _buildPayLaterButton(),
                             const SizedBox(height: 24),
                           ] else ...[
                             _buildSuccessView(),
@@ -784,6 +794,30 @@ class _CampusPaymentScreenState extends State<CampusPaymentScreen> with SingleTi
     );
   }
 
+  Widget _buildPayLaterButton() {
+    return Center(
+      child: TextButton(
+        onPressed: () {
+          // Return to root widget (AppRouter) without payment
+          AppRouter.notifyProfileUpdated();
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        },
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ),
+        child: Text(
+          'Pay Later',
+          style: TextStyle(
+            color: _isDarkMode ? Colors.white70 : Colors.black54,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProcessingOverlay() {
     return Positioned.fill(
       child: BackdropFilter(
@@ -913,7 +947,8 @@ class _CampusPaymentScreenState extends State<CampusPaymentScreen> with SingleTi
               child: ElevatedButton(
                 onPressed: () {
                   // Navigate to dashboard
-                  Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (route) => false);
+                  AppRouter.notifyProfileUpdated();
+                  Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF155DFC),

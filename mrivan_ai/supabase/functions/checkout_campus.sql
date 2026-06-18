@@ -1,3 +1,11 @@
+-- 1. Alter schools table to add missing columns
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS total_seats INT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS invite_code TEXT;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS admin_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+-- 2. Alter profiles table to add missing columns
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS payment_plan TEXT DEFAULT 'Free Plan';
+
 -- This function acts as the /api/checkout/campus endpoint, executing atomically.
 CREATE OR REPLACE FUNCTION checkout_campus(
     p_school_name TEXT,
@@ -42,7 +50,7 @@ BEGIN
     SET 
         school_id = v_school_id,
         payment_plan = 'Campus Plan',
-        role = 'Admin'
+        role = 'admin'
     WHERE id = p_admin_id;
 
     -- Return success payload
@@ -61,3 +69,4 @@ EXCEPTION
         RAISE EXCEPTION 'Failed to create campus school: %', SQLERRM;
 END;
 $$;
+
