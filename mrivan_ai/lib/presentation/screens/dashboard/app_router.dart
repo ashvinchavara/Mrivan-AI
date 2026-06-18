@@ -18,6 +18,11 @@ class AppRouter extends StatefulWidget {
     profileUpdatedNotifier.value++;
   }
 
+  static String? pendingPlanTitle;
+  static String? pendingPlanPrice;
+  static String? pendingPlanSubtitle;
+  static bool isCampus = false;
+
   @override
   State<AppRouter> createState() => _AppRouterState();
 }
@@ -33,6 +38,19 @@ class _AppRouterState extends State<AppRouter> {
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      final uri = Uri.base;
+      final planTitle = uri.queryParameters['plan_title'];
+      final planPrice = uri.queryParameters['plan_price'];
+      final planSubtitle = uri.queryParameters['plan_subtitle'];
+      if (planTitle != null && planPrice != null) {
+        AppRouter.pendingPlanTitle = planTitle;
+        AppRouter.pendingPlanPrice = planPrice;
+        AppRouter.pendingPlanSubtitle = planSubtitle;
+        AppRouter.isCampus = planTitle.toLowerCase().contains('campus');
+        SystemNavigator.routeInformationUpdated(uri: Uri.parse('/'));
+      }
+    }
     _loadUserData();
     AppRouter.profileUpdatedNotifier.addListener(_loadUserData);
   }
@@ -106,40 +124,43 @@ class _AppRouterState extends State<AppRouter> {
       }
     }
 
-    // Check for pending plan redirect (on Web / redirect flows)
+    // Check for pending plan redirect (on both native and Web redirect flows)
     _checkPendingPlanRedirect();
   }
 
   void _checkPendingPlanRedirect() {
     if (_isProfileIncomplete) return; // Don't redirect until profile is completed
 
-    final uri = Uri.base;
-    final planTitle = uri.queryParameters['plan_title'];
-    final planPrice = uri.queryParameters['plan_price'];
-    final planSubtitle = uri.queryParameters['plan_subtitle'];
+    if (AppRouter.pendingPlanTitle != null && AppRouter.pendingPlanPrice != null) {
+      final title = AppRouter.pendingPlanTitle!;
+      final price = AppRouter.pendingPlanPrice!;
+      final subtitle = AppRouter.pendingPlanSubtitle ?? '';
+      final campus = AppRouter.isCampus;
 
-    if (planTitle != null && planPrice != null) {
-      // Clear query parameters in URL to prevent redirect loop on reload
-      SystemNavigator.routeInformationUpdated(uri: Uri.parse('/'));
-      
-      final isCampus = planTitle.toLowerCase().contains('campus');
+      // Clear the static variables to prevent redirect loop on reload
+      AppRouter.pendingPlanTitle = null;
+      AppRouter.pendingPlanPrice = null;
+      AppRouter.pendingPlanSubtitle = null;
+      AppRouter.isCampus = false;
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => isCampus
-              ? CampusPaymentScreen(
-                  planTitle: planTitle,
-                  planPrice: planPrice,
-                  planSubtitle: planSubtitle ?? '',
-                )
-              : PaymentScreen(
-                  planTitle: planTitle,
-                  planPrice: planPrice,
-                  planSubtitle: planSubtitle ?? '',
-                ),
-        ),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => campus
+                ? CampusPaymentScreen(
+                    planTitle: title,
+                    planPrice: price,
+                    planSubtitle: subtitle,
+                  )
+                : PaymentScreen(
+                    planTitle: title,
+                    planPrice: price,
+                    planSubtitle: subtitle,
+                  ),
+          ),
+        );
+      });
     }
   }
 
@@ -161,20 +182,14 @@ class _AppRouterState extends State<AppRouter> {
     }
 
     if (_isProfileIncomplete) {
-      final uri = Uri.base;
-      final planTitle = uri.queryParameters['plan_title'];
-      final planPrice = uri.queryParameters['plan_price'];
-      final planSubtitle = uri.queryParameters['plan_subtitle'];
-      final isCampus = planTitle != null && planTitle.toLowerCase().contains('campus');
-
       return Scaffold(
         body: AnimatedBackground(
           isDarkMode: isDark,
           child: ProfileOnboardingScreen(
-            pendingPlanTitle: planTitle,
-            pendingPlanPrice: planPrice,
-            pendingPlanSubtitle: planSubtitle,
-            isCampus: isCampus,
+            pendingPlanTitle: AppRouter.pendingPlanTitle,
+            pendingPlanPrice: AppRouter.pendingPlanPrice,
+            pendingPlanSubtitle: AppRouter.pendingPlanSubtitle,
+            isCampus: AppRouter.isCampus,
           ),
         ),
       );

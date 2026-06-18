@@ -93,33 +93,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         phoneNumber: _phoneController.text.trim(),
       );
 
-      if (!mounted) return;
-
-      if (_hasPendingPlan) {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 360),
-            pageBuilder: (_, animation, __) => FadeTransition(
-              opacity: animation,
-              child: widget.isCampus
-                  ? CampusPaymentScreen(
-                      planTitle: widget.pendingPlanTitle!,
-                      planPrice: widget.pendingPlanPrice!,
-                      planSubtitle: widget.pendingPlanSubtitle ?? '',
-                    )
-                  : PaymentScreen(
-                      planTitle: widget.pendingPlanTitle!,
-                      planPrice: widget.pendingPlanPrice!,
-                      planSubtitle: widget.pendingPlanSubtitle ?? '',
-                    ),
-            ),
-          ),
-        );
-      } else {
-        // Return to first route (AppRouter)
+      if (mounted) {
         AppRouter.notifyProfileUpdated();
-        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
       if (mounted) {

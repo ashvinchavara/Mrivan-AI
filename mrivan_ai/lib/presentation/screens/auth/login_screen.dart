@@ -187,44 +187,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (!mounted) return;
 
-      if (isProfileIncomplete) {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 360),
-            pageBuilder: (_, animation, __) => FadeTransition(
-              opacity: animation,
-              child: ProfileOnboardingScreen(
-                pendingPlanTitle: widget.pendingPlanTitle,
-                pendingPlanPrice: widget.pendingPlanPrice,
-                pendingPlanSubtitle: widget.pendingPlanSubtitle,
-                isCampus: widget.isCampus,
-              ),
-            ),
-          ),
-        );
-      } else if (_hasPendingPlan) {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 360),
-            pageBuilder: (_, animation, __) => FadeTransition(
-              opacity: animation,
-              child: widget.isCampus
-                  ? CampusPaymentScreen(
-                      planTitle: widget.pendingPlanTitle!,
-                      planPrice: widget.pendingPlanPrice!,
-                      planSubtitle: widget.pendingPlanSubtitle ?? '',
-                    )
-                  : PaymentScreen(
-                      planTitle: widget.pendingPlanTitle!,
-                      planPrice: widget.pendingPlanPrice!,
-                      planSubtitle: widget.pendingPlanSubtitle ?? '',
-                    ),
-            ),
-          ),
-        );
-      } else {
+      if (mounted) {
         Navigator.pop(context);
       }
     } catch (e) {

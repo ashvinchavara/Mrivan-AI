@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
 import 'login_screen.dart';
+import '../dashboard/app_router.dart';
 
 class LandingPageScreen extends StatefulWidget {
   const LandingPageScreen({super.key});
@@ -48,6 +49,11 @@ class _LandingPageScreenState extends State<LandingPageScreen>
     String? planSubtitle,
     bool isCampus = false,
   }) {
+    AppRouter.pendingPlanTitle = planTitle;
+    AppRouter.pendingPlanPrice = planPrice;
+    AppRouter.pendingPlanSubtitle = planSubtitle;
+    AppRouter.isCampus = isCampus;
+
     Navigator.push(
       context,
       PageRouteBuilder(
