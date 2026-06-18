@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
 import '../../theme/theme_config.dart';
+import 'dart:ui';
 
 class PremiumDashboard extends StatefulWidget {
   final String userName;
@@ -68,16 +69,53 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
           userName: widget.userName,
           paymentPlan: widget.paymentPlan,
           isDarkMode: _isDarkMode,
+          onUpgrade: () {
+            setState(() {
+              _currentIndex = 4;
+            });
+          },
         );
         break;
       case 1:
-        currentScreen = AiTeacherTab(isDarkMode: _isDarkMode);
+        currentScreen = AiTeacherTab(
+          paymentPlan: widget.paymentPlan,
+          isDarkMode: _isDarkMode,
+          onUpgrade: () {
+            setState(() {
+              _currentIndex = 4;
+            });
+          },
+        );
         break;
       case 2:
-        currentScreen = CareerCoachTab(isDarkMode: _isDarkMode);
+        final plan = widget.paymentPlan.toLowerCase();
+        final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
+        currentScreen = PlanFeatureGate(
+          isUnlocked: hasAccess,
+          requiredPlan: 'Pro Student Plan',
+          isDarkMode: _isDarkMode,
+          onUpgrade: () {
+            setState(() {
+              _currentIndex = 4;
+            });
+          },
+          child: CareerCoachTab(isDarkMode: _isDarkMode),
+        );
         break;
       case 3:
-        currentScreen = PerformanceAnalyticsTab(isDarkMode: _isDarkMode);
+        final plan = widget.paymentPlan.toLowerCase();
+        final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
+        currentScreen = PlanFeatureGate(
+          isUnlocked: hasAccess,
+          requiredPlan: 'Pro Student/Exam Plan',
+          isDarkMode: _isDarkMode,
+          onUpgrade: () {
+            setState(() {
+              _currentIndex = 4;
+            });
+          },
+          child: PerformanceAnalyticsTab(isDarkMode: _isDarkMode),
+        );
         break;
       case 4:
         currentScreen = PricingVipTab(
@@ -91,6 +129,11 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
           userName: widget.userName,
           paymentPlan: widget.paymentPlan,
           isDarkMode: _isDarkMode,
+          onUpgrade: () {
+            setState(() {
+              _currentIndex = 4;
+            });
+          },
         );
     }
 
@@ -392,20 +435,48 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                           decoration: BoxDecoration(
                             color: const Color(0xFF1E1E28),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.amber.withOpacity(0.2)),
+                            border: Border.all(
+                              color: widget.paymentPlan.toLowerCase().contains('free')
+                                  ? Colors.grey.withOpacity(0.2)
+                                  : Colors.amber.withOpacity(0.2),
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                children: const [
-                                  Icon(Icons.stars, color: Colors.amber, size: 18),
-                                  SizedBox(width: 8),
-                                  Text('Pro Activated', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.amber)),
+                                children: [
+                                  Icon(
+                                    widget.paymentPlan.toLowerCase().contains('free')
+                                        ? Icons.info_outline
+                                        : Icons.stars,
+                                    color: widget.paymentPlan.toLowerCase().contains('free')
+                                        ? Colors.grey
+                                        : Colors.amber,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    widget.paymentPlan.toLowerCase().contains('free')
+                                        ? 'Free Trial'
+                                        : 'Plan Active',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: widget.paymentPlan.toLowerCase().contains('free')
+                                          ? Colors.grey
+                                          : Colors.amber,
+                                    ),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 6),
-                              const Text('All 40+ dynamic models unlocked.', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                              Text(
+                                widget.paymentPlan.toLowerCase().contains('free')
+                                    ? 'Core trial features only.'
+                                    : 'All plan features unlocked.',
+                                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                              ),
                             ],
                           ),
                         ),
@@ -456,12 +527,14 @@ class DashboardTab extends StatelessWidget {
   final String userName;
   final String paymentPlan;
   final bool isDarkMode;
+  final VoidCallback onUpgrade;
 
   const DashboardTab({
     super.key,
     required this.userName,
     required this.paymentPlan,
     required this.isDarkMode,
+    required this.onUpgrade,
   });
 
   @override
@@ -472,11 +545,71 @@ class DashboardTab extends StatelessWidget {
     final currentText = isDarkMode ? Colors.white : const Color(0xFF0F172A);
     final cardBg = isDarkMode ? const Color(0xFF181824) : Colors.white;
 
+    final plan = paymentPlan.toLowerCase();
+    final isFreePlan = plan.contains('free');
+    final hasProAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
+    final hasInterviewAccess = plan.contains('pro') || plan.contains('premium') || plan.contains('campus') || plan.contains('aspirant');
+    final hasPlacementAccess = plan.contains('pro') || plan.contains('premium') || plan.contains('campus');
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isFreePlan) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF2A6D).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFF2A6D).withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF2A6D), size: 24),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Free Trial Account',
+                          style: TextStyle(
+                            color: Color(0xFFFF2A6D),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'You are currently on the Free Plan with limited features and a query cap.',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white70 : Colors.black87,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton(
+                    onPressed: onUpgrade,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF2A6D),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Upgrade', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -499,7 +632,7 @@ class DashboardTab extends StatelessWidget {
               if (isDesktop) ...[
                 const SizedBox(width: 16),
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: onUpgrade,
                   icon: const Icon(Icons.bolt, color: Colors.black, size: 18),
                   label: const Text('Fast Assistant', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
@@ -529,6 +662,8 @@ class DashboardTab extends StatelessWidget {
                 const Color(0xFF6C63FF),
                 Icons.trending_up,
                 cardBg,
+                isUnlocked: hasProAccess,
+                onUpgrade: onUpgrade,
               ),
               _buildMetricCard(
                 'Streak & Daily Planning',
@@ -537,6 +672,7 @@ class DashboardTab extends StatelessWidget {
                 const Color(0xFF00F2FE),
                 Icons.stars,
                 cardBg,
+                isUnlocked: true,
               ),
               _buildMetricCard(
                 'Mock Interview Performance',
@@ -545,6 +681,8 @@ class DashboardTab extends StatelessWidget {
                 const Color(0xFFFF2A6D),
                 Icons.mic_external_on,
                 cardBg,
+                isUnlocked: hasInterviewAccess,
+                onUpgrade: onUpgrade,
               ),
             ],
           ),
@@ -572,6 +710,7 @@ class DashboardTab extends StatelessWidget {
                 const Color(0xFF6C63FF),
                 cardBg,
                 currentText,
+                isUnlocked: true,
               ),
               _buildFeatureTile(
                 '🎯 AI Career Mentor',
@@ -580,6 +719,8 @@ class DashboardTab extends StatelessWidget {
                 const Color(0xFF00F2FE),
                 cardBg,
                 currentText,
+                isUnlocked: hasProAccess,
+                onUpgrade: onUpgrade,
               ),
               _buildFeatureTile(
                 '🎤 AI Interview Coach',
@@ -588,6 +729,8 @@ class DashboardTab extends StatelessWidget {
                 const Color(0xFFFF2A6D),
                 cardBg,
                 currentText,
+                isUnlocked: hasInterviewAccess,
+                onUpgrade: onUpgrade,
               ),
               _buildFeatureTile(
                 '💼 Placement & Job Readiness',
@@ -596,6 +739,8 @@ class DashboardTab extends StatelessWidget {
                 Colors.amber,
                 cardBg,
                 currentText,
+                isUnlocked: hasPlacementAccess,
+                onUpgrade: onUpgrade,
               ),
             ],
           ),
@@ -641,8 +786,17 @@ class DashboardTab extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricCard(String title, String mainValue, String subText, Color accentColor, IconData icon, Color bg) {
-    return Container(
+  Widget _buildMetricCard(
+    String title,
+    String mainValue,
+    String subText,
+    Color accentColor,
+    IconData icon,
+    Color bg, {
+    bool isUnlocked = true,
+    VoidCallback? onUpgrade,
+  }) {
+    final cardContent = Container(
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(16),
@@ -693,10 +847,58 @@ class DashboardTab extends StatelessWidget {
         ),
       ),
     );
+
+    if (isUnlocked) return cardContent;
+
+    return GestureDetector(
+      onTap: onUpgrade,
+      child: Stack(
+        children: [
+          Opacity(
+            opacity: 0.22,
+            child: cardContent,
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.lock_rounded, color: accentColor, size: 24),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Upgrade to Unlock',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: accentColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _buildFeatureTile(String title, String description, IconData icon, Color color, Color bg, Color textColor) {
-    return Container(
+  Widget _buildFeatureTile(
+    String title,
+    String description,
+    IconData icon,
+    Color color,
+    Color bg,
+    Color textColor, {
+    bool isUnlocked = true,
+    VoidCallback? onUpgrade,
+  }) {
+    final tileContent = Container(
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(16),
@@ -740,6 +942,45 @@ class DashboardTab extends StatelessWidget {
         ),
       ),
     );
+
+    if (isUnlocked) return tileContent;
+
+    return GestureDetector(
+      onTap: onUpgrade,
+      child: Stack(
+        children: [
+          Opacity(
+            opacity: 0.22,
+            child: tileContent,
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.lock_rounded, color: color, size: 28),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Upgrade to Unlock',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -747,8 +988,16 @@ class DashboardTab extends StatelessWidget {
 // SCREEN 2: PERSONAL AI TEACHER TAB
 // ==========================================
 class AiTeacherTab extends StatefulWidget {
+  final String paymentPlan;
   final bool isDarkMode;
-  const AiTeacherTab({super.key, required this.isDarkMode});
+  final VoidCallback onUpgrade;
+
+  const AiTeacherTab({
+    super.key,
+    required this.paymentPlan,
+    required this.isDarkMode,
+    required this.onUpgrade,
+  });
 
   @override
   State<AiTeacherTab> createState() => _AiTeacherTabState();
@@ -764,6 +1013,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   ];
 
   String _selectedLevel = 'Simple Explanation';
+  int _queriesRemaining = 5;
 
   @override
   Widget build(BuildContext context) {
@@ -771,6 +1021,8 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
     final chatBubbleBg = widget.isDarkMode ? const Color(0xFF1E1E2C) : const Color(0xFFF1F5F9);
     final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    final isFreePlan = widget.paymentPlan.toLowerCase().contains('free');
 
     return Container(
       padding: const EdgeInsets.all(24.0),
@@ -787,6 +1039,51 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
             style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
           const SizedBox(height: 20),
+
+          if (isFreePlan) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF2A6D).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFF2A6D).withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: Color(0xFFFF2A6D), size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Free Trial Active: You have $_queriesRemaining trial queries remaining today.',
+                      style: const TextStyle(
+                        color: Color(0xFFFF2A6D),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: widget.onUpgrade,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Upgrade Now',
+                      style: TextStyle(
+                        color: Color(0xFFFF2A6D),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // CONFIGURATION HEADER ROW
           runConfigChips(),
@@ -849,8 +1146,25 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                     child: Row(
                       children: [
                         IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.mic, color: Color(0xFF00F2FE)),
+                          onPressed: () {
+                            if (widget.paymentPlan.toLowerCase().contains('free') ||
+                                widget.paymentPlan.toLowerCase().contains('basic')) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Voice Assistant is a Pro feature. Upgrade to unlock.'),
+                                  backgroundColor: Color(0xFF4F46E5),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                          icon: Icon(
+                            Icons.mic,
+                            color: (widget.paymentPlan.toLowerCase().contains('free') ||
+                                    widget.paymentPlan.toLowerCase().contains('basic'))
+                                ? Colors.grey
+                                : const Color(0xFF00F2FE),
+                          ),
                           tooltip: 'Speak Voice Input',
                         ),
                         Expanded(
@@ -943,10 +1257,26 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
 
   void _sendMessage() {
     if (_chatController.text.trim().isEmpty) return;
+    final isFreePlan = widget.paymentPlan.toLowerCase().contains('free');
+    
+    if (isFreePlan && _queriesRemaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Free Trial Limit reached. Upgrade to Pro for unlimited access.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final text = _chatController.text;
     setState(() {
       _messages.add({'role': 'user', 'text': text});
       _chatController.clear();
+      if (isFreePlan) {
+        _queriesRemaining--;
+      }
     });
 
     // Simulate smart tutor answering
@@ -1694,4 +2024,124 @@ class SkillRadarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class PlanFeatureGate extends StatelessWidget {
+  final bool isUnlocked;
+  final String requiredPlan;
+  final Widget child;
+  final VoidCallback onUpgrade;
+  final bool isDarkMode;
+
+  const PlanFeatureGate({
+    super.key,
+    required this.isUnlocked,
+    required this.requiredPlan,
+    required this.child,
+    required this.onUpgrade,
+    required this.isDarkMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isUnlocked) return child;
+
+    final overlayBg = isDarkMode 
+        ? Colors.black.withOpacity(0.55) 
+        : Colors.white.withOpacity(0.55);
+    final cardBg = isDarkMode ? const Color(0xFF1E1E2C) : Colors.white;
+    final textCol = isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final borderCol = isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    return Stack(
+      children: [
+        AbsorbPointer(
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 5.5, sigmaY: 5.5),
+            child: child,
+          ),
+        ),
+        Positioned.fill(
+          child: Container(
+            color: overlayBg,
+            child: Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                constraints: const BoxConstraints(maxWidth: 400),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: borderCol),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    )
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4F46E5).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock_rounded,
+                        color: Color(0xFF4F46E5),
+                        size: 36,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Feature Locked',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textCol,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Unlock this feature and amplify your career potential by upgrading to the $requiredPlan.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: onUpgrade,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4F46E5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Upgrade Plan',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
