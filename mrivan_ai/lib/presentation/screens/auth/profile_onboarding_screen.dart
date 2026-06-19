@@ -738,7 +738,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                     ),
                     const SizedBox(height: 18),
                   ],
-                ],],
+                ],
 
                 _buildPlanDropdown(isDarkMode),
                 const SizedBox(height: 32),
