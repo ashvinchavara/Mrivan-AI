@@ -42,7 +42,7 @@ const PROVIDER_CONFIGS = {
 
 const makeOpenAICall = async (url, headers, body) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000); // 12-second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
 
   try {
     const res = await fetch(url, {
