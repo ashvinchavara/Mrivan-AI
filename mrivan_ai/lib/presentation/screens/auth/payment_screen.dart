@@ -180,10 +180,9 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
             final response = await Supabase.instance.client.rpc(
               'checkout_campus',
               params: {
+                'p_admin_id': user.id,
                 'p_school_name': _schoolNameController.text.trim(),
                 'p_student_count': int.tryParse(_studentsController.text.trim()) ?? 100,
-                'p_teacher_count': AppRouter.teacherCount ?? 10,
-                'p_admin_id': user.id,
               },
             );
 

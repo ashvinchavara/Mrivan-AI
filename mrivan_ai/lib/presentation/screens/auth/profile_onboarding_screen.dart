@@ -415,6 +415,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         }
       }
 
+      AppRouter.hasClickedLogin = false;
       if (mounted) {
         AppRouter.notifyProfileUpdated();
       }
@@ -601,134 +602,143 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                     color: isDarkMode ? Colors.white60 : Colors.black54,
                   ),
                 ),
-                const SizedBox(height: 28),
-
-                // Full Name Input
-                _buildInputField(
-                  label: 'Full Name',
-                  controller: _nameController,
-                  icon: Icons.person_rounded,
-                  hint: 'Enter your full name',
-                  isDarkMode: isDarkMode,
-                  validator: (val) {
-                    if (val == null || val.trim().isEmpty) return 'Name is required';
-                    if (val.trim().contains('@')) return 'Enter a real name, not your email';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 18),
-
-                if (_selectedPlanTitle != 'Campus Plan') ...[
-                  // Class/Grade Input
+                const SizedBox(height: 28),                if (_selectedPlanTitle != 'Free Plan') ...[
+                  // Full Name Input
                   _buildInputField(
-                    label: 'Class / Grade',
-                    controller: _classController,
-                    icon: Icons.school_rounded,
-                    hint: 'e.g. Grade 11, college sophomore, self-study',
+                    label: 'Full Name',
+                    controller: _nameController,
+                    icon: Icons.person_rounded,
+                    hint: 'Enter your full name',
                     isDarkMode: isDarkMode,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Class/Grade is required' : null,
+                    validator: (val) {
+                      if (_selectedPlanTitle == 'Free Plan') return null;
+                      if (val == null || val.trim().isEmpty) return 'Name is required';
+                      if (val.trim().contains('@')) return 'Enter a real name, not your email';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 18),
 
-                  // Age Input
-                  _buildInputField(
-                    label: 'Age',
-                    controller: _ageController,
-                    icon: Icons.cake_rounded,
-                    hint: 'Enter your age',
-                    keyboardType: TextInputType.number,
-                    isDarkMode: isDarkMode,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Age is required' : null,
-                  ),
-                  const SizedBox(height: 18),
-                ] else ...[
-                  // Campus Mode Toggle ("New Purchase" vs "Join with Code")
-                  _buildCampusModeToggle(isDarkMode),
-
-                  if (!_isJoinWithCode) ...[
-                    // New Purchase mode
+                  if (_selectedPlanTitle != 'Campus Plan') ...[
+                    // Class/Grade Input
                     _buildInputField(
-                      label: 'School / College Name',
-                      controller: _schoolNameController,
-                      icon: Icons.business_rounded,
-                      hint: 'Enter school/college name',
+                      label: 'Class / Grade',
+                      controller: _classController,
+                      icon: Icons.school_rounded,
+                      hint: 'e.g. Grade 11, college sophomore, self-study',
                       isDarkMode: isDarkMode,
                       validator: (val) {
-                        if (_selectedPlanTitle == 'Campus Plan' && !_isJoinWithCode) {
-                          if (val == null || val.trim().isEmpty) return 'School/College name is required';
-                        }
+                        if (_selectedPlanTitle == 'Free Plan') return null;
+                        if (val == null || val.trim().isEmpty) return 'Class/Grade is required';
                         return null;
                       },
                     ),
                     const SizedBox(height: 18),
 
-                    // Number of Students
+                    // Age Input
                     _buildInputField(
-                      label: 'Number of Students',
-                      controller: _studentsController,
-                      icon: Icons.people_rounded,
-                      hint: 'Enter number of students (min 50)',
-                      keyboardType: TextInputType.number,
-                      isDarkMode: isDarkMode,
-                      onChanged: (val) {
-                        setState(() {});
-                      },
-                      validator: (val) {
-                        if (_selectedPlanTitle == 'Campus Plan' && !_isJoinWithCode) {
-                          if (val == null || val.trim().isEmpty) return 'Number of students is required';
-                          final count = int.tryParse(val.trim());
-                          if (count == null || count < 50) return 'Minimum 50 students required';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Number of Teachers
-                    _buildInputField(
-                      label: 'Number of Teachers',
-                      controller: _teachersController,
-                      icon: Icons.person_outline_rounded,
-                      hint: 'Enter number of teachers',
+                      label: 'Age',
+                      controller: _ageController,
+                      icon: Icons.cake_rounded,
+                      hint: 'Enter your age',
                       keyboardType: TextInputType.number,
                       isDarkMode: isDarkMode,
                       validator: (val) {
-                        if (_selectedPlanTitle == 'Campus Plan' && !_isJoinWithCode) {
-                          if (val == null || val.trim().isEmpty) return 'Number of teachers is required';
-                          final count = int.tryParse(val.trim());
-                          if (count == null || count <= 0) return 'Must be at least 1';
-                        }
+                        if (_selectedPlanTitle == 'Free Plan') return null;
+                        if (val == null || val.trim().isEmpty) return 'Age is required';
                         return null;
                       },
                     ),
                     const SizedBox(height: 18),
                   ] else ...[
-                    // Join with Code mode
-                    _buildInviteCodeInput(isDarkMode),
-                    _buildVerifiedSchoolCard(isDarkMode),
-                    _buildRoleToggle(isDarkMode),
-                    _buildRoleSpecificFields(isDarkMode),
-                  ],
-                ],
+                    // Campus Mode Toggle ("New Purchase" vs "Join with Code")
+                    _buildCampusModeToggle(isDarkMode),
 
-                // Phone Number Input
-                if (_selectedPlanTitle != 'Campus Plan' || !_isJoinWithCode || _inviteCodeVerified) ...[
-                  _buildInputField(
-                    label: 'Phone Number',
-                    controller: _phoneController,
-                    icon: Icons.phone_rounded,
-                    hint: 'Enter your contact number',
-                    keyboardType: TextInputType.phone,
-                    isDarkMode: isDarkMode,
-                    validator: (val) {
-                      if (_selectedPlanTitle != 'Campus Plan' || !_isJoinWithCode || _inviteCodeVerified) {
-                        if (val == null || val.trim().isEmpty) return 'Phone number is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                ],
+                    if (!_isJoinWithCode) ...[
+                      // New Purchase mode
+                      _buildInputField(
+                        label: 'School / College Name',
+                        controller: _schoolNameController,
+                        icon: Icons.business_rounded,
+                        hint: 'Enter school/college name',
+                        isDarkMode: isDarkMode,
+                        validator: (val) {
+                          if (_selectedPlanTitle == 'Campus Plan' && !_isJoinWithCode) {
+                            if (val == null || val.trim().isEmpty) return 'School/College name is required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Number of Students
+                      _buildInputField(
+                        label: 'Number of Students',
+                        controller: _studentsController,
+                        icon: Icons.people_rounded,
+                        hint: 'Enter number of students (min 50)',
+                        keyboardType: TextInputType.number,
+                        isDarkMode: isDarkMode,
+                        onChanged: (val) {
+                          setState(() {});
+                        },
+                        validator: (val) {
+                          if (_selectedPlanTitle == 'Campus Plan' && !_isJoinWithCode) {
+                            if (val == null || val.trim().isEmpty) return 'Number of students is required';
+                            final count = int.tryParse(val.trim());
+                            if (count == null || count < 50) return 'Minimum 50 students required';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Number of Teachers
+                      _buildInputField(
+                        label: 'Number of Teachers',
+                        controller: _teachersController,
+                        icon: Icons.person_outline_rounded,
+                        hint: 'Enter number of teachers',
+                        keyboardType: TextInputType.number,
+                        isDarkMode: isDarkMode,
+                        validator: (val) {
+                          if (_selectedPlanTitle == 'Campus Plan' && !_isJoinWithCode) {
+                            if (val == null || val.trim().isEmpty) return 'Number of teachers is required';
+                            final count = int.tryParse(val.trim());
+                            if (count == null || count <= 0) return 'Must be at least 1';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                    ] else ...[
+                      // Join with Code mode
+                      _buildInviteCodeInput(isDarkMode),
+                      _buildVerifiedSchoolCard(isDarkMode),
+                      _buildRoleToggle(isDarkMode),
+                      _buildRoleSpecificFields(isDarkMode),
+                    ],
+                  ],
+
+                  // Phone Number Input
+                  if (_selectedPlanTitle != 'Campus Plan' || !_isJoinWithCode || _inviteCodeVerified) ...[
+                    _buildInputField(
+                      label: 'Phone Number',
+                      controller: _phoneController,
+                      icon: Icons.phone_rounded,
+                      hint: 'Enter your contact number',
+                      keyboardType: TextInputType.phone,
+                      isDarkMode: isDarkMode,
+                      validator: (val) {
+                        if (_selectedPlanTitle != 'Campus Plan' || !_isJoinWithCode || _inviteCodeVerified) {
+                          if (val == null || val.trim().isEmpty) return 'Phone number is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                  ],
+                ],],
 
                 _buildPlanDropdown(isDarkMode),
                 const SizedBox(height: 32),
@@ -783,6 +793,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         onTap: () async {
           setState(() => _isSaving = true);
           try {
+            AppRouter.hasClickedLogin = false;
             await Supabase.instance.client.auth.signOut();
             try {
               final googleSignIn = GoogleSignIn();

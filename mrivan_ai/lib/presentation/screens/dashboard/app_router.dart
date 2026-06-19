@@ -22,6 +22,7 @@ class AppRouter extends StatefulWidget {
   static String? pendingPlanPrice;
   static String? pendingPlanSubtitle;
   static bool isCampus = false;
+  static bool hasClickedLogin = false;
 
   static String? schoolName;
   static int? studentCount;
@@ -178,7 +179,7 @@ class _AppRouterState extends State<AppRouter> {
       );
     }
 
-    final showLandingPage = _paymentPlan == 'Free Plan' && AppRouter.pendingPlanTitle == null;
+    final showLandingPage = _paymentPlan == 'Free Plan' && AppRouter.pendingPlanTitle == null && !AppRouter.hasClickedLogin;
 
     if (showLandingPage) {
       return const LandingPageScreen();

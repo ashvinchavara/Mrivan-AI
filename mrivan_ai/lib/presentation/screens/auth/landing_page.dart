@@ -63,6 +63,13 @@ class _LandingPageScreenState extends State<LandingPageScreen>
       AppRouter.pendingPlanPrice = planPrice;
       AppRouter.pendingPlanSubtitle = planSubtitle;
       AppRouter.isCampus = isCampus;
+      AppRouter.hasClickedLogin = true;
+
+      if (Supabase.instance.client.auth.currentSession != null) {
+        AppRouter.notifyProfileUpdated();
+        setState(() => _isAuthLoading = false);
+        return;
+      }
 
       if (kIsWeb) {
         final uri = Uri.base;
