@@ -369,15 +369,17 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         AppRouter.isCampus = false;
       } else {
         final isCampus = _selectedPlanTitle == 'Campus Plan';
-        await DatabaseService.instance.updateUserProfile(
-          userId: user.id,
-          fullName: _nameController.text.trim(),
-          className: isCampus ? 'Campus Admin' : _classController.text.trim(),
-          age: isCampus ? 'N/A' : _ageController.text.trim(),
-          phoneNumber: _phoneController.text.trim(),
-          role: isCampus ? 'admin' : 'student',
-          email: user.email,
-        );
+        if (_selectedPlanTitle != 'Free Plan') {
+          await DatabaseService.instance.updateUserProfile(
+            userId: user.id,
+            fullName: _nameController.text.trim(),
+            className: isCampus ? 'Campus Admin' : _classController.text.trim(),
+            age: isCampus ? 'N/A' : _ageController.text.trim(),
+            phoneNumber: _phoneController.text.trim(),
+            role: isCampus ? 'admin' : 'student',
+            email: user.email,
+          );
+        }
 
         final selectedPlan = _availablePlans.firstWhere(
           (p) => p['title'] == _selectedPlanTitle,

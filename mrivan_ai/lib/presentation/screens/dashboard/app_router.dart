@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'premium_dashboard.dart';
+import '../auth/landing_page.dart';
 import '../auth/profile_onboarding_screen.dart';
 import '../auth/payment_screen.dart';
 import '../../theme/theme_config.dart';
@@ -175,6 +176,12 @@ class _AppRouterState extends State<AppRouter> {
           ),
         ),
       );
+    }
+
+    final showLandingPage = _paymentPlan == 'Free Plan' && AppRouter.pendingPlanTitle == null;
+
+    if (showLandingPage) {
+      return const LandingPageScreen();
     }
 
     if (_isProfileIncomplete) {
