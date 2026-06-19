@@ -31,8 +31,8 @@ const PROVIDER_CONFIGS = {
     })
   },
   huggingface: {
-    url: 'https://api-inference.huggingface.co/v1/chat/completions',
-    model: 'meta-llama/Llama-3-8b-Instruct',
+    url: 'https://router.huggingface.co/v1/chat/completions',
+    model: 'meta-llama/Meta-Llama-3-8B-Instruct',
     getHeaders: () => ({ 'Authorization': `Bearer ${process.env.HF_TOKEN}` })
   }
 };
