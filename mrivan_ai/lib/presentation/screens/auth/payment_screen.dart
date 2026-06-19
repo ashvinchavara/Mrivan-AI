@@ -182,6 +182,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
               params: {
                 'p_school_name': _schoolNameController.text.trim(),
                 'p_student_count': int.tryParse(_studentsController.text.trim()) ?? 100,
+                'p_teacher_count': AppRouter.teacherCount ?? 10,
                 'p_admin_id': user.id,
               },
             );
@@ -196,6 +197,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
           await DatabaseService.instance.updateUserProfile(
             userId: user.id,
             paymentPlan: widget.planTitle,
+            email: user.email,
           );
         }
       } catch (e) {

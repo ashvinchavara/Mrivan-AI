@@ -424,6 +424,9 @@ class DatabaseService {
     String? className,
     String? age,
     String? phoneNumber,
+    String? email,
+    String? role,
+    String? teacherSpecialization,
   }) async {
     try {
       final updates = <String, dynamic>{'id': userId};
@@ -434,6 +437,11 @@ class DatabaseService {
       if (className != null) updates['class'] = className;
       if (age != null) updates['age'] = age;
       if (phoneNumber != null) updates['phone_number'] = phoneNumber;
+      if (email != null) updates['email'] = email;
+      if (role != null) updates['role'] = role;
+      if (teacherSpecialization != null) {
+        updates['teacher_specialization'] = teacherSpecialization;
+      }
 
       final response = await _client
           .from('profiles')
