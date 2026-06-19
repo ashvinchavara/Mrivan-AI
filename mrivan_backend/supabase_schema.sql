@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_messages (
 CREATE TABLE IF NOT EXISTS notes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    class_id UUID REFERENCES classes(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     content TEXT NOT NULL, -- Markdown formatting
     subject TEXT,
@@ -116,6 +117,9 @@ CREATE TABLE IF NOT EXISTS notes (
     is_ai_generated BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
+
+ALTER TABLE public.notes ADD COLUMN IF NOT EXISTS class_id UUID REFERENCES public.classes(id) ON DELETE SET NULL;
+
 
 -- 10. Create Mock Tests Table
 CREATE TABLE IF NOT EXISTS mock_tests (

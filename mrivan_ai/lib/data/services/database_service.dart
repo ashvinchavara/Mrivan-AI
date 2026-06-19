@@ -456,4 +456,107 @@ class DatabaseService {
       throw Exception('Failed to update profile: ${e.toString()}');
     }
   }
+
+  /// Fetch all teachers for a given school ID
+  Future<List<Map<String, dynamic>>> fetchSchoolTeachers(String schoolId) async {
+    try {
+      final response = await _client
+          .from('profiles')
+          .select('id, full_name, email, phone_number, teacher_specialization, role')
+          .eq('school_id', schoolId)
+          .eq('role', 'teacher')
+          .order('full_name');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in fetchSchoolTeachers: $e');
+      }
+      throw Exception('Failed to fetch teachers: ${e.toString()}');
+    }
+  }
+
+  /// Fetch all students for a given school ID
+  Future<List<Map<String, dynamic>>> fetchSchoolStudents(String schoolId) async {
+    try {
+      final response = await _client
+          .from('profiles')
+          .select('id, full_name, email, phone_number, class, age, student_roll_number, class_id, role')
+          .eq('school_id', schoolId)
+          .eq('role', 'student')
+          .order('full_name');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in fetchSchoolStudents: $e');
+      }
+      throw Exception('Failed to fetch students: ${e.toString()}');
+    }
+  }
+
+  /// Fetch school details (seats, invite code, branding config)
+  Future<Map<String, dynamic>?> fetchSchoolData(String schoolId) async {
+    try {
+      final response = await _client
+          .from('schools')
+          .select('id, name, total_seats, invite_code, branding_config')
+          .eq('id', schoolId)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in fetchSchoolData: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Save study note targeted at a specific class
+  Future<Map<String, dynamic>> saveClassNote({
+    required String userId,
+    required String title,
+    required String content,
+    required String subject,
+    required String classLevel,
+    required String? classId,
+    required bool isAiGenerated,
+  }) async {
+    try {
+      final response = await _client
+          .from('notes')
+          .insert({
+            'user_id': userId,
+            'title': title,
+            'content': content,
+            'subject': subject,
+            'class_level': classLevel,
+            'class_id': classId,
+            'is_ai_generated': isAiGenerated,
+          })
+          .select()
+          .single();
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in saveClassNote: $e');
+      }
+      throw Exception('Failed to save class study note: ${e.toString()}');
+    }
+  }
+
+  /// Fetch notes for a class ID or created by a user ID
+  Future<List<Map<String, dynamic>>> fetchClassNotes(String classId, String userId) async {
+    try {
+      final response = await _client
+          .from('notes')
+          .select('id, title, content, subject, class_level, is_ai_generated, created_at')
+          .or('class_id.eq.$classId,user_id.eq.$userId')
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in fetchClassNotes: $e');
+      }
+      throw Exception('Failed to fetch class study notes: ${e.toString()}');
+    }
+  }
 }

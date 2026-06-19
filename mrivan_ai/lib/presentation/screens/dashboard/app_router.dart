@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'premium_dashboard.dart';
+import 'campus_teacher_dashboard.dart';
+import 'campus_admin_dashboard.dart';
 import '../auth/landing_page.dart';
 import '../auth/profile_onboarding_screen.dart';
 import '../auth/payment_screen.dart';
@@ -39,6 +41,8 @@ class _AppRouterState extends State<AppRouter> {
   String _userName = '';
   String _paymentPlan = 'Free Plan';
   String _email = '';
+  String _role = 'student';
+  String _schoolId = '';
 
   @override
   void initState() {
@@ -80,7 +84,7 @@ class _AppRouterState extends State<AppRouter> {
     try {
       final response = await _client
           .from('profiles')
-          .select('full_name, payment_plan, class, age, phone_number')
+          .select('full_name, payment_plan, class, age, phone_number, role, school_id')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -90,14 +94,13 @@ class _AppRouterState extends State<AppRouter> {
         final age = response['age'] as String?;
         final phoneNumber = response['phone_number'] as String?;
         final plan = response['payment_plan'] as String?;
+        final role = response['role'] as String? ?? 'student';
+        final schoolId = response['school_id'] as String? ?? '';
 
         final incomplete = fullName == null ||
             fullName.isEmpty ||
             fullName.contains('@') ||
-            className == null ||
-            className.isEmpty ||
-            age == null ||
-            age.isEmpty ||
+            (role == 'student' && (className == null || className.isEmpty || age == null || age.isEmpty)) ||
             phoneNumber == null ||
             phoneNumber.isEmpty;
 
@@ -106,6 +109,8 @@ class _AppRouterState extends State<AppRouter> {
             _isProfileIncomplete = incomplete;
             _userName = fullName ?? '';
             _paymentPlan = plan ?? 'Free Plan';
+            _role = role;
+            _schoolId = schoolId;
             _isLoading = false;
           });
         }
@@ -197,6 +202,23 @@ class _AppRouterState extends State<AppRouter> {
           ),
         ),
       );
+    }
+
+    final isCampusPlan = _paymentPlan.toLowerCase().contains('campus');
+    if (isCampusPlan) {
+      if (_role == 'admin') {
+        return CampusAdminDashboard(
+          userName: _userName,
+          schoolId: _schoolId,
+          email: _email,
+        );
+      } else if (_role == 'teacher') {
+        return CampusTeacherDashboard(
+          userName: _userName,
+          schoolId: _schoolId,
+          email: _email,
+        );
+      }
     }
 
     return PremiumDashboard(

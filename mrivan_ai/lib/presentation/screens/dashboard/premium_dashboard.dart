@@ -31,6 +31,15 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
 
   List<String> get _tabs {
     final plan = widget.paymentPlan.toLowerCase();
+    if (plan.contains('campus')) {
+      return [
+        'Dashboard',
+        'AI Teacher',
+        'School CRM',
+        'Career & Coach',
+        'Performance',
+      ];
+    }
     final isPremium = plan.contains('premium');
     if (isPremium) {
       return [
@@ -88,78 +97,92 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
         final currentBorder = isDarkMode ? borderDark : borderLight;
 
         Widget currentScreen;
-        switch (_currentIndex) {
-          case 0:
-            currentScreen = DashboardTab(
-              userName: widget.userName,
-              paymentPlan: widget.paymentPlan,
-              isDarkMode: isDarkMode,
-              onUpgrade: () {
+        final tabName = _tabs[_currentIndex];
+        if (tabName == 'Dashboard') {
+          currentScreen = DashboardTab(
+            userName: widget.userName,
+            paymentPlan: widget.paymentPlan,
+            isDarkMode: isDarkMode,
+            onUpgrade: () {
+              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              if (upgradeIdx != -1) {
                 setState(() {
-                  _currentIndex = 4;
+                  _currentIndex = upgradeIdx;
                 });
-              },
-            );
-            break;
-          case 1:
-            currentScreen = AiTeacherTab(
-              paymentPlan: widget.paymentPlan,
-              isDarkMode: isDarkMode,
-              onUpgrade: () {
+              }
+            },
+          );
+        } else if (tabName == 'AI Teacher') {
+          currentScreen = AiTeacherTab(
+            paymentPlan: widget.paymentPlan,
+            isDarkMode: isDarkMode,
+            onUpgrade: () {
+              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              if (upgradeIdx != -1) {
                 setState(() {
-                  _currentIndex = 4;
+                  _currentIndex = upgradeIdx;
                 });
-              },
-            );
-            break;
-          case 2:
-            final plan = widget.paymentPlan.toLowerCase();
-            final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
-            currentScreen = PlanFeatureGate(
-              isUnlocked: hasAccess,
-              requiredPlan: 'Pro Student Plan',
-              isDarkMode: isDarkMode,
-              onUpgrade: () {
+              }
+            },
+          );
+        } else if (tabName == 'School CRM') {
+          currentScreen = StudentCrmTab(
+            isDarkMode: isDarkMode,
+          );
+        } else if (tabName == 'Career & Coach') {
+          final plan = widget.paymentPlan.toLowerCase();
+          final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
+          currentScreen = PlanFeatureGate(
+            isUnlocked: hasAccess,
+            requiredPlan: 'Pro Student Plan',
+            isDarkMode: isDarkMode,
+            onUpgrade: () {
+              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              if (upgradeIdx != -1) {
                 setState(() {
-                  _currentIndex = 4;
+                  _currentIndex = upgradeIdx;
                 });
-              },
-              child: CareerCoachTab(isDarkMode: isDarkMode),
-            );
-            break;
-          case 3:
-            final plan = widget.paymentPlan.toLowerCase();
-            final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
-            currentScreen = PlanFeatureGate(
-              isUnlocked: hasAccess,
-              requiredPlan: 'Pro Student/Exam Plan',
-              isDarkMode: isDarkMode,
-              onUpgrade: () {
+              }
+            },
+            child: CareerCoachTab(isDarkMode: isDarkMode),
+          );
+        } else if (tabName == 'Performance') {
+          final plan = widget.paymentPlan.toLowerCase();
+          final hasAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
+          currentScreen = PlanFeatureGate(
+            isUnlocked: hasAccess,
+            requiredPlan: 'Pro Student/Exam Plan',
+            isDarkMode: isDarkMode,
+            onUpgrade: () {
+              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              if (upgradeIdx != -1) {
                 setState(() {
-                  _currentIndex = 4;
+                  _currentIndex = upgradeIdx;
                 });
-              },
-              child: PerformanceAnalyticsTab(isDarkMode: isDarkMode),
-            );
-            break;
-          case 4:
-            currentScreen = PricingVipTab(
-              paymentPlan: widget.paymentPlan,
-              email: widget.email,
-              isDarkMode: isDarkMode,
-            );
-            break;
-          default:
-            currentScreen = DashboardTab(
-              userName: widget.userName,
-              paymentPlan: widget.paymentPlan,
-              isDarkMode: isDarkMode,
-              onUpgrade: () {
+              }
+            },
+            child: PerformanceAnalyticsTab(isDarkMode: isDarkMode),
+          );
+        } else if (tabName == 'VIP Pass') {
+          currentScreen = PricingVipTab(
+            paymentPlan: widget.paymentPlan,
+            email: widget.email,
+            isDarkMode: isDarkMode,
+          );
+        } else {
+          currentScreen = DashboardTab(
+            userName: widget.userName,
+            paymentPlan: widget.paymentPlan,
+            isDarkMode: isDarkMode,
+            onUpgrade: () {
+              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              if (upgradeIdx != -1) {
                 setState(() {
-                  _currentIndex = 4;
+                  _currentIndex = upgradeIdx;
                 });
-              },
-            );
+              }
+            },
+          );
         }
 
         return Scaffold(
@@ -550,16 +573,20 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
   }
 
   IconData _getIcon(int index) {
-    switch (index) {
-      case 0:
+    if (index >= _tabs.length) return Icons.circle_outlined;
+    final name = _tabs[index];
+    switch (name) {
+      case 'Dashboard':
         return Icons.dashboard_outlined;
-      case 1:
+      case 'AI Teacher':
+        return Icons.chat_bubble_outline_rounded;
+      case 'School CRM':
         return Icons.school_outlined;
-      case 2:
+      case 'Career & Coach':
         return Icons.rocket_launch_outlined;
-      case 3:
+      case 'Performance':
         return Icons.analytics_outlined;
-      case 4:
+      case 'VIP Pass':
         return Icons.workspace_premium_outlined;
       default:
         return Icons.circle_outlined;
@@ -3401,6 +3428,587 @@ class PlanFeatureGate extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class StudentCrmTab extends StatefulWidget {
+  final bool isDarkMode;
+
+  const StudentCrmTab({
+    super.key,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<StudentCrmTab> createState() => _StudentCrmTabState();
+}
+
+class _StudentCrmTabState extends State<StudentCrmTab> {
+  final SupabaseClient _client = Supabase.instance.client;
+  bool _loading = true;
+  String _classId = '';
+  String _className = '';
+  List<Map<String, dynamic>> _attendance = [];
+  List<Map<String, dynamic>> _homeworkList = [];
+  List<Map<String, dynamic>> _notes = [];
+  List<Map<String, dynamic>> _submissions = [];
+  List<Map<String, dynamic>> _testAttempts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCrmData();
+  }
+
+  Future<void> _loadCrmData() async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) return;
+
+      final profile = await _client
+          .from('profiles')
+          .select('class_id, class')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (profile != null) {
+        _classId = profile['class_id'] as String? ?? '';
+        _className = profile['class'] as String? ?? 'N/A';
+      }
+
+      final attList = await DatabaseService.instance.fetchAttendance(studentId: user.id);
+
+      List<Map<String, dynamic>> notesList = [];
+      if (_classId.isNotEmpty) {
+        notesList = await DatabaseService.instance.fetchClassNotes(_classId, user.id);
+      }
+
+      List<Map<String, dynamic>> hwList = [];
+      if (_classId.isNotEmpty) {
+        hwList = await DatabaseService.instance.fetchHomework(classId: _classId);
+      }
+
+      final subList = await _client
+          .from('homework_submissions')
+          .select('homework_id, grade, feedback, submission_text')
+          .eq('student_id', user.id);
+
+      final attempts = await _client
+          .from('test_attempts')
+          .select('score, mock_tests(title, total_marks)')
+          .eq('student_id', user.id);
+
+      setState(() {
+        _attendance = attList;
+        _notes = notesList;
+        _homeworkList = hwList;
+        _submissions = List<Map<String, dynamic>>.from(subList);
+        _testAttempts = List<Map<String, dynamic>>.from(attempts);
+        _loading = false;
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error loading CRM data: $e');
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _submitHomeworkText(String hwId, String text) async {
+    if (text.isEmpty) return;
+    setState(() => _loading = true);
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) return;
+
+      await DatabaseService.instance.submitHomework(
+        homeworkId: hwId,
+        studentId: user.id,
+        submissionText: text,
+      );
+      await _loadCrmData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Homework submitted successfully!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+      setState(() => _loading = false);
+    }
+  }
+
+  void _showSubmitDialog(String hwId, String title) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+        final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+        return AlertDialog(
+          backgroundColor: cardBg,
+          title: Text('Submit Assignment', style: TextStyle(color: currentText, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Topic: $title', style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 5,
+                style: TextStyle(color: currentText, fontSize: 13),
+                decoration: const InputDecoration(
+                  hintText: 'Type your homework submission here...',
+                  hintStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final txt = controller.text.trim();
+                if (txt.isNotEmpty) {
+                  Navigator.pop(context);
+                  _submitHomeworkText(hwId, txt);
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
+              child: const Text('Submit', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final totalAttendance = _attendance.length;
+    final presentAttendance = _attendance.where((a) => a['status'] == 'Present' || a['status'] == 'Late').length;
+    final attendancePercentage = totalAttendance > 0 ? (presentAttendance / totalAttendance) : 1.0;
+
+    return DefaultTabController(
+      length: 4,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'School CRM Cockpit 🎒',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Class: $_className | Live Database Sync Active', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4F46E5)),
+                onPressed: () {
+                  setState(() => _loading = true);
+                  _loadCrmData();
+                },
+                tooltip: 'Refresh Data',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          TabBar(
+            isScrollable: true,
+            labelColor: const Color(0xFF4F46E5),
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: const Color(0xFF4F46E5),
+            tabs: const [
+              Tab(text: 'Attendance Log'),
+              Tab(text: 'Homework Hub'),
+              Tab(text: 'Marks Scorecard'),
+              Tab(text: 'Class Notes'),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: TabBarView(
+              children: [
+                // 1. Attendance Log
+                Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                      ),
+                      child: Row(
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox(
+                                width: 70,
+                                height: 70,
+                                child: CircularProgressIndicator(
+                                  value: attendancePercentage,
+                                  strokeWidth: 6,
+                                  backgroundColor: Colors.grey.withOpacity(0.1),
+                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                                ),
+                              ),
+                              Text(
+                                '${(attendancePercentage * 100).toStringAsFixed(0)}%',
+                                style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('ATTENDANCE INDEX', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  attendancePercentage >= 0.85 ? 'Excellent attendance record!' : 'Attendance is below 85% requirement.',
+                                  style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 2),
+                                Text('Attended $presentAttendance out of $totalAttendance lectures logged.', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: _attendance.isEmpty
+                          ? Center(child: Text('No attendance logs recorded in the database yet.', style: TextStyle(color: currentText)))
+                          : ListView.builder(
+                              itemCount: _attendance.length,
+                              itemBuilder: (context, idx) {
+                                final att = _attendance[idx];
+                                final isPresent = att['status'] == 'Present';
+                                final isLate = att['status'] == 'Late';
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: cardBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.grey.withOpacity(0.05)),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.calendar_month, color: Colors.grey, size: 18),
+                                          const SizedBox(width: 12),
+                                          Text(att['date'] ?? 'N/A', style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold)),
+                                        ],
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: isPresent
+                                              ? Colors.green.withOpacity(0.1)
+                                              : isLate
+                                                  ? Colors.orange.withOpacity(0.1)
+                                                  : Colors.redAccent.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          att['status'] ?? 'Present',
+                                          style: TextStyle(
+                                            color: isPresent
+                                                ? Colors.green
+                                                : isLate
+                                                    ? Colors.orange
+                                                    : Colors.redAccent,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+
+                // 2. Homework Hub
+                _homeworkList.isEmpty
+                    ? Center(child: Text('No homework assignments assigned to your class.', style: TextStyle(color: currentText)))
+                    : ListView.builder(
+                        itemCount: _homeworkList.length,
+                        itemBuilder: (context, idx) {
+                          final hw = _homeworkList[idx];
+                          final submission = _submissions.firstWhere(
+                            (s) => s['homework_id'] == hw['id'],
+                            orElse: () => {},
+                          );
+
+                          final isSubmitted = submission.isNotEmpty;
+                          final grade = submission['grade'] as String?;
+                          final isGraded = grade != null && grade.isNotEmpty;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(hw['title'] ?? '', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14)),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isGraded
+                                            ? Colors.green.withOpacity(0.1)
+                                            : isSubmitted
+                                                ? Colors.orange.withOpacity(0.1)
+                                                : Colors.grey.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        isGraded
+                                            ? 'Graded: $grade'
+                                            : isSubmitted
+                                                ? 'Submitted'
+                                                : 'Pending',
+                                        style: TextStyle(
+                                          color: isGraded
+                                              ? Colors.green
+                                              : isSubmitted
+                                                  ? Colors.orange
+                                                  : Colors.grey,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(hw['description'] ?? 'No instructions', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                const SizedBox(height: 8),
+                                Text('Due Date: ${hw['due_date'] ?? 'N/A'}', style: const TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                                if (isGraded && submission['feedback'] != null && submission['feedback'].isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text('Teacher Review: ${submission['feedback']}', style: const TextStyle(color: Colors.grey, fontSize: 11, fontStyle: FontStyle.italic)),
+                                ],
+                                if (!isSubmitted) ...[
+                                  const SizedBox(height: 12),
+                                  Align(
+                                    alignment: Alignment.bottomRight,
+                                    child: ElevatedButton(
+                                      onPressed: () => _showSubmitDialog(hw['id'], hw['title'] ?? ''),
+                                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
+                                      child: const Text('Submit Assignment', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
+                // 3. Marks Scorecard
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Grades & Scorecard Logs', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: _submissions.isEmpty && _testAttempts.isEmpty
+                          ? Center(child: Text('No academic grades logged yet.', style: TextStyle(color: currentText)))
+                          : ListView(
+                              children: [
+                                if (_submissions.isNotEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                    child: Text('GRADED ASSIGNMENTS', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ),
+                                  ..._submissions.map((sub) {
+                                    final homework = _homeworkList.firstWhere((h) => h['id'] == sub['homework_id'], orElse: () => {});
+                                    final title = homework.isNotEmpty ? homework['title'] : 'Class Assignment';
+                                    final grade = sub['grade'] ?? 'Pending';
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.withOpacity(0.05))),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(title, style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold)),
+                                                if (sub['feedback'] != null && sub['feedback'].isNotEmpty)
+                                                  Text('Feedback: ${sub['feedback']}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                                              ],
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            decoration: BoxDecoration(color: const Color(0xFF4F46E5).withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                                            child: Text('Grade: $grade', style: const TextStyle(color: Color(0xFF4F46E5), fontSize: 11, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
+                                if (_testAttempts.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                    child: Text('MOCK TEST ATTEMPTS', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+                                  ),
+                                  ..._testAttempts.map((attempt) {
+                                    final title = attempt['mock_tests']?['title'] ?? 'Mock Test';
+                                    final total = attempt['mock_tests']?['total_marks'] ?? 100;
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.withOpacity(0.05))),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(title, style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold)),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                                            child: Text('Score: ${attempt['score']} / $total', style: const TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+
+                // 4. Class Notes Library
+                _notes.isEmpty
+                    ? Center(child: Text('No notes shared with your class yet.', style: TextStyle(color: currentText)))
+                    : ListView.builder(
+                        itemCount: _notes.length,
+                        itemBuilder: (context, idx) {
+                          final note = _notes[idx];
+                          final isAi = note['is_ai_generated'] ?? false;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        note['title'] ?? '',
+                                        style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                                      ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        if (isAi)
+                                          Container(
+                                            margin: const EdgeInsets.only(right: 8),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                            child: const Text('AI Generated', style: TextStyle(color: Colors.blue, fontSize: 9, fontWeight: FontWeight.bold)),
+                                          ),
+                                        IconButton(
+                                          icon: Icon(Icons.copy_rounded, color: Colors.grey, size: 16),
+                                          onPressed: () {
+                                            Clipboard.setData(ClipboardData(text: note['content'] ?? ''));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Note content copied to clipboard!'),
+                                                backgroundColor: Color(0xFF4F46E5),
+                                                behavior: SnackBarBehavior.floating,
+                                              ),
+                                            );
+                                          },
+                                          tooltip: 'Copy Note',
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text('Subject: ${note['subject'] ?? 'General'}', style: const TextStyle(color: Color(0xFF4F46E5), fontSize: 11, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    note['content'] ?? '',
+                                    style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
