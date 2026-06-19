@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
 import '../../theme/theme_config.dart';
@@ -1288,6 +1289,9 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
 
         for (final url in urls) {
           try {
+            if (kDebugMode) {
+              print('Attempting primary API request to Mr. Ivan (15s timeout)...');
+            }
             response = await http.post(
               Uri.parse(url),
               headers: {
@@ -1300,8 +1304,9 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                 'sessionId': _selectedSessionId,
                 'subject': subjectStr,
                 'gradeLevel': combinedGradeLevel,
+                'switchAi': false,
               }),
-            ).timeout(const Duration(seconds: 30));
+            ).timeout(const Duration(seconds: 15));
             
             if (response.statusCode == 200) {
               break;
@@ -1311,7 +1316,35 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
           } catch (e) {
             lastError = e;
             if (kDebugMode) {
-              print('Failed to connect to $url: $e');
+              print('Primary AI attempt failed or timed out: $e. Switching AI and retrying (15s timeout)...');
+            }
+            try {
+              response = await http.post(
+                Uri.parse(url),
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Bypass-Tunnel-Reminder': 'true',
+                  if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+                },
+                body: jsonEncode({
+                  'message': text,
+                  'sessionId': _selectedSessionId,
+                  'subject': subjectStr,
+                  'gradeLevel': combinedGradeLevel,
+                  'switchAi': true,
+                }),
+              ).timeout(const Duration(seconds: 15));
+              
+              if (response.statusCode == 200) {
+                break;
+              } else {
+                throw Exception('Switched AI backend returned status code ${response.statusCode}');
+              }
+            } catch (retryError) {
+              lastError = retryError;
+              if (kDebugMode) {
+                print('Switched AI attempt failed or timed out: $retryError');
+              }
             }
           }
         }
@@ -1392,6 +1425,111 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
         );
       }
     });
+  }
+
+  Widget _buildFormattedMessage(String content, bool isAI, Color textColor) {
+    if (!content.contains('**') && !content.contains('- ') && !content.contains('* ') && !content.contains('\n-') && !content.contains('\n*')) {
+      return Text(
+        content,
+        style: TextStyle(
+          fontSize: 13,
+          height: 1.4,
+          color: textColor,
+        ),
+      );
+    }
+
+    final lines = content.split('\n');
+    final List<Widget> lineWidgets = [];
+
+    for (var line in lines) {
+      final trimmedLine = line.trim();
+      if (trimmedLine.isEmpty) {
+        lineWidgets.add(const SizedBox(height: 6));
+        continue;
+      }
+
+      bool isBullet = false;
+      String lineText = line;
+
+      // Handle bullet points starting with "- " or "* "
+      if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
+        isBullet = true;
+        final prefixLength = trimmedLine.startsWith('- ') ? 2 : 2;
+        final index = line.indexOf(trimmedLine.startsWith('- ') ? '- ' : '* ');
+        lineText = line.substring(index + prefixLength);
+      }
+
+      final List<InlineSpan> spans = [];
+      final parts = lineText.split('**');
+      for (int i = 0; i < parts.length; i++) {
+        final part = parts[i];
+        if (i % 2 == 1) {
+          spans.add(TextSpan(
+            text: part,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              fontSize: 13,
+            ),
+          ));
+        } else {
+          if (part.isNotEmpty) {
+            spans.add(TextSpan(
+              text: part,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 13,
+              ),
+            ));
+          }
+        }
+      }
+
+      final lineContent = RichText(
+        text: TextSpan(
+          children: spans,
+          style: const TextStyle(
+            height: 1.4,
+          ),
+        ),
+      );
+
+      if (isBullet) {
+        lineWidgets.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 12.0, top: 4.0, bottom: 4.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '• ',
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Expanded(child: lineContent),
+              ],
+            ),
+          ),
+        );
+      } else {
+        lineWidgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2.0),
+            child: lineContent,
+          ),
+        );
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: lineWidgets,
+    );
   }
 
   @override
@@ -1933,13 +2071,58 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                                     ? Border.all(color: borderCol)
                                     : null,
                               ),
-                              child: Text(
-                                msg['content'] ?? '',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  height: 1.4,
-                                  color: isAI ? currentText : Colors.white,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildFormattedMessage(
+                                    msg['content'] ?? '',
+                                    isAI,
+                                    isAI ? currentText : Colors.white,
+                                  ),
+                                  if (isAI) ...[
+                                    const SizedBox(height: 8),
+                                    Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: InkWell(
+                                        onTap: () {
+                                          Clipboard.setData(ClipboardData(text: msg['content'] ?? ''));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Content copied to clipboard'),
+                                              backgroundColor: Color(0xFF4F46E5),
+                                              behavior: SnackBarBehavior.floating,
+                                              duration: Duration(seconds: 1),
+                                              width: 200,
+                                            ),
+                                          );
+                                        },
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(4.0),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.copy_rounded,
+                                                size: 14,
+                                                color: widget.isDarkMode ? Colors.white54 : Colors.black54,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Copy',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: widget.isDarkMode ? Colors.white54 : Colors.black54,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           );

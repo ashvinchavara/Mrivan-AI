@@ -7,7 +7,7 @@ const geminiService = require('../services/gemini.service');
  */
 const getTutorChat = async (req, res, next) => {
   try {
-    const { message, sessionId, subject, gradeLevel } = req.body;
+    const { message, sessionId, subject, gradeLevel, switchAi } = req.body;
     const userId = req.user.id;
 
     if (!message) return res.status(400).json({ error: 'Message is required' });
@@ -45,7 +45,8 @@ const getTutorChat = async (req, res, next) => {
       rawHistory || [],
       message,
       subject || 'General',
-      gradeLevel || '10'
+      gradeLevel || '10',
+      !!switchAi
     );
 
     // Store user message in DB

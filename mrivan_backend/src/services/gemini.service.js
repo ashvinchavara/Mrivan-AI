@@ -161,8 +161,13 @@ const runWithRotation = async (taskName, executeFn) => {
 /**
  * 1. AI subject-specific Tutor Chat
  */
-const getTutorChatResponse = async (history, message, subject = 'General', grade = '10') => {
+const getTutorChatResponse = async (history, message, subject = 'General', grade = '10', switchAi = false) => {
   if (!ai && !ai2) return "Tutor Mode (Demo): Gemini API key is missing. Add GEMINI_API_KEY to .env to enable the AI tutor.";
+
+  if (switchAi) {
+    currentProviderIndex++;
+    console.log(`[ORCHESTRATOR] Frontend requested AI switch. New currentProviderIndex: ${currentProviderIndex}`);
+  }
 
   // 1. Parse grade level and explanation style
   let gradeText = grade.toLowerCase();
