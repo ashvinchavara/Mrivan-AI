@@ -84,6 +84,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
   final TextEditingController _inviteCodeController = TextEditingController();
   bool _inviteCodeVerified = false;
   bool _isVerifyingCode = false;
+  String? _inviteCodeError;
   String? _verifiedSchoolId;
   String? _verifiedSchoolName;
   int _verifiedTotalSeats = 0;
@@ -150,6 +151,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     setState(() {
       _isVerifyingCode = true;
       _inviteCodeVerified = false;
+      _inviteCodeError = null;
       _verifiedSchoolId = null;
       _verifiedSchoolName = null;
       _verifiedSchoolAdminPhone = null;
@@ -159,18 +161,21 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     try {
       final schoolResponse = await Supabase.instance.client
           .from('schools')
-          .select('id, name, total_seats, teacher_seats, admin_id')
+          .select('id, name, total_seats, admin_id')
           .eq('invite_code', code)
           .maybeSingle();
 
       if (schoolResponse == null) {
+        setState(() {
+          _inviteCodeError = 'Enter a valid code';
+        });
         throw Exception('Invalid invite code. Please check and try again.');
       }
 
       final schoolId = schoolResponse['id'] as String;
       final schoolName = schoolResponse['name'] as String;
       final totalSeats = schoolResponse['total_seats'] as int? ?? 100;
-      final teacherSeats = schoolResponse['teacher_seats'] as int? ?? 20;
+      final teacherSeats = 20; // Default fallback to 20 seats since table doesn't have teacher_seats column
       final adminId = schoolResponse['admin_id'] as String?;
 
       String? adminPhone;
@@ -209,6 +214,9 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         ),
       );
     } catch (e) {
+      setState(() {
+        _inviteCodeError = 'Enter a valid code';
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1016,6 +1024,14 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
               child: TextFormField(
                 controller: _inviteCodeController,
                 textCapitalization: TextCapitalization.characters,
+                onChanged: (val) {
+                  if (_inviteCodeError != null || _inviteCodeVerified) {
+                    setState(() {
+                      _inviteCodeError = null;
+                      _inviteCodeVerified = false;
+                    });
+                  }
+                },
                 style: TextStyle(color: isDarkMode ? Colors.white : _ink, fontSize: 15),
                 decoration: InputDecoration(
                   hintText: 'Enter school invite code',
@@ -1039,6 +1055,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                     borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: _primary, width: 1.5),
                   ),
+                  errorText: _inviteCodeError,
+                  errorStyle: const TextStyle(color: _rose, fontSize: 12),
                 ),
                 validator: (val) {
                   if (_selectedPlanTitle == 'Campus Plan' && _isJoinWithCode) {
