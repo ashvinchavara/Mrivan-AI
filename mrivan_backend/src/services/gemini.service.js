@@ -4,6 +4,9 @@ require('dotenv').config();
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+const apiKey2 = process.env.GEMINI_API_KEY_2;
+const ai2 = apiKey2 ? new GoogleGenAI({ apiKey: apiKey2 }) : null;
+
 let currentProviderIndex = 0;
 
 const PROVIDER_CONFIGS = {
@@ -82,6 +85,16 @@ const runWithRotation = async (taskName, executeFn) => {
       }
     });
   }
+
+  if (process.env.GEMINI_API_KEY_2) {
+    providers.push({
+      name: 'Gemini 2',
+      execute: async () => {
+        if (!ai2) throw new Error('Gemini 2 client not initialized');
+        return await executeFn('gemini2');
+      }
+    });
+  }
   
   if (process.env.GROQ_API_KEY) {
     providers.push({
@@ -149,7 +162,7 @@ const runWithRotation = async (taskName, executeFn) => {
  * 1. AI subject-specific Tutor Chat
  */
 const getTutorChatResponse = async (history, message, subject = 'General', grade = '10') => {
-  if (!ai) return "Tutor Mode (Demo): Gemini API key is missing. Add GEMINI_API_KEY to .env to enable the AI tutor.";
+  if (!ai && !ai2) return "Tutor Mode (Demo): Gemini API key is missing. Add GEMINI_API_KEY to .env to enable the AI tutor.";
 
   // 1. Parse grade level and explanation style
   let gradeText = grade.toLowerCase();
@@ -333,12 +346,13 @@ EXPLANATION STYLE OVERRIDE: SOCRATIC METHOD
   ${styleInstructions}`;
 
   return await runWithRotation('TutorChat', async (provider) => {
-    if (provider === 'gemini') {
+    if (provider === 'gemini' || provider === 'gemini2') {
+      const client = provider === 'gemini' ? ai : ai2;
       const formattedHistory = history.map(h => ({
         role: h.sender === 'user' ? 'user' : 'model',
         parts: [{ text: h.content }]
       }));
-      const response = await ai.models.generateContent({
+      const response = await client.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: [
           ...formattedHistory,
@@ -374,7 +388,7 @@ EXPLANATION STYLE OVERRIDE: SOCRATIC METHOD
  * 2. Generate detailed structured study notes (Markdown format)
  */
 const generateStudyNotes = async (topic, subject = 'General', grade = '10') => {
-  if (!ai) {
+  if (!ai && !ai2) {
     return `# ${topic} (Study Guide)\n\n*Demo Mode: Add GEMINI_API_KEY to .env to generate AI study guides.*\n\n- Concept Explanation: Standard textbook definition.\n- Key Takeaways: Memorize facts.\n- Common Pitfalls: Careless errors.`;
   }
 
@@ -391,8 +405,9 @@ const generateStudyNotes = async (topic, subject = 'General', grade = '10') => {
   Format it professionally so it renders beautifully in a markdown viewer.`;
 
   return await runWithRotation('StudyNotes', async (provider) => {
-    if (provider === 'gemini') {
-      const response = await ai.models.generateContent({
+    if (provider === 'gemini' || provider === 'gemini2') {
+      const client = provider === 'gemini' ? ai : ai2;
+      const response = await client.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: prompt,
       });
@@ -411,7 +426,7 @@ const generateStudyNotes = async (topic, subject = 'General', grade = '10') => {
  * 3. Generate structured practice quiz (JSON Schema output)
  */
 const generateQuizQuestions = async (subject, topic, count = 5) => {
-  if (!ai) {
+  if (!ai && !ai2) {
     // Return mock questions if API key is missing
     return [
       {
@@ -437,8 +452,9 @@ const generateQuizQuestions = async (subject, topic, count = 5) => {
   Do NOT include any markdown code blocks, backticks, or prefix text. Return only valid JSON.`;
 
   const text = await runWithRotation('QuizGeneration', async (provider) => {
-    if (provider === 'gemini') {
-      const response = await ai.models.generateContent({
+    if (provider === 'gemini' || provider === 'gemini2') {
+      const client = provider === 'gemini' ? ai : ai2;
+      const response = await client.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: prompt,
       });
@@ -480,8 +496,9 @@ const generateVoiceExplanation = async (concept, subject = 'General') => {
   - Make it sound warm and conversational.`;
 
   return await runWithRotation('VoiceExplanation', async (provider) => {
-    if (provider === 'gemini') {
-      const response = await ai.models.generateContent({
+    if (provider === 'gemini' || provider === 'gemini2') {
+      const client = provider === 'gemini' ? ai : ai2;
+      const response = await client.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: prompt,
       });
