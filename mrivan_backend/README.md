@@ -26,6 +26,7 @@ This is the Node.js + Express backend server for **Mrivan AI (School CRM & AI Tu
    - **`OPENROUTER_API_KEY`**: Get a key from the OpenRouter Dashboard (for access to 100+ open-source and proprietary LLMs).
    - **`NVIDIA_API_KEY`**: Get a key from Nvidia Build/NIM developer platform (for high-performance GPU-optimized inference).
    - **`HF_TOKEN`**: Get a User Access Token from Hugging Face Settings (for text-to-image or model inference via Hugging Face Hub).
+   - **`CLOUDFLARE_API_TOKEN`**: Get an API Token from Cloudflare Dashboard (for workers, edge computing, or Cloudflare AI models).
 
 ### 3. Install Dependencies & Run
 ```bash
@@ -94,4 +95,5 @@ All endpoints (except the home verification route) require authentication. Pass 
    - `OPENROUTER_API_KEY`
    - `NVIDIA_API_KEY`
    - `HF_TOKEN`
+   - `CLOUDFLARE_API_TOKEN`
 6. Click **Deploy Web Service**. Render will build and host your API securely!
