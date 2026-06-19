@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
-import 'login_screen.dart';
 import '../dashboard/app_router.dart';
 
 class LandingPageScreen extends StatefulWidget {
@@ -54,30 +53,9 @@ class _LandingPageScreenState extends State<LandingPageScreen>
     AppRouter.pendingPlanSubtitle = planSubtitle;
     AppRouter.isCampus = isCampus;
 
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 420),
-        reverseTransitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (context, animation, secondaryAnimation) => FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.025),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            )),
-            child: LoginScreen(
-              pendingPlanTitle: planTitle,
-              pendingPlanPrice: planPrice,
-              pendingPlanSubtitle: planSubtitle,
-              isCampus: isCampus,
-            ),
-          ),
-        ),
-      ),
+      MaterialPageRoute(builder: (context) => const AppRouter()),
     );
   }
 

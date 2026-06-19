@@ -48,16 +48,6 @@ class AuthStateRouter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<AuthState>(
-      stream: Supabase.instance.client.auth.onAuthStateChange,
-      builder: (context, snapshot) {
-        final session = Supabase.instance.client.auth.currentSession;
-        if (session != null) {
-          return const AppRouter();
-        } else {
-          return const LandingPageScreen();
-        }
-      },
-    );
+    return const AppRouter();
   }
 }
