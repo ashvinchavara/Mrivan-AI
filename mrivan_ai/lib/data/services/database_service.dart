@@ -339,6 +339,34 @@ class DatabaseService {
     }
   }
 
+  /// Get user's daily query count (messages sent by user today)
+  Future<int> getDailyQueryCount(String userId) async {
+    try {
+      final sessions = await fetchAIChatSessions(userId);
+      if (sessions.isEmpty) return 0;
+      
+      final sessionIds = sessions.map((s) => s['id'] as String).toList();
+      
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final todayStartIso = todayStart.toUtc().toIso8601String();
+
+      final response = await _client
+          .from('ai_chat_messages')
+          .select('id')
+          .inFilter('session_id', sessionIds)
+          .eq('sender', 'user')
+          .gte('timestamp', todayStartIso);
+
+      return (response as List).length;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in getDailyQueryCount: $e');
+      }
+      return 0;
+    }
+  }
+
   /// Fetch notes for a user
   Future<List<Map<String, dynamic>>> fetchNotes(String userId) async {
     try {

@@ -78,32 +78,54 @@ class _AINotesScreenState extends State<AINotesScreen> {
 
     try {
       final jwtToken = _client.auth.currentSession?.accessToken;
-      final backendUrl = kIsWeb 
-          ? 'http://localhost:3000/api/ai/notes'
-          : 'http://10.0.2.2:3000/api/ai/notes';
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final urls = [
+        '$envBackendUrl/api/ai/notes',
+      ];
 
       String markdownContent = '';
+      http.Response? response;
+      dynamic lastError;
       
       try {
-        final response = await http.post(
-          Uri.parse(backendUrl),
-          headers: {
-            'Content-Type': 'application/json',
-            if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
-          },
-          body: jsonEncode({
-            'topic': topic,
-            'subject': _selectedSubject,
-            'gradeLevel': _gradeLevel,
-            'saveToLibrary': true, // Backend saves it directly if operational
-          }),
-        ).timeout(const Duration(seconds: 5));
+        for (final url in urls) {
+          try {
+            response = await http.post(
+              Uri.parse(url),
+              headers: {
+                'Content-Type': 'application/json',
+                'Bypass-Tunnel-Reminder': 'true',
+                if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+              },
+              body: jsonEncode({
+                'topic': topic,
+                'subject': _selectedSubject,
+                'gradeLevel': _gradeLevel,
+                'saveToLibrary': true, // Backend saves it directly if operational
+              }),
+            ).timeout(const Duration(seconds: 5));
+            
+            if (response.statusCode == 200) {
+              break;
+            } else {
+              throw Exception('Backend returned status code ${response.statusCode}');
+            }
+          } catch (e) {
+            lastError = e;
+            if (kDebugMode) {
+              print('Failed to connect to $url: $e');
+            }
+          }
+        }
 
-        if (response.statusCode == 200) {
+        if (response != null && response.statusCode == 200) {
           final data = jsonDecode(response.body);
           markdownContent = data['notes'] ?? '';
         } else {
-          throw Exception('Backend returned status code ${response.statusCode}');
+          throw lastError ?? Exception('Could not connect to any backend API endpoint');
         }
       } catch (backendError) {
         if (kDebugMode) {

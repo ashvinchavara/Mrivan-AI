@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../data/services/database_service.dart';
+import '../auth/payment_screen.dart';
 
 class PremiumDashboard extends StatefulWidget {
   final String userName;
@@ -27,13 +28,25 @@ class PremiumDashboard extends StatefulWidget {
 class _PremiumDashboardState extends State<PremiumDashboard> {
   int _currentIndex = 0;
 
-  final List<String> _tabs = [
-    'Dashboard',
-    'AI Teacher',
-    'Career & Coach',
-    'Performance',
-    'VIP Pass'
-  ];
+  List<String> get _tabs {
+    final plan = widget.paymentPlan.toLowerCase();
+    final isPremium = plan.contains('premium');
+    if (isPremium) {
+      return [
+        'Dashboard',
+        'AI Teacher',
+        'Career & Coach',
+        'Performance',
+      ];
+    }
+    return [
+      'Dashboard',
+      'AI Teacher',
+      'Career & Coach',
+      'Performance',
+      'VIP Pass'
+    ];
+  }
 
   Future<void> _handleSignOut() async {
     try {
@@ -45,6 +58,9 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    if (_currentIndex >= _tabs.length) {
+      _currentIndex = 0;
+    }
     final size = MediaQuery.of(context).size;
     final isDesktop = size.width >= 950;
     
@@ -307,13 +323,14 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                   selectedItemColor: const Color(0xFF4F46E5),
                   unselectedItemColor: const Color(0xFF64748B),
                   type: BottomNavigationBarType.fixed,
-                  items: [
-                    BottomNavigationBarItem(icon: Icon(_getIcon(0)), label: 'Dashboard'),
-                    BottomNavigationBarItem(icon: Icon(_getIcon(1)), label: 'AI Teacher'),
-                    BottomNavigationBarItem(icon: Icon(_getIcon(2)), label: 'Career'),
-                    BottomNavigationBarItem(icon: Icon(_getIcon(3)), label: 'Analytics'),
-                    BottomNavigationBarItem(icon: Icon(_getIcon(4)), label: 'VIP Pass'),
-                  ],
+                  items: _tabs.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final name = entry.value;
+                    return BottomNavigationBarItem(
+                      icon: Icon(_getIcon(index)),
+                      label: name == 'Career & Coach' ? 'Career' : (name == 'Performance' ? 'Analytics' : name),
+                    );
+                  }).toList(),
                 )
               : null,
           body: Row(
@@ -1051,12 +1068,43 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   int _queriesRemaining = 5;
 
   final List<String> _subjects = ['Math', 'Physics', 'Chemistry', 'Biology', 'History', 'English', 'Computer Science'];
-  final List<String> _grades = ['8th Grade', '9th Grade', '10th Grade', '11th Grade', '12th Grade', 'College'];
+  final List<String> _grades = [
+    '1st Grade',
+    '2nd Grade',
+    '3rd Grade',
+    '4th Grade',
+    '5th Grade',
+    '6th Grade',
+    '7th Grade',
+    '8th Grade',
+    '9th Grade',
+    '10th Grade',
+    '11th Grade',
+    '12th Grade',
+    'College'
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadSessions();
+    _loadDailyLimit();
+  }
+
+  Future<void> _loadDailyLimit() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final dailyCount = await DatabaseService.instance.getDailyQueryCount(user.id);
+      if (mounted) {
+        setState(() {
+          _queriesRemaining = math.max(0, 5 - dailyCount);
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading daily limit: $e');
+    }
   }
 
   Future<void> _loadSessions() async {
@@ -1107,51 +1155,30 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     }
   }
 
-  Future<void> _createNewSession() async {
+  void _startTempSession() {
     final user = _client.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please sign in to start chatting with the AI Tutor.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() {
-      _isLoadingMessages = true;
+      _selectedSessionId = 'temp';
+      _messages = [
+        {
+          'id': 'welcome',
+          'sender': 'ai',
+          'content': 'Hello! I am Mr. Ivan, your AI $_selectedSubject tutor for $_gradeLevel. How can I help you learn today?',
+          'timestamp': DateTime.now().toIso8601String(),
+        }
+      ];
     });
-
-    try {
-      final sessionTitle = 'Tutor: $_selectedSubject - ${DateTime.now().day}/${DateTime.now().month}';
-      final newSession = await DatabaseService.instance.createAIChatSession(
-        user.id,
-        sessionTitle,
-        _selectedSubject ?? 'General',
-      );
-
-      setState(() {
-        _selectedSessionId = newSession['id'];
-        _sessions.insert(0, newSession);
-        _messages = [];
-      });
-
-      // Insert welcoming message
-      final welcomeMsg = 'Hello! I am Mr. Ivan, your AI $_selectedSubject tutor for $_gradeLevel. How can I help you learn today?';
-      await DatabaseService.instance.insertChatMessage(
-        newSession['id'],
-        'ai',
-        welcomeMsg,
-      );
-
-      // Refresh local messages
-      final messages = await DatabaseService.instance.fetchAIChatMessages(newSession['id']);
-      setState(() {
-        _messages = messages;
-      });
-      
-    } catch (e) {
-      if (kDebugMode) print('Error creating session: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingMessages = false;
-        });
-      }
-    }
   }
 
   Future<void> _sendMessage() async {
@@ -1168,6 +1195,55 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
         ),
       );
       return;
+    }
+
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    bool wasTemp = _selectedSessionId == 'temp';
+    String activeSessionId = _selectedSessionId!;
+
+    if (wasTemp) {
+      setState(() {
+        _isSending = true;
+      });
+      try {
+        final sessionTitle = 'Tutor: $_selectedSubject - ${DateTime.now().day}/${DateTime.now().month}';
+        final newSession = await DatabaseService.instance.createAIChatSession(
+          user.id,
+          sessionTitle,
+          _selectedSubject ?? 'General',
+        );
+        activeSessionId = newSession['id'];
+
+        // Also insert welcoming message in database
+        final welcomeMsg = 'Hello! I am Mr. Ivan, your AI $_selectedSubject tutor for $_gradeLevel. How can I help you learn today?';
+        await DatabaseService.instance.insertChatMessage(
+          activeSessionId,
+          'ai',
+          welcomeMsg,
+        );
+
+        setState(() {
+          _selectedSessionId = activeSessionId;
+          _sessions.insert(0, newSession);
+        });
+      } catch (e) {
+        if (kDebugMode) print('Error creating lazy session: $e');
+        if (mounted) {
+          setState(() {
+            _isSending = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to start chat session: $e'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
     }
 
     _chatController.clear();
@@ -1187,14 +1263,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     _scrollToBottom();
 
     try {
-      // 1. Insert user message in Database
-      await DatabaseService.instance.insertChatMessage(
-        _selectedSessionId!,
-        'user',
-        text,
-      );
-
-      // 2. Call backend (with simulated offline fallback)
+      // 1. Call backend (with simulated offline fallback)
       String aiResponseText = '';
       try {
         final session = _sessions.firstWhere((s) => s['id'] == _selectedSessionId);
@@ -1203,33 +1272,55 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
         // Retrieve JWT token to authorize with backend
         final jwtToken = _client.auth.currentSession?.accessToken;
 
-        // Try calling localhost/backend API
-        final backendUrl = kIsWeb 
-            ? 'http://localhost:3000/api/ai/tutor/chat'
-            : 'http://10.0.2.2:3000/api/ai/tutor/chat'; // Android emulator route
+        // Try calling the hosted backend API
+        const envBackendUrl = String.fromEnvironment(
+          'BACKEND_API_URL',
+          defaultValue: 'https://mrivan-ai.onrender.com',
+        );
+        final urls = [
+          '$envBackendUrl/api/ai/tutor/chat',
+        ];
 
         // Append the selected level to grade level for context
         final combinedGradeLevel = '$_gradeLevel - $_selectedLevel';
+        http.Response? response;
+        dynamic lastError;
 
-        final response = await http.post(
-          Uri.parse(backendUrl),
-          headers: {
-            'Content-Type': 'application/json',
-            if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
-          },
-          body: jsonEncode({
-            'message': text,
-            'sessionId': _selectedSessionId,
-            'subject': subjectStr,
-            'gradeLevel': combinedGradeLevel,
-          }),
-        ).timeout(const Duration(seconds: 4));
+        for (final url in urls) {
+          try {
+            response = await http.post(
+              Uri.parse(url),
+              headers: {
+                'Content-Type': 'application/json',
+                'Bypass-Tunnel-Reminder': 'true',
+                if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+              },
+              body: jsonEncode({
+                'message': text,
+                'sessionId': _selectedSessionId,
+                'subject': subjectStr,
+                'gradeLevel': combinedGradeLevel,
+              }),
+            ).timeout(const Duration(seconds: 30));
+            
+            if (response.statusCode == 200) {
+              break;
+            } else {
+              throw Exception('Backend returned status code ${response.statusCode}');
+            }
+          } catch (e) {
+            lastError = e;
+            if (kDebugMode) {
+              print('Failed to connect to $url: $e');
+            }
+          }
+        }
 
-        if (response.statusCode == 200) {
+        if (response != null && response.statusCode == 200) {
           final data = jsonDecode(response.body);
           aiResponseText = data['response'] ?? '';
         } else {
-          throw Exception('Backend returned status code ${response.statusCode}');
+          throw lastError ?? Exception('Could not connect to any backend API endpoint');
         }
       } catch (backendError) {
         if (kDebugMode) {
@@ -1237,6 +1328,13 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
         }
         // Fallback: Generate smart simulated pedagogical response
         aiResponseText = _generateSimulatedResponse(text);
+        
+        // Save user message to Supabase directly since backend was offline
+        await DatabaseService.instance.insertChatMessage(
+          _selectedSessionId!,
+          'user',
+          text,
+        );
         
         // Save simulated response to Supabase directly
         await DatabaseService.instance.insertChatMessage(
@@ -1310,40 +1408,51 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Personal AI Teacher Space 👨‍🏫',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '24/7 instant conceptual deep dives with custom learning pathways.',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                  ],
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: SizeTransition(
+                  sizeFactor: animation,
+                  axisAlignment: -1.0,
+                  child: child,
                 ),
-              ),
-              if (_selectedSessionId != null) ...[
-                const SizedBox(width: 16),
-                IconButton(
-                  icon: const Icon(Icons.add_comment_rounded, color: Color(0xFF4F46E5)),
-                  onPressed: _showStartSessionDialog,
-                  tooltip: 'New Session',
-                ),
-              ]
-            ],
+              );
+            },
+            child: _selectedSessionId == null
+                ? Column(
+                    key: const ValueKey('teacher-header-expanded'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Personal AI Teacher Space 👨‍🏫',
+                                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  '24/7 instant conceptual deep dives with custom learning pathways.',
+                                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      runConfigChips(),
+                      const SizedBox(height: 20),
+                    ],
+                  )
+                : const SizedBox.shrink(key: ValueKey('teacher-header-collapsed')),
           ),
-          const SizedBox(height: 20),
-
-          // CONFIGURATION HEADER ROW
-          runConfigChips(),
-          const SizedBox(height: 20),
 
           // MAIN CONTAINER BODY (GRID / ROW)
           Expanded(
@@ -1436,8 +1545,35 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                 // Main panel
                 Expanded(
                   child: _selectedSessionId == null
-                      ? _buildCreateSessionPanel(currentText, cardBg, borderCol)
-                      : _buildChatPanel(currentText, cardBg, borderCol, chatBubbleBg),
+                      ? Stack(
+                          children: [
+                            _buildCreateSessionPanel(currentText, cardBg, borderCol),
+                            if (_isLoadingMessages)
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildChatConfigDropdown(currentText, cardBg, borderCol),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: _buildChatPanel(currentText, cardBg, borderCol, chatBubbleBg),
+                            ),
+                          ],
+                        ),
                 ),
               ],
             ),
@@ -1448,15 +1584,85 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   }
 
   Widget runConfigChips() {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        _buildConfigChip('Simple Explanation', Icons.face),
-        _buildConfigChip('Detailed Scientific Code', Icons.code),
-        _buildConfigChip('Analogies & Flashcards', Icons.collections),
-        _buildConfigChip('Socratic Method Practice', Icons.question_answer),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildConfigChip('Simple Explanation', Icons.face),
+          const SizedBox(width: 12),
+          _buildConfigChip('Detailed Scientific Code', Icons.code),
+          const SizedBox(width: 12),
+          _buildConfigChip('Analogies & Flashcards', Icons.collections),
+          const SizedBox(width: 12),
+          _buildConfigChip('Socratic Method Practice', Icons.question_answer),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatConfigDropdown(Color currentText, Color cardBg, Color borderCol) {
+    IconData getIconForStyle(String style) {
+      switch (style) {
+        case 'Simple Explanation': return Icons.face_rounded;
+        case 'Detailed Scientific Code': return Icons.code_rounded;
+        case 'Analogies & Flashcards': return Icons.collections_rounded;
+        case 'Socratic Method Practice': return Icons.question_answer_rounded;
+        default: return Icons.face_rounded;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderCol),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          )
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedLevel,
+              dropdownColor: cardBg,
+              icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.grey, size: 20),
+              style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.w600),
+              items: [
+                'Simple Explanation',
+                'Detailed Scientific Code',
+                'Analogies & Flashcards',
+                'Socratic Method Practice'
+              ].map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(getIconForStyle(value), color: const Color(0xFF4F46E5).withOpacity(0.7), size: 14),
+                      const SizedBox(width: 8),
+                      Text(value, style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.normal)),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedLevel = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1505,105 +1711,117 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
 
   Widget _buildCreateSessionPanel(Color currentText, Color cardBg, Color borderCol) {
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Container(
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: borderCol),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.auto_awesome_rounded,
-                size: 50,
-                color: Color(0xFF4F46E5),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Start a New Learning Session',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: currentText,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: borderCol),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 50,
+                  color: Color(0xFF4F46E5),
                 ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Select your subject and grade level to begin personalized tutoring.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Subject Dropdown
-              DropdownButtonFormField<String>(
-                value: _selectedSubject,
-                dropdownColor: cardBg,
-                style: TextStyle(color: currentText, fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'Subject',
-                  labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
-                ),
-                items: _subjects.map((sub) {
-                  return DropdownMenuItem(value: sub, child: Text(sub));
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    _selectedSubject = val;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              // Grade Dropdown
-              DropdownButtonFormField<String>(
-                value: _gradeLevel,
-                dropdownColor: cardBg,
-                style: TextStyle(color: currentText, fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'Grade Level',
-                  labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
-                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
-                ),
-                items: _grades.map((gr) {
-                  return DropdownMenuItem(value: gr, child: Text(gr));
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() {
-                      _gradeLevel = val;
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: 28),
-              ElevatedButton(
-                onPressed: _createNewSession,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  backgroundColor: const Color(0xFF4F46E5),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Start Chatting', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              if (MediaQuery.of(context).size.width <= 750 && _sessions.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                TextButton(
-                  onPressed: _showHistorySheet,
-                  child: const Text(
-                    'View Chat History',
-                    style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold),
+                Text(
+                  'Start a New Learning Session',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: currentText,
                   ),
-                )
-              ]
-            ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Select your subject and grade level to begin personalized tutoring.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Subject Dropdown
+                DropdownButtonFormField<String>(
+                  value: _selectedSubject,
+                  dropdownColor: cardBg,
+                  style: TextStyle(color: currentText, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Subject',
+                    labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                  ),
+                  items: _subjects.map((sub) {
+                    return DropdownMenuItem(value: sub, child: Text(sub));
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedSubject = val;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Grade Dropdown
+                DropdownButtonFormField<String>(
+                  value: _gradeLevel,
+                  dropdownColor: cardBg,
+                  style: TextStyle(color: currentText, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Grade Level',
+                    labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                  ),
+                  items: _grades.map((gr) {
+                    return DropdownMenuItem(value: gr, child: Text(gr));
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _gradeLevel = val;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 28),
+                ElevatedButton(
+                  onPressed: _startTempSession,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    backgroundColor: const Color(0xFF4F46E5),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isLoadingMessages
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Start Chatting', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                if (MediaQuery.of(context).size.width <= 750 && _sessions.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: _showHistorySheet,
+                    child: const Text(
+                      'View Chat History',
+                      style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold),
+                    ),
+                  )
+                ]
+              ],
+            ),
           ),
         ),
       ),
@@ -1613,7 +1831,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   Widget _buildChatPanel(Color currentText, Color cardBg, Color borderCol, Color chatBubbleBg) {
     final activeSession = _sessions.firstWhere(
       (s) => s['id'] == _selectedSessionId,
-      orElse: () => {'title': 'AI Tutor Chat'},
+      orElse: () => {'title': 'Tutor: ${_selectedSubject ?? 'General'}'},
     );
     final isFreePlan = widget.paymentPlan.toLowerCase().contains('free');
 
@@ -1788,12 +2006,21 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF4F46E5),
-                  child: IconButton(
-                    onPressed: _sendMessage,
-                    icon: const Icon(Icons.send, size: 16, color: Colors.white),
-                  ),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _chatController,
+                  builder: (context, value, child) {
+                    final isTextEmpty = value.text.trim().isEmpty;
+                    return Opacity(
+                      opacity: isTextEmpty ? 0.5 : 1.0,
+                      child: CircleAvatar(
+                        backgroundColor: isTextEmpty ? Colors.grey : const Color(0xFF4F46E5),
+                        child: IconButton(
+                          onPressed: isTextEmpty ? null : _sendMessage,
+                          icon: const Icon(Icons.send, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -1860,7 +2087,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                   _gradeLevel = localGrade!;
                 });
                 Navigator.pop(context);
-                _createNewSession();
+                _startTempSession();
               },
               child: const Text('Create', style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold)),
             ),
@@ -2360,11 +2587,78 @@ class PricingVipTab extends StatelessWidget {
     required this.isDarkMode,
   });
 
+  static const List<_PricingPlanInfo> _allPlans = [
+    _PricingPlanInfo(
+      icon: Icons.menu_book_rounded,
+      title: 'Free Plan',
+      price: 'Free',
+      subtitle: 'For first-time learners',
+      color: Colors.teal,
+      features: ['5 doubt solutions/day', 'Basic notes', 'Limited tests'],
+    ),
+    _PricingPlanInfo(
+      icon: Icons.bolt_rounded,
+      title: 'Basic Plan',
+      price: 'Rs 99/mo',
+      subtitle: 'Affordable daily study help',
+      color: Color(0xFF4F46E5),
+      features: ['Unlimited doubts', 'AI Tutor access', 'Weekly mock tests'],
+    ),
+    _PricingPlanInfo(
+      icon: Icons.apartment_rounded,
+      title: 'Campus Plan',
+      price: 'Rs 149 per student/mo',
+      subtitle: 'For schools and institutions',
+      color: Colors.teal,
+      features: ['Teacher & Student dashboards', 'Attendance & Homework CRM', 'School Analytics'],
+    ),
+    _PricingPlanInfo(
+      icon: Icons.workspace_premium_rounded,
+      title: 'Pro Student',
+      price: 'Rs 299/mo',
+      subtitle: 'For personalized AI learning',
+      color: Color(0xFF4F46E5),
+      features: ['Everything in Basic', 'Unlimited AI chats', 'Voice AI Tutor', 'AI summaries & quizzes'],
+    ),
+    _PricingPlanInfo(
+      icon: Icons.military_tech_rounded,
+      title: 'Exam Aspirant',
+      price: 'Rs 499/mo',
+      subtitle: 'For exam-focused preparation',
+      color: Colors.pink,
+      features: ['Everything in Pro', 'CBT Mock Tests', 'Previous Year Questions', 'Revision planner'],
+    ),
+    _PricingPlanInfo(
+      icon: Icons.diamond_rounded,
+      title: 'Premium AI',
+      price: 'Rs 999/mo',
+      subtitle: 'For advanced AI productivity',
+      color: Color(0xFF7C3AED),
+      features: ['Everything in Exam Aspirant', 'AI Image, Writing & Coding Tutors', 'Early access features'],
+    ),
+  ];
+
+  int _getPlanRank(String planName) {
+    final name = planName.toLowerCase();
+    if (name.contains('premium')) return 5;
+    if (name.contains('aspirant') || name.contains('exam')) return 4;
+    if (name.contains('pro')) return 3;
+    if (name.contains('campus')) return 2;
+    if (name.contains('basic')) return 1;
+    return 0; // Free/unknown
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentText = isDarkMode ? Colors.white : const Color(0xFF0F172A);
     final cardBg = isDarkMode ? const Color(0xFF181824) : Colors.white;
     final borderCol = isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    final currentRank = _getPlanRank(paymentPlan);
+    final higherPlans = _allPlans.where((plan) {
+      final planRank = _getPlanRank(plan.title);
+      return planRank > currentRank;
+    }).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -2450,63 +2744,214 @@ class PricingVipTab extends StatelessWidget {
           ),
           const SizedBox(height: 32),
 
-          Text('Unlocked Benefits', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentText)),
-          const SizedBox(height: 16),
-
-          // Benefits List
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: MediaQuery.of(context).size.width >= 750 ? 2 : 1,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 3.2,
-            children: [
-              _buildBenefitItem(Icons.question_answer_outlined, 'WhatsApp Doubt solver', 'Direct integration to submit questions on-the-go.', cardBg, currentText, borderCol),
-              _buildBenefitItem(Icons.calendar_month, 'Calendar Sync', 'Sync homework, mock exams, study slots to Google Calendar.', cardBg, currentText, borderCol),
-              _buildBenefitItem(Icons.chat_bubble, 'Voice Conversational AI', 'Natural auditory dialogs with your personal teacher.', cardBg, currentText, borderCol),
-              _buildBenefitItem(Icons.speed, 'High Priority GPU Limits', 'Faster response generation for coding and design graphs.', cardBg, currentText, borderCol),
-            ],
-          )
+          if (higherPlans.isNotEmpty) ...[
+            Text('Upgrade Plan Options', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentText)),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: MediaQuery.of(context).size.width >= 900 ? 3 : (MediaQuery.of(context).size.width >= 600 ? 2 : 1),
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.82,
+              ),
+              itemCount: higherPlans.length,
+              itemBuilder: (context, index) {
+                final plan = higherPlans[index];
+                return _buildPlanUpgradeCard(context, plan, cardBg, currentText, borderCol);
+              },
+            ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1.5),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.stars_rounded, color: Colors.amber, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'You are on the Highest Plan! 🎉',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: currentText),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'You currently have access to all Premium AI tools, CBT preparation materials, and advanced teacher features. Thank you for being a premium member!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildBenefitItem(IconData icon, String title, String desc, Color bg, Color textCol, Color borderCol) {
+  Widget _buildPlanUpgradeCard(
+    BuildContext context,
+    _PricingPlanInfo plan,
+    Color bg,
+    Color textCol,
+    Color borderCol,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderCol),
+        border: Border.all(color: plan.color.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: plan.color.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFF4F46E5), size: 24),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: textCol)),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: Text(
-                    desc, 
-                    style: const TextStyle(fontSize: 11, color: Colors.grey, height: 1.3),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  )
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: plan.color.withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
-              ],
+                child: Icon(plan.icon, color: plan.color, size: 18),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      plan.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: textCol,
+                      ),
+                    ),
+                    Text(
+                      plan.price,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        color: plan.color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            plan.subtitle,
+            style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: ListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: plan.features.map((f) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.check_circle_outline, color: plan.color, size: 12),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          f,
+                          style: TextStyle(fontSize: 10, color: textCol.withOpacity(0.8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
             ),
-          )
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: bg,
+                    title: Text('Upgrade to ${plan.title}', style: TextStyle(color: textCol, fontSize: 16, fontWeight: FontWeight.bold)),
+                    content: Text('Would you like to upgrade your plan to ${plan.title} for ${plan.price}?', style: TextStyle(color: textCol, fontSize: 13)),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PaymentScreen(
+                                planTitle: plan.title,
+                                planPrice: plan.price,
+                                planSubtitle: plan.subtitle,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('Confirm & Pay', style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: plan.color,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                elevation: 0,
+              ),
+              child: const Text('Upgrade', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _PricingPlanInfo {
+  final IconData icon;
+  final String title;
+  final String price;
+  final String subtitle;
+  final Color color;
+  final List<String> features;
+
+  const _PricingPlanInfo({
+    required this.icon,
+    required this.title,
+    required this.price,
+    required this.subtitle,
+    required this.color,
+    required this.features,
+  });
 }
 
 // ==========================================

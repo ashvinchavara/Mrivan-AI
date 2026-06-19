@@ -101,3 +101,89 @@ CREATE POLICY admin_full_school_attendance ON public.attendance
               AND profiles.school_id = attendance.school_id
         )
     );
+
+
+-- 4. RLS policies for public.ai_chat_sessions (User's private chat sessions)
+ALTER TABLE public.ai_chat_sessions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS select_own_chat_sessions ON public.ai_chat_sessions;
+CREATE POLICY select_own_chat_sessions ON public.ai_chat_sessions
+    FOR SELECT
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS insert_own_chat_sessions ON public.ai_chat_sessions;
+CREATE POLICY insert_own_chat_sessions ON public.ai_chat_sessions
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS update_own_chat_sessions ON public.ai_chat_sessions;
+CREATE POLICY update_own_chat_sessions ON public.ai_chat_sessions
+    FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS delete_own_chat_sessions ON public.ai_chat_sessions;
+CREATE POLICY delete_own_chat_sessions ON public.ai_chat_sessions
+    FOR DELETE
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+
+-- 5. RLS policies for public.ai_chat_messages (Messages linked to user's chat sessions)
+ALTER TABLE public.ai_chat_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS select_own_chat_messages ON public.ai_chat_messages;
+CREATE POLICY select_own_chat_messages ON public.ai_chat_messages
+    FOR SELECT
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.ai_chat_sessions
+            WHERE ai_chat_sessions.id = session_id
+              AND ai_chat_sessions.user_id = auth.uid()
+        )
+    );
+
+DROP POLICY IF EXISTS insert_own_chat_messages ON public.ai_chat_messages;
+CREATE POLICY insert_own_chat_messages ON public.ai_chat_messages
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.ai_chat_sessions
+            WHERE ai_chat_sessions.id = session_id
+              AND ai_chat_sessions.user_id = auth.uid()
+        )
+    );
+
+
+-- 6. RLS policies for public.notes (User's private study notes)
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS select_own_notes ON public.notes;
+CREATE POLICY select_own_notes ON public.notes
+    FOR SELECT
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS insert_own_notes ON public.notes;
+CREATE POLICY insert_own_notes ON public.notes
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS update_own_notes ON public.notes;
+CREATE POLICY update_own_notes ON public.notes
+    FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS delete_own_notes ON public.notes;
+CREATE POLICY delete_own_notes ON public.notes
+    FOR DELETE
+    TO authenticated
+    USING (auth.uid() = user_id);

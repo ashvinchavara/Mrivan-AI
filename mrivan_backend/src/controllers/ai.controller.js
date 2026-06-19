@@ -40,6 +40,14 @@ const getTutorChat = async (req, res, next) => {
 
     if (historyError) throw historyError;
 
+    // Call Gemini API to generate pedagogical response
+    const aiResponse = await geminiService.getTutorChatResponse(
+      rawHistory || [],
+      message,
+      subject || 'General',
+      gradeLevel || '10'
+    );
+
     // Store user message in DB
     const { error: userMsgError } = await supabaseAdmin
       .from('ai_chat_messages')
@@ -50,14 +58,6 @@ const getTutorChat = async (req, res, next) => {
       });
 
     if (userMsgError) throw userMsgError;
-
-    // Call Gemini API to generate pedagogical response
-    const aiResponse = await geminiService.getTutorChatResponse(
-      rawHistory || [],
-      message,
-      subject || 'General',
-      gradeLevel || '10'
-    );
 
     // Store AI response in DB
     const { error: aiMsgError } = await supabaseAdmin

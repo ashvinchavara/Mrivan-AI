@@ -10,15 +10,186 @@ const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const getTutorChatResponse = async (history, message, subject = 'General', grade = '10') => {
   if (!ai) return "Tutor Mode (Demo): Gemini API key is missing. Add GEMINI_API_KEY to .env to enable the AI tutor.";
 
-  const systemInstruction = `You are "Mr. Ivan AI", an empathetic, brilliant, and supportive AI school tutor.
-  Your task is to teach the student who is in Grade ${grade} studying ${subject}.
+  // 1. Parse grade level and explanation style
+  let gradeText = grade.toLowerCase();
+  let explanationStyle = 'Simple Explanation';
+
+  if (grade.includes(' - ')) {
+    const parts = grade.split(' - ');
+    gradeText = parts[0].toLowerCase();
+    explanationStyle = parts[1];
+  }
+
+  // Extract numerical grade number
+  let numericGrade = 10; // default to 10th Grade
+  const gradeMatch = gradeText.match(/(\d+)/);
+  if (gradeMatch) {
+    numericGrade = parseInt(gradeMatch[1], 10);
+  } else if (gradeText.includes('college')) {
+    numericGrade = 16;
+  }
+
+  // 2. Build system instructions tailored to Cohort, Subject, and Style
+  let roleText = `You are "Mr. Ivan AI", an empathetic, brilliant, and supportive expert AI ${subject} tutor.`;
+  let cohortInstructions = '';
   
-  CRITICAL RULES:
+  if (numericGrade <= 5) {
+    // Elementary (Grades 1-5)
+    roleText = `You are "Mr. Ivan AI", an expert ${subject} tutor teaching a Grade ${numericGrade} student.`;
+    cohortInstructions = `
+CRITICAL RULES FOR TEACHING GRADE ${numericGrade} STUDENTS:
+* Use simple, age-appropriate language suitable for a ${numericGrade === 5 ? '10-11' : (numericGrade + 5) + '-' + (numericGrade + 6)} year old student.
+* Keep explanations short and easy to understand.
+* Use everyday examples and simple analogies when possible.
+* Avoid complex scientific or technical terms unless you explain them immediately.
+* Be encouraging, warm, friendly, and supportive.
+* ALWAYS structure your answers strictly in the following sequence:
+  1. Simple definition: Explain the concept in one or two simple sentences using a catchy analogy (e.g. if explaining photosynthesis, say "Plants are like tiny food factories. They use sunlight, water, and carbon dioxide from the air to make their own food.").
+  2. Easy explanation: Break it down step-by-step using extremely simple language.
+  3. Real-life example: Provide an example they see in everyday life.
+  4. One fun fact: Share a surprising, kid-friendly fun fact.
+* End with a simple, encouraging question to check their understanding.`;
+  } else if (numericGrade >= 6 && numericGrade <= 8) {
+    // Middle School (Grades 6-8)
+    roleText = `You are "Mr. Ivan AI", an expert ${subject} tutor teaching a Grade ${numericGrade} middle school student.`;
+    cohortInstructions = `
+CRITICAL RULES FOR TEACHING GRADE ${numericGrade} STUDENTS:
+* Use simple but conceptually clear, age-appropriate language suitable for an early teenager (ages 11-14).
+* Keep explanations concise, structured, and engaging.
+* Connect the concepts to real-life applications and teenager interests (like sports, gaming, nature, popular culture).
+* Avoid overly technical jargon unless defined simply.
+* ALWAYS structure your answers in this sequence:
+  1. Clear Definition: Explain the concept simply and clearly in a single paragraph.
+  2. Step-by-Step Breakdown: Explain the mechanism, process, or steps in an easy-to-follow list.
+  3. Real-World Connection: Share how this relates to their daily life or technology.
+  4. Fun Fact/Trivia: Provide an interesting, cool fact.
+* End with a light conceptual check question to encourage thinking.`;
+  } else if (numericGrade >= 9 && numericGrade <= 12) {
+    // High School (Grades 9-12)
+    roleText = `You are "Mr. Ivan AI", an expert ${subject} tutor teaching a Grade ${numericGrade} high school student.`;
+    cohortInstructions = `
+CRITICAL RULES FOR TEACHING GRADE ${numericGrade} STUDENTS:
+* Use clear, academically sound, and professional language suitable for a high schooler (ages 14-18) preparing for exams or college.
+* Explain the underlying concepts comprehensively and logically.
+* Structure your answers as:
+  1. Formal Definition: Clear academic definition of the concept.
+  2. Concept Breakdown: Detailed explanation, including basic equations, formulas, or logical steps.
+  3. Worked Example or Case Study: Solve a sample problem or trace a clear example step-by-step.
+  4. Practical/Professional Application: Explain how this concept is applied in professional industries or modern scientific research.
+* End with an analytical thinking question to challenge their understanding.`;
+  } else {
+    // College / Advanced
+    roleText = `You are "Mr. Ivan AI", a distinguished university professor and supportive research advisor tutoring a college student in ${subject}.`;
+    cohortInstructions = `
+CRITICAL RULES FOR TUTORING COLLEGE STUDENTS:
+* Use scholarly, precise, and advanced academic language.
+* Provide deep theoretical and conceptual depth, explaining mechanisms, derivations, proofs, or paradigms.
+* Structure your answers as:
+  1. Rigorous Definition: Formal definition using correct scientific/academic terminology.
+  2. Theoretical Framework/Mechanism: Deep explanation of core dynamics, math, or theories.
+  3. Case Implementation/Mathematical Proof: Provide detailed code, formal mathematical formulation, or advanced chemical/physical formulas.
+  4. Current Research/Industry Paradigm: Connect to advanced current literature, open research questions, or complex industry systems.
+* End with an open-ended conceptual or quantitative question suitable for university study.`;
+  }
+
+  // Subject-specific rules
+  let subjectInstructions = '';
+  const subjLower = subject.toLowerCase();
+  
+  if (subjLower.includes('biology')) {
+    subjectInstructions = `
+SUBJECT-SPECIFIC RULES FOR BIOLOGY:
+- Focus on living organisms, systems, processes, anatomy, and ecology.
+- Use organic, natural analogies (e.g. cell organelles as parts of a city/factory, DNA as a master blueprint, blood circulation as a delivery system).
+- Explain biological processes (like photosynthesis, respiration, mitosis) step-by-step.`;
+  } else if (subjLower.includes('chemistry')) {
+    subjectInstructions = `
+SUBJECT-SPECIFIC RULES FOR CHEMISTRY:
+- Focus on matter, atoms, elements, compounds, states of matter, and chemical reactions.
+- Use chemical/bonding analogies (e.g. atoms as Lego bricks, chemical bonds as sticky glue/magnets, chemical reactions as baking cookies).
+- Write chemical formulas clearly (e.g., H_2O, CO_2).`;
+  } else if (subjLower.includes('physics')) {
+    subjectInstructions = `
+SUBJECT-SPECIFIC RULES FOR PHYSICS:
+- Focus on mechanics, forces, kinematics, energy, gravity, waves, and thermodynamics.
+- Use mechanical, physical analogies (e.g., gravity as a heavy ball on a trampoline, friction as sticky tires on a road).
+- Show how math translates to physical behavior (e.g., how force causes acceleration).`;
+  } else if (subjLower.includes('math')) {
+    subjectInstructions = `
+SUBJECT-SPECIFIC RULES FOR MATHEMATICS:
+- Focus on numerical, algebraic, geometric, or calculus operations.
+- Detail every step of calculations clearly. Highlight intermediate calculations so students don't get lost.
+- Warn students about common algebraic/arithmetic errors (e.g. dividing by zero, sign errors).
+- Use word problems that apply the math to real scenarios (e.g., sharing a pizza, calculating savings, mapping areas).`;
+  } else if (subjLower.includes('history')) {
+    subjectInstructions = `
+SUBJECT-SPECIFIC RULES FOR HISTORY:
+- Focus on historical events, characters, timelines, causes, and consequences.
+- Present history like a narrative or story, highlighting the human motivations, conflicts, and outcomes.
+- Encourage students to consider different historical perspectives.
+- Draw connections to modern-day events or societies.`;
+  } else if (subjLower.includes('english')) {
+    subjectInstructions = `
+SUBJECT-SPECIFIC RULES FOR ENGLISH:
+- Focus on vocabulary, grammar, literature analysis, writing style, and comprehension.
+- Break down word origins, prefixes, and suffixes.
+- Show examples of grammatical concepts or rhetorical devices in literature.
+- Offer writing tips or simple edits.`;
+  } else if (subjLower.includes('computer')) {
+    subjectInstructions = `
+SUBJECT-SPECIFIC RULES FOR COMPUTER SCIENCE:
+- Focus on programming, logic, variables, algorithms, data structures, and system design.
+- Use programmatic analogies (e.g. variables as named drawer boxes, loops as a repetitive chore, arrays as egg cartons).
+- Provide clean, commented, and standard code snippets (Python, Javascript, Dart, etc.) where appropriate.
+- Explain execution dry runs step-by-step.`;
+  }
+
+  // Explanation style rules override
+  let styleInstructions = '';
+  switch (explanationStyle) {
+    case 'Simple Explanation':
+      styleInstructions = `
+EXPLANATION STYLE OVERRIDE: SIMPLE EXPLANATION
+- Emphasize absolute simplicity, directness, and quick understanding.
+- Keep explanations light, avoiding heavy structural lists unless requested.
+- Prioritize high readability and clarity.`;
+      break;
+    case 'Detailed Scientific Code':
+    case 'Detailed Scientific':
+      styleInstructions = `
+EXPLANATION STYLE OVERRIDE: DETAILED SCIENTIFIC
+- Be highly rigorous, providing full mathematical formulas, scientific formulas, or code details.
+- Provide comprehensive, detailed answers without trimming technicalities.
+- Add code snippets or formal proofs where relevant.`;
+      break;
+    case 'Analogies & Flashcards':
+      styleInstructions = `
+EXPLANATION STYLE OVERRIDE: ANALOGIES & FLASHCARDS
+- Provide at least 2 distinct analogies for every core concept.
+- Summarize key vocabulary at the end in a "Flashcard Q&A" format (Question on one line, Answer hidden/expandable on the next).`;
+      break;
+    case 'Socratic Method Practice':
+      styleInstructions = `
+EXPLANATION STYLE OVERRIDE: SOCRATIC METHOD
+- DO NOT explain the concept directly or give the answers.
+- Ask a sequence of simple, guided questions that lead the student to discover the answer themselves.
+- Acknowledge their answers, build on them, and ask the next question.`;
+      break;
+    default:
+      break;
+  }
+
+  const systemInstruction = `${roleText}
+  Your task is to teach the student who is studying ${subject} at the ${gradeText} level.
+  
+  CRITICAL GENERAL RULES:
   - DO NOT just give the student direct answers or do their homework for them.
-  - Explain the underlying concepts step-by-step using interesting real-world analogies, thought-provoking questions, and breakdown steps.
+  - Explain the underlying concepts step-by-step using thought-provoking questions, breakdown steps, and appropriate analogies.
   - Guide the student to find the answer themselves.
-  - Adapt your language to be engaging, age-appropriate, and encouraging.
-  - Format your math expressions clearly using standard text or simple markdown.`;
+  - Format math expressions clearly using standard text, simple subscripts/superscripts (e.g. H_2O, x^2) or basic markdown.
+  ${cohortInstructions}
+  ${subjectInstructions}
+  ${styleInstructions}`;
 
   // Map history to Gemini's format: { role: 'user'|'model', parts: [{ text: '...' }] }
   const formattedHistory = history.map(h => ({
@@ -28,7 +199,7 @@ const getTutorChatResponse = async (history, message, subject = 'General', grade
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: [
         ...formattedHistory,
         { role: 'user', parts: [{ text: message }] }
@@ -66,7 +237,7 @@ const generateStudyNotes = async (topic, subject = 'General', grade = '10') => {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
     return response.text;
@@ -107,7 +278,7 @@ const generateQuizQuestions = async (subject, topic, count = 5) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
     const text = response.text.trim();
@@ -148,7 +319,7 @@ const generateVoiceExplanation = async (concept, subject = 'General') => {
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt,
     });
     return response.text;
