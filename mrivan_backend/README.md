@@ -24,6 +24,7 @@ This is the Node.js + Express backend server for **Mrivan AI (School CRM & AI Tu
    - **`AI_NATIVE_API_KEY`**: Get a key from AINative Studio (for advanced agent memory, zeroDB, or tools).
    - **`GROQ_API_KEY`**: Get a key from the Groq Console (for high-speed inference/LPU support).
    - **`OPENROUTER_API_KEY`**: Get a key from the OpenRouter Dashboard (for access to 100+ open-source and proprietary LLMs).
+   - **`NVIDIA_API_KEY`**: Get a key from Nvidia Build/NIM developer platform (for high-performance GPU-optimized inference).
 
 ### 3. Install Dependencies & Run
 ```bash
@@ -90,4 +91,5 @@ All endpoints (except the home verification route) require authentication. Pass 
    - `AI_NATIVE_API_KEY`
    - `GROQ_API_KEY`
    - `OPENROUTER_API_KEY`
+   - `NVIDIA_API_KEY`
 6. Click **Deploy Web Service**. Render will build and host your API securely!
