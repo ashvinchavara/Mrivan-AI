@@ -4,6 +4,147 @@ require('dotenv').config();
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+let currentProviderIndex = 0;
+
+const PROVIDER_CONFIGS = {
+  groq: {
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    model: 'llama-3.3-70b-versatile',
+    getHeaders: () => ({ 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` })
+  },
+  openrouter: {
+    url: 'https://openrouter.ai/api/v1/chat/completions',
+    model: 'meta-llama/llama-3-8b-instruct',
+    getHeaders: () => ({ 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` })
+  },
+  nvidia: {
+    url: 'https://integrate.api.nvidia.com/v1/chat/completions',
+    model: 'nvidia/nemotron-3-ultra-550b-a55b',
+    getHeaders: () => ({ 'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}` })
+  },
+  ainative: {
+    url: 'https://api.ainative.studio/v1/chat/completions',
+    model: 'gpt-3.5-turbo',
+    getHeaders: () => ({
+      'Authorization': `Bearer ${process.env.AI_NATIVE_API_KEY}`,
+      'X-API-Key': process.env.AI_NATIVE_API_KEY
+    })
+  },
+  huggingface: {
+    url: 'https://api-inference.huggingface.co/v1/chat/completions',
+    model: 'meta-llama/Llama-3-8b-Instruct',
+    getHeaders: () => ({ 'Authorization': `Bearer ${process.env.HF_TOKEN}` })
+  }
+};
+
+const makeOpenAICall = async (url, headers, body) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000); // 12-second timeout
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errorText || res.statusText}`);
+    }
+
+    const data = await res.json();
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      return data.choices[0].message.content;
+    }
+    throw new Error('Invalid OpenAI-compatible response format');
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
+
+const runWithRotation = async (taskName, executeFn) => {
+  const providers = [];
+  
+  if (process.env.GEMINI_API_KEY) {
+    providers.push({
+      name: 'Gemini',
+      execute: async () => {
+        if (!ai) throw new Error('Gemini client not initialized');
+        return await executeFn('gemini');
+      }
+    });
+  }
+  
+  if (process.env.GROQ_API_KEY) {
+    providers.push({
+      name: 'Groq',
+      execute: async () => await executeFn('groq')
+    });
+  }
+
+  if (process.env.OPENROUTER_API_KEY) {
+    providers.push({
+      name: 'OpenRouter',
+      execute: async () => await executeFn('openrouter')
+    });
+  }
+
+  if (process.env.NVIDIA_API_KEY) {
+    providers.push({
+      name: 'Nvidia',
+      execute: async () => await executeFn('nvidia')
+    });
+  }
+
+  if (process.env.AI_NATIVE_API_KEY) {
+    providers.push({
+      name: 'AI Native',
+      execute: async () => await executeFn('ainative')
+    });
+  }
+
+  if (process.env.HF_TOKEN) {
+    providers.push({
+      name: 'Hugging Face',
+      execute: async () => await executeFn('huggingface')
+    });
+  }
+
+  if (providers.length === 0) {
+    throw new Error('No AI provider API keys are configured in the environment variables.');
+  }
+
+  let lastError = null;
+  const startIndex = currentProviderIndex % providers.length;
+  
+  for (let i = 0; i < providers.length; i++) {
+    const idx = (startIndex + i) % providers.length;
+    const provider = providers[idx];
+    console.log(`[ORCHESTRATOR] [${taskName}] Attempting with provider: ${provider.name}`);
+    try {
+      const result = await provider.execute();
+      if (result) {
+        currentProviderIndex = (idx + 1) % providers.length;
+        return result;
+      }
+      throw new Error('Empty response received');
+    } catch (err) {
+      console.warn(`[ORCHESTRATOR] [${taskName}] Provider ${provider.name} failed or timed out:`, err.message || err);
+      lastError = err;
+    }
+  }
+
+  throw new Error(`All configured AI providers failed to respond. Last error: ${lastError ? lastError.message : 'Unknown error'}`);
+};
+
 /**
  * 1. AI subject-specific Tutor Chat
  */
@@ -191,28 +332,42 @@ EXPLANATION STYLE OVERRIDE: SOCRATIC METHOD
   ${subjectInstructions}
   ${styleInstructions}`;
 
-  // Map history to Gemini's format: { role: 'user'|'model', parts: [{ text: '...' }] }
-  const formattedHistory = history.map(h => ({
-    role: h.sender === 'user' ? 'user' : 'model',
-    parts: [{ text: h.content }]
-  }));
+  return await runWithRotation('TutorChat', async (provider) => {
+    if (provider === 'gemini') {
+      const formattedHistory = history.map(h => ({
+        role: h.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: h.content }]
+      }));
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: [
+          ...formattedHistory,
+          { role: 'user', parts: [{ text: message }] }
+        ],
+        config: {
+          systemInstruction: systemInstruction,
+        }
+      });
+      return response.text;
+    }
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: [
-        ...formattedHistory,
-        { role: 'user', parts: [{ text: message }] }
-      ],
-      config: {
-        systemInstruction: systemInstruction,
-      }
+    const config = PROVIDER_CONFIGS[provider];
+    if (!config) throw new Error(`Unknown provider: ${provider}`);
+
+    const messages = [];
+    if (systemInstruction) {
+      messages.push({ role: 'system', content: systemInstruction });
+    }
+    history.forEach(h => {
+      messages.push({
+        role: h.sender === 'user' ? 'user' : 'assistant',
+        content: h.content
+      });
     });
-    return response.text;
-  } catch (error) {
-    console.error('Gemini Tutor chat failed:', error);
-    throw error;
-  }
+    messages.push({ role: 'user', content: message });
+
+    return await makeOpenAICall(config.url, config.getHeaders(), { model: config.model, messages });
+  });
 };
 
 /**
@@ -235,16 +390,21 @@ const generateStudyNotes = async (topic, subject = 'General', grade = '10') => {
   
   Format it professionally so it renders beautifully in a markdown viewer.`;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-    });
-    return response.text;
-  } catch (error) {
-    console.error('Gemini notes generation failed:', error);
-    throw error;
-  }
+  return await runWithRotation('StudyNotes', async (provider) => {
+    if (provider === 'gemini') {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      return response.text;
+    }
+
+    const config = PROVIDER_CONFIGS[provider];
+    if (!config) throw new Error(`Unknown provider: ${provider}`);
+
+    const messages = [{ role: 'user', content: prompt }];
+    return await makeOpenAICall(config.url, config.getHeaders(), { model: config.model, messages });
+  });
 };
 
 /**
@@ -276,29 +436,33 @@ const generateQuizQuestions = async (subject, topic, count = 5) => {
   ]
   Do NOT include any markdown code blocks, backticks, or prefix text. Return only valid JSON.`;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-    });
-    const text = response.text.trim();
-    
-    try {
-      // Strip markdown formatting if Gemini included it despite instructions
-      let jsonString = text;
-      if (jsonString.startsWith('```json')) {
-        jsonString = jsonString.substring(7, jsonString.length - 3);
-      } else if (jsonString.startsWith('```')) {
-        jsonString = jsonString.substring(3, jsonString.length - 3);
-      }
-      return JSON.parse(jsonString.trim());
-    } catch (error) {
-      console.error('Failed to parse Gemini quiz JSON response. Raw text:', text);
-      throw new Error('AI failed to generate quiz in structured JSON format. Please try again.');
+  const text = await runWithRotation('QuizGeneration', async (provider) => {
+    if (provider === 'gemini') {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      return response.text;
     }
+
+    const config = PROVIDER_CONFIGS[provider];
+    if (!config) throw new Error(`Unknown provider: ${provider}`);
+
+    const messages = [{ role: 'user', content: prompt }];
+    return await makeOpenAICall(config.url, config.getHeaders(), { model: config.model, messages });
+  });
+
+  try {
+    let jsonString = text.trim();
+    if (jsonString.startsWith('```json')) {
+      jsonString = jsonString.substring(7, jsonString.length - 3);
+    } else if (jsonString.startsWith('```')) {
+      jsonString = jsonString.substring(3, jsonString.length - 3);
+    }
+    return JSON.parse(jsonString.trim());
   } catch (error) {
-    console.error('Gemini quiz generation failed:', error);
-    throw error;
+    console.error('Failed to parse quiz JSON response. Raw text:', text);
+    throw new Error('AI failed to generate quiz in structured JSON format. Please try again.');
   }
 };
 
@@ -306,8 +470,6 @@ const generateQuizQuestions = async (subject, topic, count = 5) => {
  * 4. Generate speech-optimized concepts (Voice Tutor helper)
  */
 const generateVoiceExplanation = async (concept, subject = 'General') => {
-  if (!ai) return "This is a voice demonstration response. Please configure your Gemini API key to activate voice mode.";
-
   const prompt = `Explain the concept "${concept}" in ${subject} as if you are speaking directly to a student.
   
   RULES:
@@ -317,16 +479,21 @@ const generateVoiceExplanation = async (concept, subject = 'General') => {
   - Keep it under 100 words.
   - Make it sound warm and conversational.`;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-    });
-    return response.text;
-  } catch (error) {
-    console.error('Gemini voice explanation failed:', error);
-    throw error;
-  }
+  return await runWithRotation('VoiceExplanation', async (provider) => {
+    if (provider === 'gemini') {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      return response.text;
+    }
+
+    const config = PROVIDER_CONFIGS[provider];
+    if (!config) throw new Error(`Unknown provider: ${provider}`);
+
+    const messages = [{ role: 'user', content: prompt }];
+    return await makeOpenAICall(config.url, config.getHeaders(), { model: config.model, messages });
+  });
 };
 
 module.exports = {
