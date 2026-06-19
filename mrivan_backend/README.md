@@ -21,6 +21,7 @@ This is the Node.js + Express backend server for **Mrivan AI (School CRM & AI Tu
    - **`SUPABASE_ANON_KEY`**: Your project API anon key.
    - **`SUPABASE_SERVICE_ROLE_KEY`**: Bypasses Row Level Security (RLS) on server-side queries.
    - **`GEMINI_API_KEY`**: Get a key from [Google AI Studio](https://aistudio.google.com/).
+   - **`AI_NATIVE_API_KEY`**: Get a key from AINative Studio (for advanced agent memory, zeroDB, or tools).
 
 ### 3. Install Dependencies & Run
 ```bash
@@ -84,4 +85,5 @@ All endpoints (except the home verification route) require authentication. Pass 
    - `SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `GEMINI_API_KEY`
+   - `AI_NATIVE_API_KEY`
 6. Click **Deploy Web Service**. Render will build and host your API securely!
