@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
 import '../../../data/services/database_service.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
@@ -93,6 +95,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
   final TextEditingController _subjectController = TextEditingController();
 
   bool get _isDarkMode => isDarkModeNotifier.value;
+  String? get _currentUserEmail => Supabase.instance.client.auth.currentUser?.email;
 
   int _calculateCampusPrice() {
     final studentCount = int.tryParse(_studentsController.text.trim()) ?? 100;
@@ -561,6 +564,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _buildUserEmailBadge(isDarkMode),
+                const SizedBox(height: 12),
                 Center(
                   child: Container(
                     width: 68,
@@ -760,6 +765,74 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                                 ),
                               ),
                             )),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserEmailBadge(bool isDarkMode) {
+    final email = _currentUserEmail;
+    if (email == null) return const SizedBox.shrink();
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: GestureDetector(
+        onTap: () async {
+          setState(() => _isSaving = true);
+          try {
+            await Supabase.instance.client.auth.signOut();
+            try {
+              final googleSignIn = GoogleSignIn();
+              await googleSignIn.signOut().catchError((_) => null);
+            } catch (_) {}
+          } catch (e) {
+            if (mounted) {
+              _showErrorDialog(e.toString());
+            }
+          } finally {
+            if (mounted) {
+              setState(() => _isSaving = false);
+            }
+          }
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDarkMode ? Colors.white12 : Colors.black12,
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.account_circle_rounded,
+                  size: 14,
+                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  email,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDarkMode ? Colors.white70 : Colors.black87,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.logout_rounded,
+                  size: 12,
+                  color: _rose,
+                ),
               ],
             ),
           ),
