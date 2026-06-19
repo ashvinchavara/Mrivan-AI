@@ -1,5 +1,8 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/animated_background.dart';
 import '../../theme/theme_config.dart';
 import '../dashboard/app_router.dart';
@@ -42,20 +45,157 @@ class _LandingPageScreenState extends State<LandingPageScreen>
     super.dispose();
   }
 
-  void _navigateToLogin({
+  bool _isAuthLoading = false;
+
+  static const String webClientId =
+      '524472321619-ft3dc0catvgplebulv2bqrpakdi8uo18.apps.googleusercontent.com';
+
+  Future<void> _navigateToLogin({
     String? planTitle,
     String? planPrice,
     String? planSubtitle,
     bool isCampus = false,
-  }) {
-    AppRouter.pendingPlanTitle = planTitle;
-    AppRouter.pendingPlanPrice = planPrice;
-    AppRouter.pendingPlanSubtitle = planSubtitle;
-    AppRouter.isCampus = isCampus;
+  }) async {
+    setState(() => _isAuthLoading = true);
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const AppRouter()),
+    try {
+      AppRouter.pendingPlanTitle = planTitle;
+      AppRouter.pendingPlanPrice = planPrice;
+      AppRouter.pendingPlanSubtitle = planSubtitle;
+      AppRouter.isCampus = isCampus;
+
+      if (kIsWeb) {
+        final uri = Uri.base;
+        final safePath = uri.path.isEmpty ? '/' : uri.path;
+
+        String redirectUrl = Uri(
+          scheme: uri.scheme,
+          host: uri.host,
+          port: uri.port,
+          path: safePath,
+        ).toString();
+
+        if (planTitle != null && planPrice != null) {
+          redirectUrl = Uri(
+            scheme: uri.scheme,
+            host: uri.host,
+            port: uri.port,
+            path: safePath,
+            queryParameters: {
+              'plan_title': planTitle,
+              'plan_price': planPrice,
+              'plan_subtitle': planSubtitle ?? '',
+            },
+          ).toString();
+        }
+
+        await Supabase.instance.client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: redirectUrl,
+        );
+        return;
+      }
+
+      final googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile', 'openid'],
+        serverClientId: webClientId,
+      );
+
+      await googleSignIn.signOut().catchError((_) => null);
+
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() => _isAuthLoading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
+
+      if (idToken == null) {
+        throw Exception("Google did not return an ID token.");
+      }
+
+      final response = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      if (response.session == null) {
+        throw Exception('Supabase login failed');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Google Sign-In Error: $e');
+      }
+      if (mounted) {
+        _showErrorDialog(e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isAuthLoading = false);
+      }
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final isDark = isDarkModeNotifier.value;
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF101827) : Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+          ),
+          title: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _rose.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.error_outline_rounded, color: _rose),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Authentication Error',
+                style: TextStyle(
+                  color: isDark ? Colors.white : _ink,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.black87,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(foregroundColor: _primary),
+              child: const Text(
+                'Close',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -175,6 +315,17 @@ class _LandingPageScreenState extends State<LandingPageScreen>
                   right: isDesktop ? 40 : 16,
                   child: _buildNavBar(isDarkMode, isDesktop),
                 ),
+                if (_isAuthLoading)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF155DFC)),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

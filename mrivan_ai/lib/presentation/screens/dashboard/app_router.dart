@@ -66,20 +66,7 @@ class _AppRouterState extends State<AppRouter> {
 
   Future<void> _loadUserData() async {
     final user = _client.auth.currentUser;
-    if (user == null) {
-      // Bypass authentication check and load default developer profile
-      if (mounted) {
-        setState(() {
-          _isProfileIncomplete = false;
-          _userName = 'Developer Student';
-          _paymentPlan = 'Premium AI';
-          _email = 'developer@mrivan.ai';
-          _isLoading = false;
-        });
-      }
-      _checkPendingPlanRedirect();
-      return;
-    }
+    if (user == null) return;
 
     if (mounted) {
       setState(() {
