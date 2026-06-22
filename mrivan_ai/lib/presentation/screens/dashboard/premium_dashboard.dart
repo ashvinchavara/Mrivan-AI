@@ -4070,7 +4070,7 @@ class _ProfileInfoTabState extends State<ProfileInfoTab> {
 
       final profile = await _client
           .from('profiles')
-          .select('full_name, email, class, phone_number, role, teacher_specialization, schools(name)')
+          .select('full_name, email, class, phone_number, role, teacher_specialization, schools!school_id(name)')
           .eq('id', user.id)
           .maybeSingle();
 
