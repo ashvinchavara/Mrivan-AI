@@ -29,6 +29,7 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
     'Admin Cockpit',
     'Manage Teachers',
     'Manage Students',
+    'Manage Classes',
     'Placement Analytics',
     'Campus Reports',
   ];
@@ -86,9 +87,15 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
             );
             break;
           case 3:
-            currentScreen = AdminPlacementTab(isDarkMode: isDarkMode);
+            currentScreen = AdminManageClassesTab(
+              schoolId: widget.schoolId,
+              isDarkMode: isDarkMode,
+            );
             break;
           case 4:
+            currentScreen = AdminPlacementTab(isDarkMode: isDarkMode);
+            break;
+          case 5:
             currentScreen = AdminReportsTab(isDarkMode: isDarkMode);
             break;
           default:
@@ -242,8 +249,10 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
                                           : idx == 2
                                               ? Icons.groups_rounded
                                               : idx == 3
-                                                  ? Icons.assessment_rounded
-                                                  : Icons.analytics_rounded,
+                                                  ? Icons.school_rounded
+                                                  : idx == 4
+                                                      ? Icons.assessment_rounded
+                                                      : Icons.analytics_rounded,
                                   color: isSelected ? const Color(0xFF155DFC) : Colors.grey,
                                 ),
                                 title: Text(
@@ -326,10 +335,12 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
                   unselectedItemColor: Colors.grey,
                   currentIndex: _currentIndex,
                   onTap: (idx) => setState(() => _currentIndex = idx),
+                  type: BottomNavigationBarType.fixed,
                   items: [
                     const BottomNavigationBarItem(icon: Icon(Icons.space_dashboard_rounded), label: 'Dashboard'),
                     const BottomNavigationBarItem(icon: Icon(Icons.badge_rounded), label: 'Teachers'),
                     const BottomNavigationBarItem(icon: Icon(Icons.groups_rounded), label: 'Students'),
+                    const BottomNavigationBarItem(icon: Icon(Icons.school_rounded), label: 'Classes'),
                     const BottomNavigationBarItem(icon: Icon(Icons.assessment_rounded), label: 'Placements'),
                     const BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Reports'),
                   ],
@@ -1042,3 +1053,308 @@ class AdminReportsTab extends StatelessWidget {
     );
   }
 }
+
+// ----------------------------------------------------
+// Sub-tab 3: Manage Classes
+// ----------------------------------------------------
+class AdminManageClassesTab extends StatefulWidget {
+  final String schoolId;
+  final bool isDarkMode;
+
+  const AdminManageClassesTab({
+    super.key,
+    required this.schoolId,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<AdminManageClassesTab> createState() => _AdminManageClassesTabState();
+}
+
+class _AdminManageClassesTabState extends State<AdminManageClassesTab> {
+  final _classNameController = TextEditingController();
+  final _roomNumberController = TextEditingController();
+
+  List<Map<String, dynamic>> _classes = [];
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClasses();
+  }
+
+  @override
+  void dispose() {
+    _classNameController.dispose();
+    _roomNumberController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadClasses() async {
+    setState(() => _loading = true);
+    try {
+      final list = await DatabaseService.instance.fetchClasses(widget.schoolId);
+      setState(() {
+        _classes = list;
+        _loading = false;
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error loading classes: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _createClass() async {
+    final name = _classNameController.text.trim();
+    final room = _roomNumberController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a Class Name.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await DatabaseService.instance.createClass(
+        schoolId: widget.schoolId,
+        name: name,
+        roomNumber: room.isNotEmpty ? room : null,
+      );
+
+      _classNameController.clear();
+      _roomNumberController.clear();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Class added successfully!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      _loadClasses();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating class: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _deleteClass(String classId) async {
+    try {
+      await DatabaseService.instance.deleteClass(classId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Class deleted successfully!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadClasses();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting class: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Manage School Classes 🏫',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
+                ),
+                const SizedBox(height: 4),
+                const Text('Create and manage classrooms/sections for student enrollment.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, color: Color(0xFF155DFC)),
+              onPressed: _loadClasses,
+              tooltip: 'Refresh Classes',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        
+        // Add Class Form Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderCol),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Create New Class / Section', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _classNameController,
+                      style: TextStyle(color: currentText, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Class Name (e.g. 10A, 11B)',
+                        labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _roomNumberController,
+                      style: TextStyle(color: currentText, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Room Number (Optional)',
+                        labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saving ? null : _createClass,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF155DFC),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: _saving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Add Class', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Classes list header
+        Text('Active Classes & Classrooms', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 12),
+
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _classes.isEmpty
+                  ? Center(child: Text('No classes registered yet. Create one above to get started.', style: TextStyle(color: currentText, fontSize: 13)))
+                  : GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: MediaQuery.of(context).size.width >= 900 ? 3 : 1,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 2.8,
+                      ),
+                      itemCount: _classes.length,
+                      itemBuilder: (context, idx) {
+                        final cls = _classes[idx];
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderCol),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF155DFC).withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.class_rounded, color: Color(0xFF155DFC), size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(cls['name'] ?? '', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14)),
+                                    if (cls['room_number'] != null && (cls['room_number'] as String).isNotEmpty)
+                                      Text('Room: ${cls['room_number']}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      backgroundColor: cardBg,
+                                      title: Text('Delete Class', style: TextStyle(color: currentText, fontWeight: FontWeight.bold)),
+                                      content: Text('Are you sure you want to delete class ${cls['name']}? This will unenroll all students in this class.', style: TextStyle(color: currentText, fontSize: 13)),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.pop(context);
+                                            _deleteClass(cls['id']);
+                                          },
+                                          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                          child: const Text('Delete', style: TextStyle(color: Colors.white)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+}
+

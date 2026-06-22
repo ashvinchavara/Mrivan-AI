@@ -94,6 +94,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
 
   String _selectedRole = 'student';
   final TextEditingController _subjectController = TextEditingController();
+  List<Map<String, dynamic>> _availableClasses = [];
+  String? _selectedClassId;
 
   bool get _isDarkMode => isDarkModeNotifier.value;
   String? get _currentUserEmail => Supabase.instance.client.auth.currentUser?.email;
@@ -204,6 +206,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         _verifiedSchoolAdminEmail = adminEmail ?? 'admin@mrivan.ai';
       });
 
+      await _loadClassesForSchool(schoolId);
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -228,6 +232,22 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
       );
     } finally {
       setState(() => _isVerifyingCode = false);
+    }
+  }
+
+  Future<void> _loadClassesForSchool(String schoolId) async {
+    try {
+      final list = await DatabaseService.instance.fetchClasses(schoolId);
+      setState(() {
+        _availableClasses = list;
+        if (_availableClasses.isNotEmpty) {
+          _selectedClassId = _availableClasses.first['id'];
+        } else {
+          _selectedClassId = null;
+        }
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error loading classes: $e');
     }
   }
 
@@ -360,18 +380,34 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
         }
 
         // Save profile
+        final String selectedClassName = _selectedRole == 'student'
+            ? (_availableClasses.firstWhere((c) => c['id'] == _selectedClassId, orElse: () => {'name': 'Grade 10'})['name'] ?? 'Grade 10')
+            : 'Faculty';
+
         await DatabaseService.instance.updateUserProfile(
           userId: user.id,
           fullName: _nameController.text.trim(),
           schoolId: _verifiedSchoolId,
+          classId: _selectedRole == 'student' ? _selectedClassId : null,
           paymentPlan: 'Campus Plan',
-          className: _selectedRole == 'student' ? _classController.text.trim() : 'Faculty',
+          className: selectedClassName,
           age: _selectedRole == 'student' ? _ageController.text.trim() : 'N/A',
           phoneNumber: _phoneController.text.trim(),
           role: _selectedRole,
           email: user.email,
           teacherSpecialization: _selectedRole == 'teacher' ? _subjectController.text.trim() : null,
         );
+
+        if (_selectedRole == 'teacher' && _selectedClassId != null) {
+          try {
+            await Supabase.instance.client.from('class_teachers').insert({
+              'class_id': _selectedClassId,
+              'teacher_id': user.id,
+            });
+          } catch (e) {
+            if (kDebugMode) print('Error saving class_teacher: $e');
+          }
+        }
 
         // Clear pending plan (since they joined an existing school)
         AppRouter.pendingPlanTitle = null;
@@ -1276,25 +1312,74 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     );
   }
 
+  Widget _buildClassDropdown(bool isDarkMode) {
+    final currentText = isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final borderCol = isDarkMode ? Colors.white24 : const Color(0xFFD1D5DB);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Select Class',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isDarkMode ? Colors.white : const Color(0xFF374151),
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _selectedClassId,
+          dropdownColor: cardBg,
+          style: TextStyle(color: currentText, fontSize: 13),
+          decoration: InputDecoration(
+            hintText: _availableClasses.isEmpty ? 'No classes available' : 'Choose a class',
+            hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+            prefixIcon: const Icon(Icons.school_rounded, color: Colors.grey, size: 20),
+            filled: true,
+            fillColor: isDarkMode ? const Color(0xFF1E1E2F) : const Color(0xFFF3F4F6),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: borderCol),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: borderCol),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 2),
+            ),
+          ),
+          items: _availableClasses.map((cls) {
+            return DropdownMenuItem<String>(
+              value: cls['id'],
+              child: Text(cls['name'] ?? '', style: TextStyle(color: currentText, fontSize: 13)),
+            );
+          }).toList(),
+          onChanged: (val) {
+            setState(() {
+              _selectedClassId = val;
+            });
+          },
+          validator: (val) {
+            if (val == null) return 'Class is required';
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
   Widget _buildRoleSpecificFields(bool isDarkMode) {
     if (!_inviteCodeVerified) return const SizedBox.shrink();
     if (_selectedRole == 'student') {
       return Column(
         children: [
           const SizedBox(height: 18),
-          _buildInputField(
-            label: 'Class / Grade',
-            controller: _classController,
-            icon: Icons.school_rounded,
-            hint: 'e.g. Grade 11, college sophomore, self-study',
-            isDarkMode: isDarkMode,
-            validator: (val) {
-              if (_selectedPlanTitle == 'Campus Plan' && _isJoinWithCode && _selectedRole == 'student') {
-                if (val == null || val.trim().isEmpty) return 'Class/Grade is required';
-              }
-              return null;
-            },
-          ),
+          _buildClassDropdown(isDarkMode),
           const SizedBox(height: 18),
           _buildInputField(
             label: 'Age',
@@ -1329,6 +1414,8 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
               return null;
             },
           ),
+          const SizedBox(height: 18),
+          _buildClassDropdown(isDarkMode),
         ],
       );
     }

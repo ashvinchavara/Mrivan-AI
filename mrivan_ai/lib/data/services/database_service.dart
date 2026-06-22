@@ -604,4 +604,41 @@ class DatabaseService {
       throw Exception('Failed to fetch syllabus: ${e.toString()}');
     }
   }
+
+  /// Create a class for a school
+  Future<Map<String, dynamic>> createClass({
+    required String schoolId,
+    required String name,
+    String? roomNumber,
+  }) async {
+    try {
+      final response = await _client
+          .from('classes')
+          .insert({
+            'school_id': schoolId,
+            'name': name,
+            if (roomNumber != null) 'room_number': roomNumber,
+          })
+          .select()
+          .single();
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in createClass: $e');
+      }
+      throw Exception('Failed to create class: ${e.toString()}');
+    }
+  }
+
+  /// Delete a class by ID
+  Future<void> deleteClass(String classId) async {
+    try {
+      await _client.from('classes').delete().eq('id', classId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in deleteClass: $e');
+      }
+      throw Exception('Failed to delete class: ${e.toString()}');
+    }
+  }
 }

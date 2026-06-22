@@ -1115,8 +1115,30 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   @override
   void initState() {
     super.initState();
+    _loadGradeFromProfile();
     _loadSessions();
     _loadDailyLimit();
+  }
+
+  Future<void> _loadGradeFromProfile() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    try {
+      final profile = await _client
+          .from('profiles')
+          .select('class')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (profile != null && profile['class'] != null && (profile['class'] as String).isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _gradeLevel = profile['class'] as String;
+          });
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading grade: $e');
+    }
   }
 
   Future<void> _loadDailyLimit() async {
@@ -1934,26 +1956,18 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                   },
                 ),
                 const SizedBox(height: 16),
-                // Grade Dropdown
-                DropdownButtonFormField<String>(
-                  value: _gradeLevel,
-                  dropdownColor: cardBg,
-                  style: TextStyle(color: currentText, fontSize: 13),
+                // Grade Level (Locked to registration)
+                InputDecorator(
                   decoration: InputDecoration(
-                    labelText: 'Grade Level',
+                    labelText: 'Grade Level (Locked)',
                     labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
                     enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                    suffixIcon: const Icon(Icons.lock_rounded, color: Colors.grey, size: 16),
                   ),
-                  items: _grades.map((gr) {
-                    return DropdownMenuItem(value: gr, child: Text(gr));
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() {
-                        _gradeLevel = val;
-                      });
-                    }
-                  },
+                  child: Text(
+                    _gradeLevel,
+                    style: TextStyle(color: currentText, fontSize: 13),
+                  ),
                 ),
                 const SizedBox(height: 28),
                 ElevatedButton(
@@ -2269,19 +2283,17 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                 onChanged: (val) => localSubject = val,
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: localGrade,
-                dropdownColor: cardBg,
-                style: TextStyle(color: currentText, fontSize: 13),
+              InputDecorator(
                 decoration: InputDecoration(
-                  labelText: 'Grade Level',
+                  labelText: 'Grade Level (Locked)',
                   labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
                   enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                  suffixIcon: const Icon(Icons.lock_rounded, color: Colors.grey, size: 16),
                 ),
-                items: _grades.map((gr) => DropdownMenuItem(value: gr, child: Text(gr))).toList(),
-                onChanged: (val) {
-                  if (val != null) localGrade = val;
-                },
+                child: Text(
+                  _gradeLevel,
+                  style: TextStyle(color: currentText, fontSize: 13),
+                ),
               ),
             ],
           ),
@@ -2294,7 +2306,6 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
               onPressed: () {
                 setState(() {
                   _selectedSubject = localSubject;
-                  _gradeLevel = localGrade!;
                 });
                 Navigator.pop(context);
                 _startTempSession();
