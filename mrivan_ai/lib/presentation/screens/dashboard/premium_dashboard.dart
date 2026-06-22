@@ -161,7 +161,10 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                 });
               }
             },
-            child: PerformanceAnalyticsTab(isDarkMode: isDarkMode),
+            child: PerformanceAnalyticsTab(
+              isDarkMode: isDarkMode,
+              isCampusPlan: plan.contains('campus'),
+            ),
           );
         } else if (tabName == 'VIP Pass') {
           currentScreen = PricingVipTab(
@@ -2638,18 +2641,166 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
 // ==========================================
 // SCREEN 4: PERFORMANCE & ANALYTICS TAB
 // ==========================================
-class PerformanceAnalyticsTab extends StatelessWidget {
+class PerformanceAnalyticsTab extends StatefulWidget {
   final bool isDarkMode;
-  const PerformanceAnalyticsTab({super.key, required this.isDarkMode});
+  final bool isCampusPlan;
+
+  const PerformanceAnalyticsTab({
+    super.key,
+    required this.isDarkMode,
+    required this.isCampusPlan,
+  });
+
+  @override
+  State<PerformanceAnalyticsTab> createState() => _PerformanceAnalyticsTabState();
+}
+
+class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
+  final _chapterNameController = TextEditingController();
+  final _topicController = TextEditingController();
+
+  List<Map<String, dynamic>> _customChapters = [];
+  List<String> _tempTopics = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Default pre-populated syllabus if user hasn't added one yet
+    _customChapters = [
+      {
+        'chapter_name': 'Chapter 1: Core System Architecture',
+        'topics': [
+          {'topic_name': 'Memory Management & Garbage Collection', 'completed': true},
+          {'topic_name': 'Process Scheduling & Thread Safety', 'completed': true},
+          {'topic_name': 'Concurrency & Deadlocks', 'completed': false},
+        ]
+      },
+      {
+        'chapter_name': 'Chapter 2: Backend & Distributed Systems',
+        'topics': [
+          {'topic_name': 'Microservices & Service Discovery', 'completed': false},
+          {'topic_name': 'Database Partitioning & Replication', 'completed': false},
+        ]
+      },
+    ];
+  }
+
+  @override
+  void dispose() {
+    _chapterNameController.dispose();
+    _topicController.dispose();
+    super.dispose();
+  }
+
+  void _addTopic() {
+    final topic = _topicController.text.trim();
+    if (topic.isEmpty) return;
+    setState(() {
+      if (!_tempTopics.contains(topic)) {
+        _tempTopics.add(topic);
+      }
+      _topicController.clear();
+    });
+  }
+
+  void _commitChapter() {
+    final chName = _chapterNameController.text.trim();
+    if (chName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a Chapter/Lesson Name.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+    if (_tempTopics.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one topic to this chapter.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    setState(() {
+      _customChapters.add({
+        'chapter_name': chName,
+        'topics': _tempTopics.map((t) => {'topic_name': t, 'completed': false}).toList(),
+      });
+      _chapterNameController.clear();
+      _topicController.clear();
+      _tempTopics.clear();
+    });
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegendDot(Color color, String label) {
+    return Row(
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildChecklistItem(String title, String description, bool done, Color textCol) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(done ? Icons.check_box : Icons.check_box_outline_blank, color: done ? const Color(0xFF00F2FE) : Colors.grey),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: done ? textCol : Colors.grey)),
+                Text(description, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isDesktop = size.width >= 950;
     
-    final currentText = isDarkMode ? Colors.white : const Color(0xFF0F172A);
-    final cardBg = isDarkMode ? const Color(0xFF181824) : Colors.white;
-    final borderCol = isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    // Calculate progress if not campus plan
+    double overallProgress = 0.0;
+    int totalTopics = 0;
+    int completedTopics = 0;
+    if (!widget.isCampusPlan) {
+      int total = 0;
+      int completed = 0;
+      for (final ch in _customChapters) {
+        final List topics = ch['topics'] ?? [];
+        total += topics.length;
+        completed += topics.where((t) => t['completed'] == true).length;
+      }
+      totalTopics = total;
+      completedTopics = completed;
+      overallProgress = total > 0 ? completed / total : 0.0;
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -2657,12 +2808,361 @@ class PerformanceAnalyticsTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Advanced Analytics & Revision Space 📊', 
+            widget.isCampusPlan 
+                ? 'Advanced Analytics & Revision Space 📊'
+                : 'Personal Performance & Syllabus Tracker 📊', 
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText)
           ),
           const SizedBox(height: 8),
-          const Text('Review mock test outcomes, monthly skill trends, and predictive growth ratings.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(
+            widget.isCampusPlan
+                ? 'Review mock test outcomes, monthly skill trends, and predictive growth ratings.'
+                : 'Define your curriculum, track topic-wise completion, and visualize your exam readiness.',
+            style: const TextStyle(color: Colors.grey, fontSize: 12)
+          ),
           const SizedBox(height: 24),
+
+          if (!widget.isCampusPlan) ...[
+            // Syllabus Progress Visualization Row
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              alignment: WrapAlignment.start,
+              crossAxisAlignment: WrapCrossAlignment.start,
+              children: [
+                // 1. Circular gauge card
+                Container(
+                  width: isDesktop ? 300 : double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: borderCol),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Syllabus Coverage',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: currentText),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 140,
+                        width: 140,
+                        child: CustomPaint(
+                          painter: SyllabusProgressPainter(
+                            progress: overallProgress,
+                            isDarkMode: widget.isDarkMode,
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '${(overallProgress * 100).toStringAsFixed(0)}%',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: currentText,
+                                  ),
+                                ),
+                                const Text(
+                                  'Completed',
+                                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 2. Metrics & revision checklist card
+                Container(
+                  width: isDesktop ? size.width - 300 - 88 : double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  constraints: const BoxConstraints(minHeight: 198),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: borderCol),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Curriculum Summary',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: currentText),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildStatItem('Chapters', _customChapters.length.toString(), currentText),
+                          _buildStatItem('Total Topics', totalTopics.toString(), currentText),
+                          _buildStatItem('Completed', completedTopics.toString(), currentText),
+                          _buildStatItem(
+                            'Ready Score',
+                            '${(overallProgress * 100).toStringAsFixed(0)}%',
+                            overallProgress >= 0.8
+                                ? Colors.green
+                                : (overallProgress >= 0.5 ? Colors.amber : Colors.redAccent),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      Text(
+                        'AI Learning Insights:',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: currentText),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        overallProgress == 1.0
+                            ? '🎉 Phenomenal! You have covered 100% of your course syllabus. You are ready to take high-level mock exams.'
+                            : overallProgress >= 0.5
+                                ? '👍 Great progress! Focus on finishing the remaining ${totalTopics - completedTopics} topics and start revision Recall drills.'
+                                : '📚 Keep going! Add your lesson syllabus, and check off topics as you study them with your AI Tutor.',
+                        style: const TextStyle(color: Colors.grey, fontSize: 11, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Syllabus Input Form & Checklist
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: borderCol),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Track & Configure Your Syllabus 📚',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: currentText),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Add course chapters and topics to track your self-study and revision readiness.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Chapter Input Row
+                  TextField(
+                    controller: _chapterNameController,
+                    style: TextStyle(color: currentText, fontSize: 13),
+                    decoration: const InputDecoration(
+                      labelText: 'Chapter Name (e.g. Chapter 3: Relational Databases)',
+                      labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Topic input row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _topicController,
+                          style: TextStyle(color: currentText, fontSize: 13),
+                          decoration: const InputDecoration(
+                            labelText: 'Topic Name (e.g. SQL Joins & Subqueries)',
+                            labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                            border: OutlineInputBorder(),
+                          ),
+                          onSubmitted: (_) => _addTopic(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _addTopic,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4F46E5),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        child: const Icon(Icons.add, color: Colors.white),
+                      ),
+                    ],
+                  ),
+
+                  // Temp topics wrap
+                  if (_tempTopics.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: _tempTopics.map((t) {
+                        return InputChip(
+                          backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.04),
+                          label: Text(t, style: TextStyle(color: currentText, fontSize: 11)),
+                          onDeleted: () {
+                            setState(() {
+                              _tempTopics.remove(t);
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+
+                  // Actions
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _commitChapter,
+                        icon: const Icon(Icons.playlist_add_rounded, color: Colors.white),
+                        label: const Text('Add Chapter', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      if (_customChapters.isNotEmpty)
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _customChapters.clear();
+                              _tempTopics.clear();
+                            });
+                          },
+                          icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
+                          label: const Text('Clear All', style: TextStyle(color: Colors.redAccent)),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 12),
+
+                  // Checklist list
+                  Text(
+                    'Your Study Checklist',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: currentText),
+                  ),
+                  const SizedBox(height: 12),
+                  _customChapters.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Text(
+                              'No chapters added yet. Add a chapter above to start tracking!',
+                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _customChapters.length,
+                          itemBuilder: (context, cIdx) {
+                            final ch = _customChapters[cIdx];
+                            final String chName = ch['chapter_name'] ?? '';
+                            final List topics = ch['topics'] ?? [];
+                            
+                            // Calculate chapter progress
+                            final chCompleted = topics.where((t) => t['completed'] == true).length;
+                            final chTotal = topics.length;
+                            final chPct = chTotal > 0 ? chCompleted / chTotal : 0.0;
+                            
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              color: widget.isDarkMode ? const Color(0xFF1E1E2F) : Colors.grey.withOpacity(0.05),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: Border.all(color: borderCol),
+                              ),
+                              child: ExpansionTile(
+                                leading: Icon(
+                                  chPct == 1.0
+                                      ? Icons.check_circle_rounded
+                                      : Icons.pending_actions_rounded,
+                                  color: chPct == 1.0 ? Colors.green : const Color(0xFF4F46E5),
+                                ),
+                                title: Text(
+                                  chName,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: currentText,
+                                  ),
+                                ),
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 4.0),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(4),
+                                          child: LinearProgressIndicator(
+                                            value: chPct,
+                                            backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black12,
+                                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                                            minHeight: 6,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        '${(chPct * 100).toStringAsFixed(0)}% ($chCompleted/$chTotal)',
+                                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                                  onPressed: () {
+                                    setState(() {
+                                      _customChapters.removeAt(cIdx);
+                                    });
+                                  },
+                                ),
+                                children: topics.map((t) {
+                                  final String tName = t['topic_name'] ?? '';
+                                  final bool isCompleted = t['completed'] ?? false;
+                                  return CheckboxListTile(
+                                    title: Text(
+                                      tName,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isCompleted ? Colors.grey : currentText,
+                                        decoration: isCompleted ? TextDecoration.lineThrough : null,
+                                      ),
+                                    ),
+                                    value: isCompleted,
+                                    activeColor: const Color(0xFF4F46E5),
+                                    onChanged: (val) {
+                                      setState(() {
+                                        t['completed'] = val ?? false;
+                                      });
+                                    },
+                                    controlAffinity: ListTileControlAffinity.leading,
+                                  );
+                                }).toList(),
+                              ),
+                            );
+                          },
+                        ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Custom Painted Charts Grid
           GridView.count(
@@ -2690,7 +3190,10 @@ class PerformanceAnalyticsTab extends StatelessWidget {
                       Expanded(
                         child: CustomPaint(
                           size: Size.infinite,
-                          painter: GrowthChartPainter(isDarkMode: isDarkMode),
+                          painter: GrowthChartPainter(
+                            isDarkMode: widget.isDarkMode,
+                            progress: widget.isCampusPlan ? 0.8 : overallProgress,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2724,7 +3227,18 @@ class PerformanceAnalyticsTab extends StatelessWidget {
                       Expanded(
                         child: CustomPaint(
                           size: Size.infinite,
-                          painter: SkillRadarPainter(isDarkMode: isDarkMode),
+                          painter: SkillRadarPainter(
+                            isDarkMode: widget.isDarkMode,
+                            progressValues: widget.isCampusPlan
+                                ? [0.85, 0.72, 0.90, 0.68, 0.80]
+                                : [
+                                    0.4 + (overallProgress * 0.45),
+                                    0.3 + (overallProgress * 0.52),
+                                    0.5 + (overallProgress * 0.40),
+                                    0.2 + (overallProgress * 0.68),
+                                    0.35 + (overallProgress * 0.55),
+                                  ],
+                          ),
                         ),
                       ),
                     ],
@@ -2754,37 +3268,6 @@ class PerformanceAnalyticsTab extends StatelessWidget {
                   _buildChecklistItem('Daily Coding Challenge Streak', 'Streak level: Stable 14 days active. 8 solved problems.', true, currentText),
                 ],
               ),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegendDot(Color color, String label) {
-    return Row(
-      children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-      ],
-    );
-  }
-
-  Widget _buildChecklistItem(String title, String description, bool done, Color textCol) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(done ? Icons.check_box : Icons.check_box_outline_blank, color: done ? const Color(0xFF00F2FE) : Colors.grey),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: done ? textCol : Colors.grey)),
-                Text(description, style: const TextStyle(color: Colors.grey, fontSize: 10)),
-              ],
             ),
           )
         ],
@@ -3179,9 +3662,53 @@ class _PricingPlanInfo {
 // CUSTOM PAINTERS
 // ==========================================
 
+class SyllabusProgressPainter extends CustomPainter {
+  final double progress;
+  final bool isDarkMode;
+
+  SyllabusProgressPainter({required this.progress, required this.isDarkMode});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) * 0.4;
+
+    // Background track
+    final bgPaint = Paint()
+      ..color = isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0)
+      ..strokeWidth = 12
+      ..style = PaintingStyle.stroke;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Glowing active progress arc
+    final progressPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF4F46E5), Color(0xFF00F2FE)],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..strokeWidth = 12
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final double sweepAngle = 2 * math.pi * progress;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      sweepAngle,
+      false,
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant SyllabusProgressPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.isDarkMode != isDarkMode;
+  }
+}
+
 class GrowthChartPainter extends CustomPainter {
   final bool isDarkMode;
-  GrowthChartPainter({required this.isDarkMode});
+  final double progress;
+  GrowthChartPainter({required this.isDarkMode, required this.progress});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -3203,15 +3730,17 @@ class GrowthChartPainter extends CustomPainter {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
 
+    final double scale = progress;
+
     // Line 1: Theoretical Knowledge
     final path1 = Path();
     path1.moveTo(0, size.height * 0.85);
     path1.cubicTo(
-      size.width * 0.25, size.height * 0.70,
-      size.width * 0.50, size.height * 0.45,
-      size.width * 0.75, size.height * 0.35,
+      size.width * 0.25, size.height * (0.85 - (0.85 - 0.70) * scale),
+      size.width * 0.50, size.height * (0.85 - (0.85 - 0.45) * scale),
+      size.width * 0.75, size.height * (0.85 - (0.85 - 0.35) * scale),
     );
-    path1.lineTo(size.width, size.height * 0.20);
+    path1.lineTo(size.width, size.height * (0.85 - (0.85 - 0.20) * scale));
 
     final strokePaint1 = Paint()
       ..color = const Color(0xFF6C63FF)
@@ -3222,11 +3751,11 @@ class GrowthChartPainter extends CustomPainter {
     final path2 = Path();
     path2.moveTo(0, size.height * 0.95);
     path2.cubicTo(
-      size.width * 0.25, size.height * 0.85,
-      size.width * 0.50, size.height * 0.65,
-      size.width * 0.75, size.height * 0.25,
+      size.width * 0.25, size.height * (0.95 - (0.95 - 0.85) * scale),
+      size.width * 0.50, size.height * (0.95 - (0.95 - 0.65) * scale),
+      size.width * 0.75, size.height * (0.95 - (0.95 - 0.25) * scale),
     );
-    path2.lineTo(size.width, size.height * 0.10);
+    path2.lineTo(size.width, size.height * (0.95 - (0.95 - 0.10) * scale));
 
     final strokePaint2 = Paint()
       ..color = const Color(0xFF00F2FE)
@@ -3239,12 +3768,15 @@ class GrowthChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant GrowthChartPainter oldDelegate) {
+    return oldDelegate.isDarkMode != isDarkMode || oldDelegate.progress != progress;
+  }
 }
 
 class SkillRadarPainter extends CustomPainter {
   final bool isDarkMode;
-  SkillRadarPainter({required this.isDarkMode});
+  final List<double> progressValues;
+  SkillRadarPainter({required this.isDarkMode, required this.progressValues});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -3296,7 +3828,7 @@ class SkillRadarPainter extends CustomPainter {
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
-    final values = [0.85, 0.72, 0.90, 0.68, 0.80];
+    final values = progressValues;
     final path = Path();
 
     for (int i = 0; i < 5; i++) {
@@ -3320,7 +3852,11 @@ class SkillRadarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant SkillRadarPainter oldDelegate) {
+    return oldDelegate.isDarkMode != isDarkMode ||
+        oldDelegate.progressValues.length != progressValues.length ||
+        !listEquals(oldDelegate.progressValues, progressValues);
+  }
 }
 
 class PlanFeatureGate extends StatelessWidget {
