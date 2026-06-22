@@ -730,4 +730,21 @@ class DatabaseService {
       throw Exception('Failed to delete timetable entry: ${e.toString()}');
     }
   }
+
+  /// Fetch full attendance logs history for a school, including class and timetable relation
+  Future<List<Map<String, dynamic>>> fetchAttendanceHistory(String schoolId) async {
+    try {
+      final response = await _client
+          .from('attendance')
+          .select('id, status, date, class_id, timetable_id, classes(name), timetable(subject, time_slot), profiles(full_name, student_roll_number)')
+          .eq('school_id', schoolId)
+          .order('date', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in fetchAttendanceHistory: $e');
+      }
+      throw Exception('Failed to fetch attendance history: ${e.toString()}');
+    }
+  }
 }

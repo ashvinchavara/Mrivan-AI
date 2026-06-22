@@ -549,10 +549,104 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
   bool _loadingTimetable = true;
   final SupabaseClient _client = Supabase.instance.client;
 
+  // New state variables for active class detection & past logs
+  bool _showHistory = false;
+  List<Map<String, dynamic>> _historyRecords = [];
+  bool _loadingHistory = false;
+  String _searchQuery = '';
+  String _historySearchQuery = '';
+
   @override
   void initState() {
     super.initState();
     _loadInitialData();
+  }
+
+  int? parseTimeToMinutes(String timeStr) {
+    try {
+      timeStr = timeStr.trim().toUpperCase();
+      final isPm = timeStr.contains('PM');
+      final isAm = timeStr.contains('AM');
+      // Remove everything except numbers and colons
+      final cleanStr = timeStr.replaceAll(RegExp(r'[^\d:]'), '');
+      final timeParts = cleanStr.split(':');
+      if (timeParts.length < 2) return null;
+      int hour = int.parse(timeParts[0]);
+      int minute = int.parse(timeParts[1]);
+      
+      if (isPm && hour < 12) {
+        hour += 12;
+      } else if (isAm && hour == 12) {
+        hour = 0;
+      }
+      return hour * 60 + minute;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  String getDayName(int weekday) {
+    switch (weekday) {
+      case DateTime.monday: return 'Monday';
+      case DateTime.tuesday: return 'Tuesday';
+      case DateTime.wednesday: return 'Wednesday';
+      case DateTime.thursday: return 'Thursday';
+      case DateTime.friday: return 'Friday';
+      case DateTime.saturday: return 'Saturday';
+      case DateTime.sunday: return 'Sunday';
+      default: return '';
+    }
+  }
+
+  bool _isSlotActive(Map<String, dynamic> slot) {
+    final now = DateTime.now();
+    final todayDay = getDayName(now.weekday);
+    final slotDay = slot['day_of_week']?.toString() ?? '';
+    if (slotDay.toLowerCase() != todayDay.toLowerCase()) {
+      return false;
+    }
+    
+    final timeSlotStr = slot['time_slot']?.toString() ?? '';
+    final parts = timeSlotStr.split(RegExp(r'[-–]')); // support hyphen and en-dash
+    if (parts.length != 2) return false;
+    
+    final startMin = parseTimeToMinutes(parts[0]);
+    final endMin = parseTimeToMinutes(parts[1]);
+    if (startMin == null || endMin == null) return false;
+    
+    final currentMin = now.hour * 60 + now.minute;
+    
+    // Allow a 15-minute grace window before start and after end
+    return currentMin >= (startMin - 15) && currentMin <= (endMin + 15);
+  }
+
+  List<Map<String, dynamic>> _getActiveSlots() {
+    return _timetableSlots.where(_isSlotActive).toList();
+  }
+
+  Future<void> _loadHistory() async {
+    if (!mounted) return;
+    setState(() => _loadingHistory = true);
+    try {
+      final records = await DatabaseService.instance.fetchAttendanceHistory(widget.schoolId);
+      if (mounted) {
+        setState(() {
+          _historyRecords = records;
+          _loadingHistory = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadingHistory = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading history: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -571,44 +665,40 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
       final data = await DatabaseService.instance.fetchClasses(widget.schoolId);
       setState(() {
         _classes = data;
-        if (_classes.isNotEmpty) {
-          if (_timetableSlots.isNotEmpty) {
-            _selectedSlotId = _timetableSlots.first['id'];
-            _selectedClassId = _timetableSlots.first['class_id'];
-          } else {
+      });
+
+      // Check active slots
+      final active = _getActiveSlots();
+      if (active.isNotEmpty) {
+        setState(() {
+          _selectedSlotId = active.first['id'];
+          _selectedClassId = active.first['class_id'];
+          _showHistory = false;
+        });
+        if (_selectedClassId != null) {
+          await _loadStudents(_selectedClassId!);
+        }
+      } else {
+        setState(() {
+          _showHistory = true; // default to history if no active slots
+          if (_classes.isNotEmpty) {
             _selectedClassId = _classes.first['id'];
           }
-          if (_selectedClassId != null) {
-            _loadStudents(_selectedClassId!);
-          }
-        }
+        });
+        await _loadHistory();
+      }
+
+      setState(() {
         _loadingClasses = false;
         _loadingTimetable = false;
       });
     } catch (e) {
-      setState(() {
-        _loadingClasses = false;
-        _loadingTimetable = false;
-      });
-    }
-  }
-
-  void _onSlotChanged(String? slotId) {
-    if (slotId == null) {
-      setState(() {
-        _selectedSlotId = null;
-        if (_classes.isNotEmpty) {
-          _selectedClassId = _classes.first['id'];
-          _loadStudents(_selectedClassId!);
-        }
-      });
-    } else {
-      final slot = _timetableSlots.firstWhere((s) => s['id'] == slotId);
-      setState(() {
-        _selectedSlotId = slotId;
-        _selectedClassId = slot['class_id'];
-        _loadStudents(_selectedClassId!);
-      });
+      if (mounted) {
+        setState(() {
+          _loadingClasses = false;
+          _loadingTimetable = false;
+        });
+      }
     }
   }
 
@@ -620,15 +710,43 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
     });
     try {
       final list = await DatabaseService.instance.fetchStudentsInClass(classId);
+      final dateStr = DateTime.now().toIso8601String().split('T')[0];
+      
+      // Fetch today's already recorded attendance for this class/period, if any
+      Map<String, String> existingMap = {};
+      try {
+        var query = _client
+            .from('attendance')
+            .select('student_id, status')
+            .eq('class_id', classId)
+            .eq('date', dateStr);
+        
+        if (_selectedSlotId != null) {
+          query = query.eq('timetable_id', _selectedSlotId!);
+        } else {
+          query = query.filter('timetable_id', 'is', null);
+        }
+        
+        final existingRecords = await query;
+        for (var record in existingRecords) {
+          existingMap[record['student_id']?.toString() ?? ''] = record['status']?.toString() ?? 'Absent';
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error loading existing today attendance: $e');
+      }
+
       setState(() {
         _students = list;
         for (var s in _students) {
-          _attendanceMap[s['id']] = 'Present'; // Default status
+          final sId = s['id']?.toString() ?? '';
+          _attendanceMap[sId] = existingMap[sId] ?? 'Absent'; // Default status is 'Absent'
         }
         _loadingStudents = false;
       });
     } catch (e) {
-      setState(() => _loadingStudents = false);
+      if (mounted) {
+        setState(() => _loadingStudents = false);
+      }
     }
   }
 
@@ -639,7 +757,7 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
       final dateStr = DateTime.now().toIso8601String().split('T')[0];
       final List<Map<String, dynamic>> records = _students.map((s) => {
         'student_id': s['id'],
-        'status': _attendanceMap[s['id']] ?? 'Present',
+        'status': _attendanceMap[s['id']] ?? 'Absent',
       }).toList();
 
       await DatabaseService.instance.recordAttendanceBulk(
@@ -658,6 +776,8 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+        // Refresh history
+        _loadHistory();
       }
     } catch (e) {
       if (mounted) {
@@ -674,212 +794,886 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildTabButton(String label, bool isSelected) {
     final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final activeColor = const Color(0xFF4F46E5);
     final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
 
-    if (_loadingClasses) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Attendance Manager 📝',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (label.contains('Past History')) {
+            _showHistory = true;
+            _loadHistory();
+          } else {
+            _showHistory = false;
+            // Re-evaluate active slots
+            final active = _getActiveSlots();
+            if (active.isNotEmpty) {
+              if (_selectedSlotId == null || !active.any((s) => s['id'] == _selectedSlotId)) {
+                _selectedSlotId = active.first['id'];
+                _selectedClassId = active.first['class_id'];
+              }
+              if (_selectedClassId != null) {
+                _loadStudents(_selectedClassId!);
+              }
+            } else {
+              _selectedSlotId = null;
+              _selectedClassId = null;
+              _students = [];
+            }
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? activeColor : Colors.grey.withOpacity(0.2),
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: activeColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : [],
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 16,
-          runSpacing: 10,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : currentText,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeeklyTimetable(Color currentText, Color cardBg) {
+    if (_timetableSlots.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Timetable Period: ', style: TextStyle(color: currentText, fontSize: 13)),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String?>(
-                      dropdownColor: cardBg,
-                      value: _selectedSlotId,
-                      items: [
-                        DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('General / No Timetable Slot', style: TextStyle(color: currentText, fontSize: 13)),
-                        ),
-                        ..._timetableSlots.map((s) {
-                          final day = s['day_of_week'] ?? '';
-                          final subj = s['subject'] ?? '';
-                          final time = s['time_slot'] ?? '';
-                          final cls = s['classes']?['name'] ?? 'N/A';
-                          return DropdownMenuItem<String?>(
-                            value: s['id'],
-                            child: Text('$day • $subj ($time) [$cls]', style: TextStyle(color: currentText, fontSize: 13)),
-                          );
-                        }).toList(),
-                      ],
-                      onChanged: _onSlotChanged,
-                    ),
-                  ),
-                ),
-              ],
+            Icon(Icons.calendar_month_outlined, size: 48, color: Colors.grey.withOpacity(0.5)),
+            const SizedBox(height: 12),
+            Text(
+              'No timetable entries uploaded yet.',
+              style: TextStyle(color: currentText.withOpacity(0.6), fontSize: 14),
             ),
-            if (_selectedSlotId == null)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Select Class: ', style: TextStyle(color: currentText, fontSize: 13)),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        dropdownColor: cardBg,
-                        value: _selectedClassId,
-                        items: _classes.map((c) {
-                          return DropdownMenuItem<String>(
-                            value: c['id'],
-                            child: Text(c['name'] ?? '', style: TextStyle(color: currentText, fontSize: 13)),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _selectedClassId = val);
-                            _loadStudents(val);
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            else
-              Chip(
-                backgroundColor: const Color(0xFF155DFC).withOpacity(0.1),
-                label: Text(
-                  'Class: ${_timetableSlots.firstWhere((s) => s['id'] == _selectedSlotId)['classes']?['name'] ?? 'N/A'}',
-                  style: const TextStyle(color: Color(0xFF155DFC), fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
           ],
         ),
-        const SizedBox(height: 20),
-        Expanded(
-          child: _loadingStudents
-              ? const Center(child: CircularProgressIndicator())
-              : _students.isEmpty
-                  ? Center(child: Text('No students found in this class.', style: TextStyle(color: currentText)))
-                  : Container(
-                      decoration: BoxDecoration(
-                        color: cardBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      );
+    }
+
+    // Group timetableSlots by day of week
+    final Map<String, List<Map<String, dynamic>>> groupedSlots = {};
+    final List<String> daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    for (final day in daysOrder) {
+      groupedSlots[day] = _timetableSlots.where((slot) => slot['day_of_week'] == day).toList();
+    }
+
+    return ListView(
+      padding: const EdgeInsets.only(top: 8),
+      children: daysOrder.map((day) {
+        final slots = groupedSlots[day] ?? [];
+        if (slots.isEmpty) return const SizedBox.shrink();
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          color: cardBg,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.withOpacity(0.15)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today, size: 16, color: Color(0xFF4F46E5)),
+                    const SizedBox(width: 8),
+                    Text(
+                      day,
+                      style: TextStyle(
+                        color: currentText,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
-                      child: Column(
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                ...slots.map((slot) {
+                  final isNow = _isSlotActive(slot);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isNow
+                            ? const Color(0xFF4F46E5).withOpacity(0.08)
+                            : Colors.grey.withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isNow
+                              ? const Color(0xFF4F46E5).withOpacity(0.3)
+                              : Colors.transparent,
+                        ),
+                      ),
+                      child: Row(
                         children: [
                           Expanded(
-                            child: ListView.separated(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: _students.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
-                              itemBuilder: (context, index) {
-                                final s = _students[index];
-                                final currentStatus = _attendanceMap[s['id']] ?? 'Present';
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                  child: Row(
-                                    children: [
-                                      CircleAvatar(
-                                        backgroundColor: const Color(0xFF4F46E5).withOpacity(0.1),
-                                        child: Text(
-                                          s['full_name'] != null && s['full_name'].isNotEmpty
-                                              ? s['full_name'][0].toUpperCase()
-                                              : 'S',
-                                          style: const TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(s['full_name'] ?? '', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13)),
-                                            Text('Roll No: ${s['student_roll_number'] ?? 'N/A'}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                                          ],
-                                        ),
-                                      ),
-                                      // Status toggles
-                                      Row(
-                                        children: ['Present', 'Absent', 'Late'].map((status) {
-                                          final isSelected = currentStatus == status;
-                                          Color col = Colors.grey;
-                                          if (isSelected) {
-                                            col = status == 'Present'
-                                                ? Colors.green
-                                                : status == 'Absent'
-                                                    ? Colors.redAccent
-                                                    : Colors.orange;
-                                          }
-                                          return Padding(
-                                            padding: const EdgeInsets.only(left: 4.0),
-                                            child: ChoiceChip(
-                                              label: Text(status, style: TextStyle(fontSize: 10, color: isSelected ? Colors.white : currentText)),
-                                              selected: isSelected,
-                                              selectedColor: col,
-                                              backgroundColor: cardBg,
-                                              onSelected: (_) {
-                                                setState(() {
-                                                  _attendanceMap[s['id']] = status;
-                                                });
-                                              },
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ],
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  slot['subject'] ?? 'Subject',
+                                  style: TextStyle(
+                                    color: currentText,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
                                   ),
-                                );
-                              },
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Class: ${slot['classes']?['name'] ?? 'N/A'}',
+                                  style: TextStyle(
+                                    color: currentText.withOpacity(0.6),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.all(16),
-                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
+                              color: isNow ? const Color(0xFF4F46E5) : Colors.grey.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            child: ElevatedButton(
-                              onPressed: _submitting ? null : _submitAttendance,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4F46E5),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: Text(
+                              slot['time_slot'] ?? '',
+                              style: TextStyle(
+                                color: isNow ? Colors.white : currentText,
+                                fontSize: 11,
+                                fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
                               ),
-                              child: _submitting
-                                  ? const CircularProgressIndicator(color: Colors.white)
-                                  : const Text('Save Daily Attendance logs', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ],
                       ),
                     ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildPastHistoryView(Color currentText, Color cardBg) {
+    if (_loadingHistory) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final Map<String, Map<String, dynamic>> grouped = {};
+    for (var row in _historyRecords) {
+      final date = row['date'] ?? '';
+      final classId = row['class_id'] ?? '';
+      final timetableId = row['timetable_id'];
+      final className = row['classes']?['name'] ?? 'Unknown Class';
+      final subject = row['timetable']?['subject'] ?? 'General';
+      final timeSlot = row['timetable']?['time_slot'] ?? 'No Time Slot';
+      
+      final key = "${date}_${timetableId ?? 'general_' + classId}";
+      
+      if (!grouped.containsKey(key)) {
+        grouped[key] = {
+          'date': date,
+          'classId': classId,
+          'className': className,
+          'subject': subject,
+          'timeSlot': timeSlot,
+          'records': <Map<String, dynamic>>[],
+        };
+      }
+      
+      final status = row['status'] ?? 'Absent';
+      final profile = row['profiles'] ?? {};
+      final studentName = profile['full_name'] ?? 'Unknown';
+      final rollNo = profile['student_roll_number'] ?? 'N/A';
+      
+      (grouped[key]!['records'] as List<Map<String, dynamic>>).add({
+        'student_name': studentName,
+        'roll_no': rollNo,
+        'status': status,
+      });
+    }
+
+    var historyGroups = grouped.values.toList();
+
+    // Filter history groups by search query
+    if (_historySearchQuery.isNotEmpty) {
+      final q = _historySearchQuery.toLowerCase();
+      historyGroups = historyGroups.where((g) {
+        final date = (g['date'] ?? '').toString().toLowerCase();
+        final subject = (g['subject'] ?? '').toString().toLowerCase();
+        final className = (g['className'] ?? '').toString().toLowerCase();
+        return date.contains(q) || subject.contains(q) || className.contains(q);
+      }).toList();
+    }
+
+    // Sort: Date descending, and then class name / subject
+    historyGroups.sort((a, b) {
+      int dateCompare = (b['date'] as String).compareTo(a['date'] as String);
+      if (dateCompare != 0) return dateCompare;
+      return (a['className'] as String).compareTo(b['className'] as String);
+    });
+
+    if (historyGroups.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history_toggle_off_outlined, size: 48, color: Colors.grey.withOpacity(0.5)),
+            const SizedBox(height: 12),
+            Text(
+              _historySearchQuery.isNotEmpty
+                  ? 'No matching history records found.'
+                  : 'No past attendance logs found.',
+              style: TextStyle(color: currentText.withOpacity(0.6), fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // History Search Bar
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: TextField(
+            style: TextStyle(color: currentText, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Search history by date, class, or subject...',
+              hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+              prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 18),
+              filled: true,
+              fillColor: cardBg,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.withOpacity(0.15)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: const Color(0xFF4F46E5)),
+              ),
+            ),
+            onChanged: (val) {
+              setState(() {
+                _historySearchQuery = val;
+              });
+            },
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: historyGroups.length,
+            itemBuilder: (context, index) {
+              final group = historyGroups[index];
+              final date = group['date'] ?? '';
+              final className = group['className'] ?? '';
+              final subject = group['subject'] ?? '';
+              final timeSlot = group['timeSlot'] ?? '';
+              final records = group['records'] as List<Map<String, dynamic>>;
+
+              final present = records.where((r) => r['status'] == 'Present').length;
+              final absent = records.where((r) => r['status'] == 'Absent').length;
+              final lateCount = records.where((r) => r['status'] == 'Late').length;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                color: cardBg,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.grey.withOpacity(0.15)),
+                ),
+                child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    title: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$subject • Class $className',
+                                style: TextStyle(
+                                  color: currentText,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '$date • $timeSlot',
+                                style: TextStyle(
+                                  color: currentText.withOpacity(0.6),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Row(
+                        children: [
+                          _buildMiniBadge('Present: $present', Colors.green),
+                          const SizedBox(width: 8),
+                          _buildMiniBadge('Absent: $absent', Colors.redAccent),
+                          if (lateCount > 0) ...[
+                            const SizedBox(width: 8),
+                            _buildMiniBadge('Late: $lateCount', Colors.orange),
+                          ],
+                        ],
+                      ),
+                    ),
+                    children: [
+                      const Divider(height: 1),
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        itemCount: records.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, rIdx) {
+                          final rec = records[rIdx];
+                          final status = rec['status'] ?? 'Absent';
+                          final statusColor = status == 'Present'
+                              ? Colors.green
+                              : status == 'Absent'
+                                  ? Colors.redAccent
+                                  : Colors.orange;
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: statusColor.withOpacity(0.1),
+                                  child: Text(
+                                    rec['student_name'] != null && rec['student_name'].isNotEmpty
+                                        ? rec['student_name'][0].toUpperCase()
+                                        : 'S',
+                                    style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        rec['student_name'] ?? '',
+                                        style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12),
+                                      ),
+                                      Text(
+                                        'Roll No: ${rec['roll_no'] ?? 'N/A'}',
+                                        style: const TextStyle(color: Colors.grey, fontSize: 10),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    status,
+                                    style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMiniBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+
+    if (_loadingClasses || _loadingTimetable) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final activeSlots = _getActiveSlots();
+    final isActivityRunning = activeSlots.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Attendance Manager 📝',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
+            ),
+            IconButton(
+              icon: Icon(Icons.refresh_rounded, color: currentText.withOpacity(0.7)),
+              tooltip: 'Refresh Status',
+              onPressed: () {
+                _loadInitialData();
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        
+        Row(
+          children: [
+            _buildTabButton('Active Logger 🎯', !_showHistory),
+            const SizedBox(width: 12),
+            _buildTabButton('Past History 📜', _showHistory),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        Expanded(
+          child: _showHistory
+              ? _buildPastHistoryView(currentText, cardBg)
+              : !isActivityRunning
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.redAccent.withOpacity(0.25)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.timer_off_outlined, color: Colors.redAccent, size: 24),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'No Timetable Period Active',
+                                      style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Attendance logging is only enabled during your scheduled class periods (+/- 15 minutes).',
+                                      style: TextStyle(color: currentText.withOpacity(0.7), fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          '📅 Your Weekly Schedule',
+                          style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: _buildWeeklyTimetable(currentText, cardBg),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Builder(
+                          builder: (context) {
+                            final activeSlot = activeSlots.firstWhere(
+                              (s) => s['id'] == _selectedSlotId,
+                              orElse: () => activeSlots.first,
+                            );
+
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4F46E5).withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFF4F46E5).withOpacity(0.25)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF4F46E5).withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  )
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.green,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'LIVE CLASS PERIOD DETECTED',
+                                        style: TextStyle(
+                                          color: Color(0xFF4F46E5),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.1,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${activeSlot['subject']} (${activeSlot['time_slot']})',
+                                              style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 16),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Class: ${activeSlot['classes']?['name'] ?? 'N/A'}',
+                                              style: TextStyle(color: currentText.withOpacity(0.7), fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (activeSlots.length > 1)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: cardBg,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                                          ),
+                                          child: DropdownButtonHideUnderline(
+                                            child: DropdownButton<String>(
+                                              dropdownColor: cardBg,
+                                              value: _selectedSlotId,
+                                              items: activeSlots.map((s) {
+                                                return DropdownMenuItem<String>(
+                                                  value: s['id'],
+                                                  child: Text(
+                                                    s['subject'] ?? '',
+                                                    style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.bold),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                              onChanged: (val) {
+                                                if (val != null) {
+                                                  final sel = activeSlots.firstWhere((s) => s['id'] == val);
+                                                  setState(() {
+                                                    _selectedSlotId = val;
+                                                    _selectedClassId = sel['class_id'];
+                                                  });
+                                                  _loadStudents(sel['class_id']!);
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        ),
+                        const SizedBox(height: 16),
+
+                        Builder(
+                          builder: (context) {
+                            final total = _students.length;
+                            final present = _students.where((s) => _attendanceMap[s['id']] == 'Present').length;
+                            final absent = _students.where((s) => _attendanceMap[s['id']] == 'Absent').length;
+                            final lateCount = _students.where((s) => _attendanceMap[s['id']] == 'Late').length;
+
+                            return Row(
+                              children: [
+                                Expanded(child: _buildStatCard('Total', '$total', Colors.blue, cardBg)),
+                                const SizedBox(width: 8),
+                                Expanded(child: _buildStatCard('Present', '$present', Colors.green, cardBg)),
+                                const SizedBox(width: 8),
+                                Expanded(child: _buildStatCard('Absent', '$absent', Colors.redAccent, cardBg)),
+                                const SizedBox(width: 8),
+                                Expanded(child: _buildStatCard('Late', '$lateCount', Colors.orange, cardBg)),
+                              ],
+                            );
+                          }
+                        ),
+                        const SizedBox(height: 16),
+
+                        TextField(
+                          style: TextStyle(color: currentText, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Search student by name or roll number...',
+                            hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+                            prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 18),
+                            filled: true,
+                            fillColor: cardBg,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.withOpacity(0.15)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Color(0xFF4F46E5)),
+                            ),
+                          ),
+                          onChanged: (val) {
+                            setState(() {
+                              _searchQuery = val;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+
+                        Expanded(
+                          child: _loadingStudents
+                              ? const Center(child: CircularProgressIndicator())
+                              : _students.isEmpty
+                                  ? Center(child: Text('No students found in this class.', style: TextStyle(color: currentText)))
+                                  : Container(
+                                      decoration: BoxDecoration(
+                                        color: cardBg,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Expanded(
+                                            child: Builder(
+                                              builder: (context) {
+                                                final filtered = _students.where((s) {
+                                                  final name = (s['full_name'] ?? '').toString().toLowerCase();
+                                                  final roll = (s['student_roll_number'] ?? '').toString().toLowerCase();
+                                                  final q = _searchQuery.toLowerCase();
+                                                  return name.contains(q) || roll.contains(q);
+                                                }).toList();
+
+                                                if (filtered.isEmpty) {
+                                                  return Center(
+                                                    child: Text(
+                                                      'No students match "$_searchQuery"',
+                                                      style: TextStyle(color: currentText.withOpacity(0.6), fontSize: 13),
+                                                    ),
+                                                  );
+                                                }
+
+                                                return ListView.separated(
+                                                  padding: const EdgeInsets.all(16),
+                                                  itemCount: filtered.length,
+                                                  separatorBuilder: (_, __) => const Divider(height: 1),
+                                                  itemBuilder: (context, index) {
+                                                    final s = filtered[index];
+                                                    final currentStatus = _attendanceMap[s['id']] ?? 'Absent';
+                                                    return Padding(
+                                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                                      child: Row(
+                                                        children: [
+                                                          CircleAvatar(
+                                                            backgroundColor: const Color(0xFF4F46E5).withOpacity(0.1),
+                                                            child: Text(
+                                                              s['full_name'] != null && s['full_name'].isNotEmpty
+                                                                  ? s['full_name'][0].toUpperCase()
+                                                                  : 'S',
+                                                              style: const TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 16),
+                                                          Expanded(
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              children: [
+                                                                Text(
+                                                                  s['full_name'] ?? '',
+                                                                  style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13),
+                                                                ),
+                                                                Text(
+                                                                  'Roll No: ${s['student_roll_number'] ?? 'N/A'}',
+                                                                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                          Row(
+                                                            children: ['Present', 'Absent', 'Late'].map((status) {
+                                                              final isSelected = currentStatus == status;
+                                                              Color col = Colors.grey;
+                                                              if (isSelected) {
+                                                                col = status == 'Present'
+                                                                    ? Colors.green
+                                                                    : status == 'Absent'
+                                                                        ? Colors.redAccent
+                                                                        : Colors.orange;
+                                                              }
+                                                              return Padding(
+                                                                padding: const EdgeInsets.only(left: 4.0),
+                                                                child: ChoiceChip(
+                                                                  label: Text(
+                                                                    status,
+                                                                    style: TextStyle(
+                                                                      fontSize: 10,
+                                                                      color: isSelected ? Colors.white : currentText,
+                                                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                                    ),
+                                                                  ),
+                                                                  selected: isSelected,
+                                                                  selectedColor: col,
+                                                                  backgroundColor: cardBg,
+                                                                  onSelected: (_) {
+                                                                    setState(() {
+                                                                      _attendanceMap[s['id']] = status;
+                                                                    });
+                                                                  },
+                                                                ),
+                                                              );
+                                                            }).toList(),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  },
+                                                );
+                                              }
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.all(16),
+                                            width: double.infinity,
+                                            decoration: BoxDecoration(
+                                              border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
+                                            ),
+                                            child: ElevatedButton(
+                                              onPressed: _submitting ? null : _submitAttendance,
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFF4F46E5),
+                                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                              ),
+                                              child: _submitting
+                                                  ? const CircularProgressIndicator(color: Colors.white)
+                                                  : const Text(
+                                                      'Submit Attendance Logs',
+                                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                                    ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                        ),
+                      ],
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, Color color, Color cardBg) {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.15)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: currentText.withOpacity(0.6),
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
