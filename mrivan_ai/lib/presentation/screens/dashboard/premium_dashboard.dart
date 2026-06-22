@@ -40,6 +40,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
         'School CRM',
         'Career & Coach',
         'Performance',
+        'Profile Info',
       ];
     }
     final isPremium = plan.contains('premium');
@@ -49,6 +50,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
         'AI Teacher',
         'Career & Coach',
         'Performance',
+        'Profile Info',
       ];
     }
     return [
@@ -56,7 +58,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
       'AI Teacher',
       'Career & Coach',
       'Performance',
-      'VIP Pass'
+      'Profile Info',
     ];
   }
 
@@ -106,7 +108,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             paymentPlan: widget.paymentPlan,
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              final upgradeIdx = _tabs.indexOf('Profile Info');
               if (upgradeIdx != -1) {
                 setState(() {
                   _currentIndex = upgradeIdx;
@@ -119,7 +121,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             paymentPlan: widget.paymentPlan,
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              final upgradeIdx = _tabs.indexOf('Profile Info');
               if (upgradeIdx != -1) {
                 setState(() {
                   _currentIndex = upgradeIdx;
@@ -139,7 +141,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             requiredPlan: 'Pro Student Plan',
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              final upgradeIdx = _tabs.indexOf('Profile Info');
               if (upgradeIdx != -1) {
                 setState(() {
                   _currentIndex = upgradeIdx;
@@ -156,7 +158,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             requiredPlan: 'Pro Student/Exam Plan',
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              final upgradeIdx = _tabs.indexOf('Profile Info');
               if (upgradeIdx != -1) {
                 setState(() {
                   _currentIndex = upgradeIdx;
@@ -168,8 +170,8 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
               isCampusPlan: plan.contains('campus'),
             ),
           );
-        } else if (tabName == 'VIP Pass') {
-          currentScreen = PricingVipTab(
+        } else if (tabName == 'Profile Info') {
+          currentScreen = ProfileInfoTab(
             paymentPlan: widget.paymentPlan,
             email: widget.email,
             isDarkMode: isDarkMode,
@@ -180,7 +182,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             paymentPlan: widget.paymentPlan,
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('VIP Pass');
+              final upgradeIdx = _tabs.indexOf('Profile Info');
               if (upgradeIdx != -1) {
                 setState(() {
                   _currentIndex = upgradeIdx;
@@ -591,8 +593,8 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
         return Icons.rocket_launch_outlined;
       case 'Performance':
         return Icons.analytics_outlined;
-      case 'VIP Pass':
-        return Icons.workspace_premium_outlined;
+      case 'Profile Info':
+        return Icons.person_outline;
       default:
         return Icons.circle_outlined;
     }
@@ -3939,17 +3941,39 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
 // ==========================================
 // SCREEN 5: VIP PORTAL TAB
 // ==========================================
-class PricingVipTab extends StatelessWidget {
+class ProfileInfoTab extends StatefulWidget {
   final String paymentPlan;
   final String email;
   final bool isDarkMode;
 
-  const PricingVipTab({
+  const ProfileInfoTab({
     super.key,
     required this.paymentPlan,
     required this.email,
     required this.isDarkMode,
   });
+
+  @override
+  State<ProfileInfoTab> createState() => _ProfileInfoTabState();
+}
+
+class _ProfileInfoTabState extends State<ProfileInfoTab> {
+  final SupabaseClient _client = Supabase.instance.client;
+
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _isEditing = false;
+
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _classController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _specializationController = TextEditingController();
+
+  String _role = 'student';
+  String? _schoolName;
 
   static const List<_PricingPlanInfo> _allPlans = [
     _PricingPlanInfo(
@@ -4002,26 +4026,153 @@ class PricingVipTab extends StatelessWidget {
     ),
   ];
 
-  int _getPlanRank(String planName) {
-    final name = planName.toLowerCase();
-    if (name.contains('premium')) return 5;
-    if (name.contains('aspirant') || name.contains('exam')) return 4;
-    if (name.contains('pro')) return 3;
-    if (name.contains('campus')) return 2;
-    if (name.contains('basic')) return 1;
-    return 0; // Free/unknown
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileDetails();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _classController.dispose();
+    _phoneController.dispose();
+    _specializationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadProfileDetails() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        _emailController.text = widget.email;
+        _nameController.text = '';
+        _classController.text = '';
+        _phoneController.text = '';
+        _specializationController.text = '';
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final profile = await _client
+          .from('profiles')
+          .select('full_name, email, class, phone_number, role, teacher_specialization, schools(name)')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (profile != null) {
+        _nameController.text = profile['full_name'] as String? ?? '';
+        _emailController.text = (profile['email'] as String? ?? user.email) ?? widget.email;
+        _classController.text = profile['class'] as String? ?? '';
+        _phoneController.text = profile['phone_number'] as String? ?? '';
+        _role = profile['role'] as String? ?? 'student';
+        _specializationController.text = profile['teacher_specialization'] as String? ?? '';
+
+        if (profile['schools'] != null) {
+          _schoolName = profile['schools']['name'] as String?;
+        }
+      } else {
+        _emailController.text = user.email ?? widget.email;
+        _nameController.text = '';
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading profile: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveProfileDetails() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) throw Exception('No authenticated user');
+
+      final plan = widget.paymentPlan.toLowerCase();
+      final isFree = plan.contains('free');
+
+      if (isFree) {
+        await DatabaseService.instance.updateUserProfile(
+          userId: user.id,
+          email: _emailController.text.trim(),
+        );
+      } else {
+        await DatabaseService.instance.updateUserProfile(
+          userId: user.id,
+          fullName: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          className: _classController.text.trim(),
+          phoneNumber: _phoneController.text.trim(),
+          teacherSpecialization: _role == 'teacher' ? _specializationController.text.trim() : null,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile details updated successfully!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() {
+          _isEditing = false;
+        });
+      }
+
+      await _loadProfileDetails();
+    } catch (e) {
+      if (kDebugMode) print('Error saving profile: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update profile: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentText = isDarkMode ? Colors.white : const Color(0xFF0F172A);
-    final cardBg = isDarkMode ? const Color(0xFF181824) : Colors.white;
-    final borderCol = isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
 
-    final currentRank = _getPlanRank(paymentPlan);
-    final higherPlans = _allPlans.where((plan) {
-      final planRank = _getPlanRank(plan.title);
-      return planRank > currentRank;
+    final plan = widget.paymentPlan.toLowerCase();
+    final isFreePlan = plan.contains('free');
+
+    final otherPlans = _allPlans.where((p) {
+      return p.title.toLowerCase() != plan;
     }).toList();
 
     return SingleChildScrollView(
@@ -4030,14 +4181,198 @@ class PricingVipTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'VIP Pass & Subscription Portal 💎', 
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText)
+            'Profile & Settings 👤',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
           ),
           const SizedBox(height: 8),
-          const Text('Manage your account benefits, access exclusive webinars, and configure external API channels.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          const SizedBox(height: 32),
+          const Text(
+            'Manage your personal details, specialization info, and configure your subscription plan.',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 24),
 
-          // Active Plan Glowing Container
+          // PROFILE CARD
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: borderCol),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(widget.isDarkMode ? 0.2 : 0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                )
+              ]
+            ),
+            child: _isLoading
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: CircularProgressIndicator(color: Color(0xFF4F46E5)),
+                    ),
+                  )
+                : Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Profile Details',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: currentText),
+                            ),
+                            if (!_isEditing)
+                              TextButton.icon(
+                                onPressed: () => setState(() => _isEditing = true),
+                                icon: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF4F46E5)),
+                                label: const Text('Edit Profile', style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold, fontSize: 13)),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Form Fields
+                        if (isFreePlan) ...[
+                          _buildFieldLabel('Email Address', currentText),
+                          _buildTextField(
+                            controller: _emailController,
+                            hint: 'Enter your email address',
+                            enabled: _isEditing,
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) return 'Email is required';
+                              if (!val.contains('@')) return 'Enter a valid email address';
+                              return null;
+                            },
+                            currentText: currentText,
+                            cardBg: cardBg,
+                          ),
+                        ] else ...[
+                          _buildFieldLabel('Full Name', currentText),
+                          _buildTextField(
+                            controller: _nameController,
+                            hint: 'Enter your full name',
+                            enabled: _isEditing,
+                            validator: (val) => (val == null || val.trim().isEmpty) ? 'Full name is required' : null,
+                            currentText: currentText,
+                            cardBg: cardBg,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFieldLabel('Email Address', currentText),
+                          _buildTextField(
+                            controller: _emailController,
+                            hint: 'Enter your email address',
+                            enabled: _isEditing,
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) return 'Email is required';
+                              if (!val.contains('@')) return 'Enter a valid email address';
+                              return null;
+                            },
+                            currentText: currentText,
+                            cardBg: cardBg,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildFieldLabel('Phone Number', currentText),
+                          _buildTextField(
+                            controller: _phoneController,
+                            hint: 'Enter your phone number',
+                            enabled: _isEditing,
+                            currentText: currentText,
+                            cardBg: cardBg,
+                          ),
+                          const SizedBox(height: 16),
+                          if (_role == 'teacher') ...[
+                            _buildFieldLabel('Teacher Specialization', currentText),
+                            _buildTextField(
+                              controller: _specializationController,
+                              hint: 'E.g., Mathematics, Physics',
+                              enabled: _isEditing,
+                              currentText: currentText,
+                              cardBg: cardBg,
+                            ),
+                          ] else ...[
+                            _buildFieldLabel('Class / Grade', currentText),
+                            _buildTextField(
+                              controller: _classController,
+                              hint: 'E.g., 10th Grade',
+                              enabled: _isEditing,
+                              currentText: currentText,
+                              cardBg: cardBg,
+                            ),
+                          ],
+                          if (_schoolName != null && _schoolName!.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            _buildFieldLabel('Registered Institution', currentText),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: widget.isDarkMode ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: borderCol),
+                              ),
+                              child: Text(
+                                _schoolName!,
+                                style: TextStyle(fontSize: 13, color: currentText.withOpacity(0.8), fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ],
+
+                        if (_isEditing) ...[
+                          const SizedBox(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () {
+                                  setState(() => _isEditing = false);
+                                  _loadProfileDetails();
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: currentText,
+                                  side: BorderSide(color: borderCol),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                ),
+                                child: const Text('Cancel', style: TextStyle(fontSize: 13)),
+                              ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                onPressed: _isSaving ? null : _saveProfileDetails,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4F46E5),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                ),
+                                child: _isSaving
+                                    ? const SizedBox(
+                                        height: 16,
+                                        width: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                                      )
+                                    : const Text('Save Changes', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          )
+                        ],
+                      ],
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 36),
+
+          // ACTIVE PLAN GLOWING BOX
+          Text(
+            'Active Plan Membership 💎',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentText),
+          ),
+          const SizedBox(height: 16),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(28),
@@ -4069,91 +4404,102 @@ class PricingVipTab extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
-                        'VIP MEMBERSHIP ACTIVE', 
-                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)
+                        'MEMBERSHIP PORTAL ACTIVE',
+                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
                       ),
                     ),
-                    const Icon(Icons.stars, color: Colors.amber, size: 28),
+                    const Icon(Icons.stars_rounded, color: Colors.amber, size: 28),
                   ],
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  paymentPlan,
+                  widget.paymentPlan,
                   style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.5),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Associated with: $email',
+                  'Associated with: ${widget.email}',
                   style: const TextStyle(fontSize: 13, color: Colors.white70),
                 ),
-                const SizedBox(height: 28),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF4F46E5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text('Manage Billing Options', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                )
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 36),
 
-          if (higherPlans.isNotEmpty) ...[
-            Text('Upgrade Plan Options', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentText)),
-            const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: MediaQuery.of(context).size.width >= 900 ? 3 : (MediaQuery.of(context).size.width >= 600 ? 2 : 1),
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.82,
-              ),
-              itemCount: higherPlans.length,
-              itemBuilder: (context, index) {
-                final plan = higherPlans[index];
-                return _buildPlanUpgradeCard(context, plan, cardBg, currentText, borderCol);
-              },
+          // SWITCH OR UPGRADE PLAN
+          Text(
+            'Switch or Upgrade Plan',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentText),
+          ),
+          const SizedBox(height: 16),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: MediaQuery.of(context).size.width >= 900 ? 3 : (MediaQuery.of(context).size.width >= 600 ? 2 : 1),
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.82,
             ),
-          ] else ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1.5),
-              ),
-              child: Column(
-                children: [
-                  const Icon(Icons.stars_rounded, color: Colors.amber, size: 48),
-                  const SizedBox(height: 16),
-                  Text(
-                    'You are on the Highest Plan! 🎉',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: currentText),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'You currently have access to all Premium AI tools, CBT preparation materials, and advanced teacher features. Thank you for being a premium member!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            itemCount: otherPlans.length,
+            itemBuilder: (context, index) {
+              final planInfo = otherPlans[index];
+              return _buildPlanUpgradeCard(context, planInfo, cardBg, currentText, borderCol);
+            },
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFieldLabel(String label, Color textCol) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: textCol.withOpacity(0.6)),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required bool enabled,
+    String? Function(String?)? validator,
+    required Color currentText,
+    required Color cardBg,
+  }) {
+    final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+    return TextFormField(
+      controller: controller,
+      enabled: enabled,
+      validator: validator,
+      style: TextStyle(fontSize: 13, color: enabled ? currentText : currentText.withOpacity(0.6)),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
+        filled: true,
+        fillColor: enabled 
+            ? (widget.isDarkMode ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.01))
+            : (widget.isDarkMode ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: borderCol),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: borderCol),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: borderCol),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
+        ),
       ),
     );
   }
@@ -4257,8 +4603,8 @@ class PricingVipTab extends StatelessWidget {
                   context: context,
                   builder: (context) => AlertDialog(
                     backgroundColor: bg,
-                    title: Text('Upgrade to ${plan.title}', style: TextStyle(color: textCol, fontSize: 16, fontWeight: FontWeight.bold)),
-                    content: Text('Would you like to upgrade your plan to ${plan.title} for ${plan.price}?', style: TextStyle(color: textCol, fontSize: 13)),
+                    title: Text('Switch to ${plan.title}', style: TextStyle(color: textCol, fontSize: 16, fontWeight: FontWeight.bold)),
+                    content: Text('Would you like to switch your plan to ${plan.title} for ${plan.price}?', style: TextStyle(color: textCol, fontSize: 13)),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
@@ -4291,7 +4637,7 @@ class PricingVipTab extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 elevation: 0,
               ),
-              child: const Text('Upgrade', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+              child: const Text('Select Plan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
             ),
           ),
         ],
