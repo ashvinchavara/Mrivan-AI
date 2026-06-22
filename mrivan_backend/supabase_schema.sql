@@ -221,3 +221,18 @@ EXCEPTION
         RAISE EXCEPTION 'Failed to create campus school: %', SQLERRM;
 END;
 $$;
+
+-- 13. Create Syllabus Table
+CREATE TABLE IF NOT EXISTS public.syllabus (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id UUID REFERENCES public.schools(id) ON DELETE CASCADE,
+    class_id UUID REFERENCES public.classes(id) ON DELETE CASCADE,
+    subject TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    CONSTRAINT syllabus_class_subject_key UNIQUE (class_id, subject)
+);
+
+CREATE INDEX IF NOT EXISTS idx_syllabus_class ON public.syllabus(class_id);
+

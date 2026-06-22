@@ -3454,6 +3454,7 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
   List<Map<String, dynamic>> _notes = [];
   List<Map<String, dynamic>> _submissions = [];
   List<Map<String, dynamic>> _testAttempts = [];
+  List<Map<String, dynamic>> _syllabusList = [];
 
   @override
   void initState() {
@@ -3499,12 +3500,18 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
           .select('score, mock_tests(title, total_marks)')
           .eq('student_id', user.id);
 
+      List<Map<String, dynamic>> syllabusData = [];
+      if (_classId.isNotEmpty) {
+        syllabusData = await DatabaseService.instance.fetchSyllabus(classId: _classId);
+      }
+
       setState(() {
         _attendance = attList;
         _notes = notesList;
         _homeworkList = hwList;
         _submissions = List<Map<String, dynamic>>.from(subList);
         _testAttempts = List<Map<String, dynamic>>.from(attempts);
+        _syllabusList = syllabusData;
         _loading = false;
       });
     } catch (e) {
@@ -3607,7 +3614,7 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
     final attendancePercentage = totalAttendance > 0 ? (presentAttendance / totalAttendance) : 1.0;
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3646,6 +3653,7 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
               Tab(text: 'Homework Hub'),
               Tab(text: 'Marks Scorecard'),
               Tab(text: 'Class Notes'),
+              Tab(text: 'Class Syllabus'),
             ],
           ),
           const SizedBox(height: 20),
@@ -3996,6 +4004,67 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
                                   ),
                                   child: Text(
                                     note['content'] ?? '',
+                                    style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                // 5. Class Syllabus Viewer
+                _syllabusList.isEmpty
+                    ? Center(child: Text('No syllabus guidelines published for your class yet.', style: TextStyle(color: currentText)))
+                    : ListView.builder(
+                        itemCount: _syllabusList.length,
+                        itemBuilder: (context, idx) {
+                          final syllabus = _syllabusList[idx];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        syllabus['subject'] ?? '',
+                                        style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.copy_rounded, color: Colors.grey, size: 16),
+                                      onPressed: () {
+                                        Clipboard.setData(ClipboardData(text: syllabus['content'] ?? ''));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Syllabus content copied to clipboard!'),
+                                            backgroundColor: Color(0xFF4F46E5),
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      },
+                                      tooltip: 'Copy Syllabus',
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    syllabus['content'] ?? '',
                                     style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
                                   ),
                                 ),

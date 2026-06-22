@@ -32,6 +32,7 @@ class _CampusTeacherDashboardState extends State<CampusTeacherDashboard> {
     'Attendance Manager',
     'Homework & Grading',
     'AI Lesson & Notes',
+    'Syllabus Manager',
   ];
 
   Future<void> _handleSignOut() async {
@@ -88,6 +89,12 @@ class _CampusTeacherDashboardState extends State<CampusTeacherDashboard> {
             break;
           case 3:
             currentScreen = TeacherLessonPlannerTab(
+              schoolId: widget.schoolId,
+              isDarkMode: isDarkMode,
+            );
+            break;
+          case 4:
+            currentScreen = TeacherSyllabusTab(
               schoolId: widget.schoolId,
               isDarkMode: isDarkMode,
             );
@@ -223,7 +230,7 @@ class _CampusTeacherDashboardState extends State<CampusTeacherDashboard> {
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              'MR. IVAN AI',
+                              'MRIVAN AI',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -254,7 +261,9 @@ class _CampusTeacherDashboardState extends State<CampusTeacherDashboard> {
                                           ? Icons.fact_check_rounded
                                           : idx == 2
                                               ? Icons.assignment_rounded
-                                              : Icons.menu_book_rounded,
+                                              : idx == 3
+                                                  ? Icons.menu_book_rounded
+                                                  : Icons.format_list_bulleted_rounded,
                                   color: isSelected ? const Color(0xFF4F46E5) : Colors.grey,
                                 ),
                                 title: Text(
@@ -337,11 +346,13 @@ class _CampusTeacherDashboardState extends State<CampusTeacherDashboard> {
                   unselectedItemColor: Colors.grey,
                   currentIndex: _currentIndex,
                   onTap: (idx) => setState(() => _currentIndex = idx),
+                  type: BottomNavigationBarType.fixed,
                   items: [
                     const BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Dashboard'),
                     const BottomNavigationBarItem(icon: Icon(Icons.fact_check_rounded), label: 'Attendance'),
                     const BottomNavigationBarItem(icon: Icon(Icons.assignment_rounded), label: 'Homework'),
                     const BottomNavigationBarItem(icon: Icon(Icons.menu_book_rounded), label: 'AI Notes'),
+                    const BottomNavigationBarItem(icon: Icon(Icons.format_list_bulleted_rounded), label: 'Syllabus'),
                   ],
                 )
               : null,
@@ -1565,3 +1576,333 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
     );
   }
 }
+
+// ----------------------------------------------------
+// Sub-tab 4: Syllabus Manager
+// ----------------------------------------------------
+class TeacherSyllabusTab extends StatefulWidget {
+  final String schoolId;
+  final bool isDarkMode;
+
+  const TeacherSyllabusTab({
+    super.key,
+    required this.schoolId,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<TeacherSyllabusTab> createState() => _TeacherSyllabusTabState();
+}
+
+class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
+  final _subjectController = TextEditingController();
+  final _contentController = TextEditingController();
+
+  List<Map<String, dynamic>> _classes = [];
+  String? _selectedClassId;
+  List<Map<String, dynamic>> _syllabusList = [];
+  bool _loadingClasses = true;
+  bool _loadingSyllabus = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClasses();
+  }
+
+  @override
+  void dispose() {
+    _subjectController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadClasses() async {
+    try {
+      final list = await DatabaseService.instance.fetchClasses(widget.schoolId);
+      setState(() {
+        _classes = list;
+        if (_classes.isNotEmpty) {
+          _selectedClassId = _classes.first['id'];
+          _loadSyllabus();
+        } else {
+          _loadingClasses = false;
+        }
+      });
+    } catch (e) {
+      if (mounted) setState(() => _loadingClasses = false);
+    }
+  }
+
+  Future<void> _loadSyllabus() async {
+    if (_selectedClassId == null) return;
+    setState(() {
+      _loadingSyllabus = true;
+    });
+    try {
+      final list = await DatabaseService.instance.fetchSyllabus(classId: _selectedClassId!);
+      setState(() {
+        _syllabusList = list;
+        _loadingClasses = false;
+        _loadingSyllabus = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingClasses = false;
+          _loadingSyllabus = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveSyllabus() async {
+    final subject = _subjectController.text.trim();
+    final content = _contentController.text.trim();
+    if (subject.isEmpty || content.isEmpty || _selectedClassId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a class and enter both Subject and Syllabus content.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await DatabaseService.instance.saveSyllabus(
+        schoolId: widget.schoolId,
+        classId: _selectedClassId!,
+        subject: subject,
+        content: content,
+      );
+
+      _subjectController.clear();
+      _contentController.clear();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Syllabus saved and published successfully!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      _loadSyllabus();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving syllabus: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+
+    if (_loadingClasses) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Syllabus Manager 📚',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Add or edit class-wise and subject-wise curriculum guidelines.',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+
+          // Editor Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.withOpacity(0.1)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add / Edit Syllabus Entry',
+                  style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text('Target Class: ', style: TextStyle(color: currentText, fontSize: 13)),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          dropdownColor: cardBg,
+                          value: _selectedClassId,
+                          items: _classes.map((c) {
+                            return DropdownMenuItem<String>(
+                              value: c['id'],
+                              child: Text(c['name'] ?? '', style: TextStyle(color: currentText, fontSize: 13)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedClassId = val;
+                              });
+                              _loadSyllabus();
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _subjectController,
+                  style: TextStyle(color: currentText, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Subject Name (e.g. Mathematics, Science)',
+                    labelStyle: TextStyle(color: Colors.grey),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _contentController,
+                  maxLines: 8,
+                  style: TextStyle(color: currentText, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Syllabus Details / Outline (Markdown supported)',
+                    labelStyle: TextStyle(color: Colors.grey),
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _saveSyllabus,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: _saving
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Save & Publish Syllabus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Syllabus List Section
+          Text(
+            'Existing Syllabus Guidelines',
+            style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          _loadingSyllabus
+              ? const Center(child: CircularProgressIndicator())
+              : _syllabusList.isEmpty
+                  ? Container(
+                      padding: const EdgeInsets.all(20),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.withOpacity(0.05)),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'No syllabus entries found for this class.',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _syllabusList.length,
+                      itemBuilder: (context, idx) {
+                        final entry = _syllabusList[idx];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    entry['subject'] ?? '',
+                                    style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  TextButton.icon(
+                                    icon: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF4F46E5)),
+                                    label: const Text('Edit', style: TextStyle(color: Color(0xFF4F46E5), fontSize: 12)),
+                                    onPressed: () {
+                                      setState(() {
+                                        _subjectController.text = entry['subject'] ?? '';
+                                        _contentController.text = entry['content'] ?? '';
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  entry['content'] ?? '',
+                                  style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+        ],
+      ),
+    );
+  }
+}
+

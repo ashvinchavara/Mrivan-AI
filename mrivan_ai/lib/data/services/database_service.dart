@@ -559,4 +559,49 @@ class DatabaseService {
       throw Exception('Failed to fetch class study notes: ${e.toString()}');
     }
   }
+
+  /// Save or update syllabus for a class and subject
+  Future<Map<String, dynamic>> saveSyllabus({
+    required String schoolId,
+    required String classId,
+    required String subject,
+    required String content,
+  }) async {
+    try {
+      final response = await _client
+          .from('syllabus')
+          .upsert({
+            'school_id': schoolId,
+            'class_id': classId,
+            'subject': subject,
+            'content': content,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          }, onConflict: 'class_id,subject')
+          .select()
+          .single();
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in saveSyllabus: $e');
+      }
+      throw Exception('Failed to save syllabus: ${e.toString()}');
+    }
+  }
+
+  /// Fetch all syllabus entries for a given class ID
+  Future<List<Map<String, dynamic>>> fetchSyllabus({required String classId}) async {
+    try {
+      final response = await _client
+          .from('syllabus')
+          .select('id, school_id, class_id, subject, content, created_at, updated_at')
+          .eq('class_id', classId)
+          .order('subject');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in fetchSyllabus: $e');
+      }
+      throw Exception('Failed to fetch syllabus: ${e.toString()}');
+    }
+  }
 }
