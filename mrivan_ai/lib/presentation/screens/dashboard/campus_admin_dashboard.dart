@@ -30,6 +30,7 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
     'Manage Teachers',
     'Manage Students',
     'Manage Classes',
+    'Manage Timetable',
     'Placement Analytics',
     'Campus Reports',
   ];
@@ -93,9 +94,15 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
             );
             break;
           case 4:
-            currentScreen = AdminPlacementTab(isDarkMode: isDarkMode);
+            currentScreen = AdminManageTimetableTab(
+              schoolId: widget.schoolId,
+              isDarkMode: isDarkMode,
+            );
             break;
           case 5:
+            currentScreen = AdminPlacementTab(isDarkMode: isDarkMode);
+            break;
+          case 6:
             currentScreen = AdminReportsTab(isDarkMode: isDarkMode);
             break;
           default:
@@ -241,20 +248,22 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: ListTile(
-                                leading: Icon(
-                                  idx == 0
-                                      ? Icons.space_dashboard_rounded
-                                      : idx == 1
-                                          ? Icons.badge_rounded
-                                          : idx == 2
-                                              ? Icons.groups_rounded
-                                              : idx == 3
-                                                  ? Icons.school_rounded
-                                                  : idx == 4
-                                                      ? Icons.assessment_rounded
-                                                      : Icons.analytics_rounded,
-                                  color: isSelected ? const Color(0xFF155DFC) : Colors.grey,
-                                ),
+                                  leading: Icon(
+                                    idx == 0
+                                        ? Icons.space_dashboard_rounded
+                                        : idx == 1
+                                            ? Icons.badge_rounded
+                                            : idx == 2
+                                                ? Icons.groups_rounded
+                                                : idx == 3
+                                                    ? Icons.school_rounded
+                                                    : idx == 4
+                                                        ? Icons.calendar_month_rounded
+                                                        : idx == 5
+                                                            ? Icons.assessment_rounded
+                                                            : Icons.analytics_rounded,
+                                    color: isSelected ? const Color(0xFF155DFC) : Colors.grey,
+                                  ),
                                 title: Text(
                                   _tabs[idx],
                                   style: TextStyle(
@@ -341,6 +350,7 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
                     const BottomNavigationBarItem(icon: Icon(Icons.badge_rounded), label: 'Teachers'),
                     const BottomNavigationBarItem(icon: Icon(Icons.groups_rounded), label: 'Students'),
                     const BottomNavigationBarItem(icon: Icon(Icons.school_rounded), label: 'Classes'),
+                    const BottomNavigationBarItem(icon: Icon(Icons.calendar_month_rounded), label: 'Timetable'),
                     const BottomNavigationBarItem(icon: Icon(Icons.assessment_rounded), label: 'Placements'),
                     const BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Reports'),
                   ],
@@ -1354,6 +1364,466 @@ class _AdminManageClassesTabState extends State<AdminManageClassesTab> {
                     ),
         ),
       ],
+    );
+  }
+}
+
+class AdminManageTimetableTab extends StatefulWidget {
+  final String schoolId;
+  final bool isDarkMode;
+
+  const AdminManageTimetableTab({
+    super.key,
+    required this.schoolId,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<AdminManageTimetableTab> createState() => _AdminManageTimetableTabState();
+}
+
+class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
+  final _subjectController = TextEditingController();
+  final _timeSlotController = TextEditingController();
+
+  List<Map<String, dynamic>> _timetable = [];
+  List<Map<String, dynamic>> _classes = [];
+  List<Map<String, dynamic>> _teachers = [];
+
+  String? _selectedClassId;
+  String? _selectedTeacherId;
+  String _selectedDay = 'Monday';
+
+  bool _loading = true;
+  bool _saving = false;
+
+  final List<String> _daysOfWeek = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAllData();
+  }
+
+  @override
+  void dispose() {
+    _subjectController.dispose();
+    _timeSlotController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAllData() async {
+    setState(() => _loading = true);
+    try {
+      final classesList = await DatabaseService.instance.fetchClasses(widget.schoolId);
+      final teachersList = await DatabaseService.instance.fetchSchoolTeachers(widget.schoolId);
+      final timetableList = await DatabaseService.instance.fetchTimetable(widget.schoolId);
+
+      setState(() {
+        _classes = classesList;
+        _teachers = teachersList;
+        _timetable = timetableList;
+
+        if (_classes.isNotEmpty) {
+          _selectedClassId = _classes.first['id'];
+        }
+        if (_teachers.isNotEmpty) {
+          _selectedTeacherId = _teachers.first['id'];
+        }
+        _loading = false;
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error loading timetable data: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _saveTimetableEntry() async {
+    final subject = _subjectController.text.trim();
+    final timeSlot = _timeSlotController.text.trim();
+
+    if (_selectedClassId == null || _selectedTeacherId == null || subject.isEmpty || timeSlot.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select class & teacher, and enter subject & time slot.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await DatabaseService.instance.saveTimetableEntry(
+        schoolId: widget.schoolId,
+        classId: _selectedClassId!,
+        teacherId: _selectedTeacherId!,
+        subject: subject,
+        dayOfWeek: _selectedDay,
+        timeSlot: timeSlot,
+      );
+
+      _subjectController.clear();
+      _timeSlotController.clear();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Timetable entry saved successfully!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      // Reload
+      final timetableList = await DatabaseService.instance.fetchTimetable(widget.schoolId);
+      setState(() {
+        _timetable = timetableList;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving entry: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _deleteTimetableEntry(String id) async {
+    try {
+      await DatabaseService.instance.deleteTimetableEntry(id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Timetable entry deleted successfully!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      // Reload
+      final timetableList = await DatabaseService.instance.fetchTimetable(widget.schoolId);
+      setState(() {
+        _timetable = timetableList;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting entry: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Group timetable by day
+    final Map<String, List<Map<String, dynamic>>> groupedTimetable = {};
+    for (final day in _daysOfWeek) {
+      groupedTimetable[day] = _timetable.where((t) => t['day_of_week'] == day).toList();
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Timetable Management 📅',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Upload and configure class schedules, teacher assignments, and period timings.',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+
+          // Input Form Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderCol),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add Timetable Entry',
+                  style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                
+                // Class and Day Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Class', style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: borderCol),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                dropdownColor: cardBg,
+                                value: _selectedClassId,
+                                isExpanded: true,
+                                items: _classes.map((c) {
+                                  return DropdownMenuItem<String>(
+                                    value: c['id'],
+                                    child: Text(c['name'] ?? '', style: TextStyle(color: currentText, fontSize: 13)),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  setState(() => _selectedClassId = val);
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Day of Week', style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: borderCol),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                dropdownColor: cardBg,
+                                value: _selectedDay,
+                                isExpanded: true,
+                                items: _daysOfWeek.map((day) {
+                                  return DropdownMenuItem<String>(
+                                    value: day,
+                                    child: Text(day, style: TextStyle(color: currentText, fontSize: 13)),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) setState(() => _selectedDay = val);
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Teacher Dropdown
+                Text('Teacher', style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: borderCol),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      dropdownColor: cardBg,
+                      value: _selectedTeacherId,
+                      isExpanded: true,
+                      items: _teachers.map((t) {
+                        final name = t['full_name'] ?? 'N/A';
+                        final spec = t['teacher_specialization'] ?? '';
+                        return DropdownMenuItem<String>(
+                          value: t['id'],
+                          child: Text(
+                            spec.isNotEmpty ? '$name ($spec)' : name,
+                            style: TextStyle(color: currentText, fontSize: 13),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() => _selectedTeacherId = val);
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Subject and Time Slot Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _subjectController,
+                        style: TextStyle(color: currentText, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Subject (e.g. Mathematics)',
+                          labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _timeSlotController,
+                        style: TextStyle(color: currentText, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Time Slot (e.g. 09:00 AM - 10:00 AM)',
+                          labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Submit Button
+                ElevatedButton.icon(
+                  onPressed: _saving ? null : _saveTimetableEntry,
+                  icon: _saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.add_rounded, color: Colors.white),
+                  label: const Text('Add to Timetable', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF155DFC),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Timetable List grouping
+          Text(
+            'Weekly Schedule Overview',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: currentText),
+          ),
+          const SizedBox(height: 12),
+
+          ..._daysOfWeek.map((day) {
+            final daySlots = groupedTimetable[day] ?? [];
+            if (daySlots.isEmpty) return const SizedBox.shrink();
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: borderCol),
+              ),
+              child: ExpansionTile(
+                initiallyExpanded: true,
+                title: Text(
+                  day,
+                  style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                children: daySlots.map((slot) {
+                  final cls = slot['classes']?['name'] ?? 'N/A';
+                  final teacher = slot['profiles']?['full_name'] ?? 'N/A';
+                  final subj = slot['subject'] ?? '';
+                  final time = slot['time_slot'] ?? '';
+
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    leading: const Icon(Icons.access_time_rounded, color: Color(0xFF155DFC)),
+                    title: Text(
+                      '$subj (Class: $cls)',
+                      style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    subtitle: Text(
+                      'Timing: $time • Instructor: $teacher',
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: cardBg,
+                            title: Text('Delete Timetable Slot', style: TextStyle(color: currentText, fontWeight: FontWeight.bold)),
+                            content: Text('Are you sure you want to delete this class schedule?', style: TextStyle(color: currentText, fontSize: 13)),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                              ),
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _deleteTimetableEntry(slot['id']);
+                                },
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                child: const Text('Delete', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          }).toList(),
+
+          if (_timetable.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded, size: 48, color: Colors.grey),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No timetable slots configured yet. Add one using the form above!',
+                      style: TextStyle(color: currentText, fontSize: 13),
+                      textAlign: Center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

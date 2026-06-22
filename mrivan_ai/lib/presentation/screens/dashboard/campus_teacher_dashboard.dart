@@ -544,25 +544,71 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
   bool _loadingStudents = false;
   bool _submitting = false;
 
+  List<Map<String, dynamic>> _timetableSlots = [];
+  String? _selectedSlotId; // timetable slot ID
+  bool _loadingTimetable = true;
+  final SupabaseClient _client = Supabase.instance.client;
+
   @override
   void initState() {
     super.initState();
-    _loadClasses();
+    _loadInitialData();
   }
 
-  Future<void> _loadClasses() async {
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _loadingClasses = true;
+      _loadingTimetable = true;
+    });
     try {
+      final user = _client.auth.currentUser;
+      if (user != null) {
+        final slots = await DatabaseService.instance.fetchTeacherTimetable(user.id);
+        setState(() {
+          _timetableSlots = slots;
+        });
+      }
       final data = await DatabaseService.instance.fetchClasses(widget.schoolId);
       setState(() {
         _classes = data;
         if (_classes.isNotEmpty) {
+          if (_timetableSlots.isNotEmpty) {
+            _selectedSlotId = _timetableSlots.first['id'];
+            _selectedClassId = _timetableSlots.first['class_id'];
+          } else {
+            _selectedClassId = _classes.first['id'];
+          }
+          if (_selectedClassId != null) {
+            _loadStudents(_selectedClassId!);
+          }
+        }
+        _loadingClasses = false;
+        _loadingTimetable = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loadingClasses = false;
+        _loadingTimetable = false;
+      });
+    }
+  }
+
+  void _onSlotChanged(String? slotId) {
+    if (slotId == null) {
+      setState(() {
+        _selectedSlotId = null;
+        if (_classes.isNotEmpty) {
           _selectedClassId = _classes.first['id'];
           _loadStudents(_selectedClassId!);
         }
-        _loadingClasses = false;
       });
-    } catch (e) {
-      setState(() => _loadingClasses = false);
+    } else {
+      final slot = _timetableSlots.firstWhere((s) => s['id'] == slotId);
+      setState(() {
+        _selectedSlotId = slotId;
+        _selectedClassId = slot['class_id'];
+        _loadStudents(_selectedClassId!);
+      });
     }
   }
 
@@ -601,6 +647,7 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
         classId: _selectedClassId!,
         date: dateStr,
         records: records,
+        timetableId: _selectedSlotId,
       );
 
       if (mounted) {
@@ -644,36 +691,91 @@ class _TeacherAttendanceTabState extends State<TeacherAttendanceTab> {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
         ),
         const SizedBox(height: 12),
-        Row(
+        Wrap(
+          spacing: 16,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text('Select Class: ', style: TextStyle(color: currentText, fontSize: 13)),
-            const SizedBox(width: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.withOpacity(0.2)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  dropdownColor: cardBg,
-                  value: _selectedClassId,
-                  items: _classes.map((c) {
-                    return DropdownMenuItem<String>(
-                      value: c['id'],
-                      child: Text(c['name'] ?? '', style: TextStyle(color: currentText, fontSize: 13)),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _selectedClassId = val);
-                      _loadStudents(val);
-                    }
-                  },
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Timetable Period: ', style: TextStyle(color: currentText, fontSize: 13)),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      dropdownColor: cardBg,
+                      value: _selectedSlotId,
+                      items: [
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('General / No Timetable Slot', style: TextStyle(color: currentText, fontSize: 13)),
+                        ),
+                        ..._timetableSlots.map((s) {
+                          final day = s['day_of_week'] ?? '';
+                          final subj = s['subject'] ?? '';
+                          final time = s['time_slot'] ?? '';
+                          final cls = s['classes']?['name'] ?? 'N/A';
+                          return DropdownMenuItem<String?>(
+                            value: s['id'],
+                            child: Text('$day • $subj ($time) [$cls]', style: TextStyle(color: currentText, fontSize: 13)),
+                          );
+                        }).toList(),
+                      ],
+                      onChanged: _onSlotChanged,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_selectedSlotId == null)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Select Class: ', style: TextStyle(color: currentText, fontSize: 13)),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        dropdownColor: cardBg,
+                        value: _selectedClassId,
+                        items: _classes.map((c) {
+                          return DropdownMenuItem<String>(
+                            value: c['id'],
+                            child: Text(c['name'] ?? '', style: TextStyle(color: currentText, fontSize: 13)),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _selectedClassId = val);
+                            _loadStudents(val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Chip(
+                backgroundColor: const Color(0xFF155DFC).withOpacity(0.1),
+                label: Text(
+                  'Class: ${_timetableSlots.firstWhere((s) => s['id'] == _selectedSlotId)['classes']?['name'] ?? 'N/A'}',
+                  style: const TextStyle(color: Color(0xFF155DFC), fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 20),

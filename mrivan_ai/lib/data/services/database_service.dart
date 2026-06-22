@@ -118,12 +118,13 @@ class DatabaseService {
     }
   }
 
-  /// Bulk record attendance for a class
+  /// Bulk record attendance for a class (optionally tied to a specific timetable period)
   Future<void> recordAttendanceBulk({
     required String schoolId,
     required String classId,
     required String date,
     required List<Map<String, dynamic>> records,
+    String? timetableId,
   }) async {
     try {
       final rowsToInsert = records.map((record) => {
@@ -132,14 +133,23 @@ class DatabaseService {
         'date': date,
         'school_id': schoolId,
         'class_id': classId,
+        if (timetableId != null) 'timetable_id': timetableId,
       }).toList();
 
-      // Delete existing logs for this class & date to avoid duplicates before inserting
-      await _client
+      // Delete existing logs for this class, date & period to avoid duplicates before inserting
+      var deleteQuery = _client
           .from('attendance')
           .delete()
           .eq('class_id', classId)
           .eq('date', date);
+
+      if (timetableId != null) {
+        deleteQuery = deleteQuery.eq('timetable_id', timetableId);
+      } else {
+        deleteQuery = deleteQuery.filter('timetable_id', 'is', null);
+      }
+
+      await deleteQuery;
 
       await _client.from('attendance').insert(rowsToInsert);
     } catch (e) {
@@ -639,6 +649,85 @@ class DatabaseService {
         print('Error in deleteClass: $e');
       }
       throw Exception('Failed to delete class: ${e.toString()}');
+    }
+  }
+
+  /// Fetch full school timetable
+  Future<List<Map<String, dynamic>>> fetchTimetable(String schoolId) async {
+    try {
+      final response = await _client
+          .from('timetable')
+          .select('id, school_id, class_id, teacher_id, subject, day_of_week, time_slot, classes(name), profiles(full_name)')
+          .eq('school_id', schoolId)
+          .order('day_of_week')
+          .order('time_slot');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in fetchTimetable: $e');
+      }
+      throw Exception('Failed to fetch timetable: ${e.toString()}');
+    }
+  }
+
+  /// Fetch teacher-specific timetable
+  Future<List<Map<String, dynamic>>> fetchTeacherTimetable(String teacherId) async {
+    try {
+      final response = await _client
+          .from('timetable')
+          .select('id, school_id, class_id, teacher_id, subject, day_of_week, time_slot, classes(name)')
+          .eq('teacher_id', teacherId)
+          .order('day_of_week')
+          .order('time_slot');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in fetchTeacherTimetable: $e');
+      }
+      throw Exception('Failed to fetch teacher timetable: ${e.toString()}');
+    }
+  }
+
+  /// Save new timetable entry
+  Future<Map<String, dynamic>> saveTimetableEntry({
+    required String schoolId,
+    required String classId,
+    required String teacherId,
+    required String subject,
+    required String dayOfWeek,
+    required String timeSlot,
+  }) async {
+    try {
+      final response = await _client
+          .from('timetable')
+          .insert({
+            'school_id': schoolId,
+            'class_id': classId,
+            'teacher_id': teacherId,
+            'subject': subject,
+            'day_of_week': dayOfWeek,
+            'time_slot': timeSlot,
+          })
+          .select()
+          .single();
+      return response;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in saveTimetableEntry: $e');
+      }
+      throw Exception('Failed to save timetable entry: ${e.toString()}');
+    }
+  }
+
+  /// Delete timetable entry
+  Future<void> deleteTimetableEntry(String entryId) async {
+    try {
+      await _client.from('timetable').delete().eq('id', entryId);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error in deleteTimetableEntry: $e');
+      }
+      throw Exception('Failed to delete timetable entry: ${e.toString()}');
     }
   }
 }

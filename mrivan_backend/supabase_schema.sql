@@ -236,3 +236,22 @@ CREATE TABLE IF NOT EXISTS public.syllabus (
 
 CREATE INDEX IF NOT EXISTS idx_syllabus_class ON public.syllabus(class_id);
 
+-- 14. Create Timetable Table
+CREATE TABLE IF NOT EXISTS public.timetable (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    school_id UUID REFERENCES public.schools(id) ON DELETE CASCADE,
+    class_id UUID REFERENCES public.classes(id) ON DELETE CASCADE,
+    teacher_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    subject TEXT NOT NULL,
+    day_of_week TEXT NOT NULL,
+    time_slot TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_timetable_class ON public.timetable(class_id);
+CREATE INDEX IF NOT EXISTS idx_timetable_teacher ON public.timetable(teacher_id);
+
+-- Link attendance to timetable period optionally
+ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS timetable_id UUID REFERENCES public.timetable(id) ON DELETE SET NULL;
+
+
