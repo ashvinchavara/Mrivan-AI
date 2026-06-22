@@ -1596,7 +1596,8 @@ class TeacherSyllabusTab extends StatefulWidget {
 
 class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
   final _subjectController = TextEditingController();
-  final _contentController = TextEditingController();
+  final _chapterNameController = TextEditingController();
+  final _topicController = TextEditingController();
 
   List<Map<String, dynamic>> _classes = [];
   String? _selectedClassId;
@@ -1604,6 +1605,11 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
   bool _loadingClasses = true;
   bool _loadingSyllabus = false;
   bool _saving = false;
+
+  // Structured syllabus data
+  List<Map<String, dynamic>> _chapters = [];
+  List<String> _tempTopics = [];
+  int? _editingChapterIndex;
 
   @override
   void initState() {
@@ -1614,7 +1620,8 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
   @override
   void dispose() {
     _subjectController.dispose();
-    _contentController.dispose();
+    _chapterNameController.dispose();
+    _topicController.dispose();
     super.dispose();
   }
 
@@ -1657,13 +1664,68 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
     }
   }
 
+  void _addTopic() {
+    final topic = _topicController.text.trim();
+    if (topic.isEmpty) return;
+    setState(() {
+      if (!_tempTopics.contains(topic)) {
+        _tempTopics.add(topic);
+      }
+      _topicController.clear();
+    });
+  }
+
+  void _commitChapter() {
+    final chName = _chapterNameController.text.trim();
+    if (chName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a Chapter/Lesson Name.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+    if (_tempTopics.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one topic to this chapter.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    setState(() {
+      final newChapter = {
+        'chapter_name': chName,
+        'topics': List<String>.from(_tempTopics),
+      };
+
+      if (_editingChapterIndex != null) {
+        _chapters[_editingChapterIndex!] = newChapter;
+        _editingChapterIndex = null;
+      } else {
+        _chapters.add(newChapter);
+      }
+
+      _chapterNameController.clear();
+      _topicController.clear();
+      _tempTopics.clear();
+    });
+  }
+
   Future<void> _saveSyllabus() async {
     final subject = _subjectController.text.trim();
-    final content = _contentController.text.trim();
-    if (subject.isEmpty || content.isEmpty || _selectedClassId == null) {
+    if (subject.isEmpty || _selectedClassId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a class and enter both Subject and Syllabus content.'),
+          content: Text('Please select a class and enter a Subject Name.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (_chapters.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add at least one chapter/lesson to the syllabus before saving.'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -1673,15 +1735,23 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
 
     setState(() => _saving = true);
     try {
+      final serializedContent = jsonEncode(_chapters);
+
       await DatabaseService.instance.saveSyllabus(
         schoolId: widget.schoolId,
         classId: _selectedClassId!,
         subject: subject,
-        content: content,
+        content: serializedContent,
       );
 
       _subjectController.clear();
-      _contentController.clear();
+      _chapterNameController.clear();
+      _topicController.clear();
+      setState(() {
+        _chapters = [];
+        _tempTopics = [];
+        _editingChapterIndex = null;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1707,10 +1777,91 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
     }
   }
 
+  void _editExistingSyllabus(Map<String, dynamic> entry) {
+    setState(() {
+      _subjectController.text = entry['subject'] ?? '';
+      _chapterNameController.clear();
+      _topicController.clear();
+      _tempTopics.clear();
+      _editingChapterIndex = null;
+
+      final rawContent = entry['content'] ?? '';
+      try {
+        final decoded = jsonDecode(rawContent);
+        if (decoded is List) {
+          _chapters = List<Map<String, dynamic>>.from(
+            decoded.map((x) => Map<String, dynamic>.from(x))
+          );
+        } else {
+          // Fallback for legacy plain text content
+          _chapters = [
+            {
+              'chapter_name': 'General Syllabus Outline',
+              'topics': [rawContent],
+            }
+          ];
+        }
+      } catch (e) {
+        // Fallback for plain text
+        _chapters = [
+          {
+            'chapter_name': 'General Syllabus Outline',
+            'topics': [rawContent],
+          }
+        ];
+      }
+    });
+  }
+
+  Widget _buildSyllabusPreview(String rawContent, Color currentText) {
+    try {
+      final decoded = jsonDecode(rawContent);
+      if (decoded is List) {
+        final chapters = List<Map<String, dynamic>>.from(
+          decoded.map((x) => Map<String, dynamic>.from(x))
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: chapters.map((ch) {
+            final chName = ch['chapter_name'] ?? '';
+            final List topics = ch['topics'] ?? [];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(chName, style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 2),
+                  ...topics.map((t) => Padding(
+                    padding: const EdgeInsets.only(left: 12.0, bottom: 2.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(color: currentText, fontSize: 11)),
+                        Expanded(child: Text(t.toString(), style: const TextStyle(color: Colors.grey, fontSize: 12))),
+                      ],
+                    ),
+                  )),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      }
+    } catch (_) {}
+
+    // Fallback plain text layout
+    return Text(
+      rawContent,
+      style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
     final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
 
     if (_loadingClasses) {
       return const Center(child: CircularProgressIndicator());
@@ -1737,7 +1888,7 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
             decoration: BoxDecoration(
               color: cardBg,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.withOpacity(0.1)),
+              border: Border.all(color: borderCol),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1755,7 +1906,7 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                        border: Border.all(color: borderCol),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
@@ -1786,23 +1937,182 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
                   style: TextStyle(color: currentText, fontSize: 13),
                   decoration: const InputDecoration(
                     labelText: 'Subject Name (e.g. Mathematics, Science)',
-                    labelStyle: TextStyle(color: Colors.grey),
+                    labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 10),
+
+                // Structured Chapter/Lesson form section
+                Text(
+                  _editingChapterIndex != null ? 'Edit Chapter / Lesson' : 'Add Chapter / Lesson',
+                  style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _chapterNameController,
+                  style: TextStyle(color: currentText, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Chapter / Lesson Name (e.g. Chapter 1: Fractions)',
+                    labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
                     border: OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _contentController,
-                  maxLines: 8,
-                  style: TextStyle(color: currentText, fontSize: 13),
-                  decoration: const InputDecoration(
-                    labelText: 'Syllabus Details / Outline (Markdown supported)',
-                    labelStyle: TextStyle(color: Colors.grey),
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _topicController,
+                        style: TextStyle(color: currentText, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Add Topic (e.g. Division of Fractions)',
+                          labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                          border: OutlineInputBorder(),
+                        ),
+                        onSubmitted: (_) => _addTopic(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _addTopic,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4F46E5),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                      child: const Icon(Icons.add, color: Colors.white),
+                    ),
+                  ],
                 ),
+
+                if (_tempTopics.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: _tempTopics.map((top) {
+                      return InputChip(
+                        backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.04),
+                        label: Text(top, style: TextStyle(color: currentText, fontSize: 11)),
+                        onDeleted: () {
+                          setState(() {
+                            _tempTopics.remove(top);
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
                 const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (_editingChapterIndex != null)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _chapterNameController.clear();
+                            _topicController.clear();
+                            _tempTopics.clear();
+                            _editingChapterIndex = null;
+                          });
+                        },
+                        child: const Text('Cancel Edit', style: TextStyle(color: Colors.grey)),
+                      ),
+                    ElevatedButton.icon(
+                      onPressed: _commitChapter,
+                      icon: const Icon(Icons.playlist_add_rounded, size: 18, color: Colors.white),
+                      label: Text(_editingChapterIndex != null ? 'Update Chapter' : 'Add Chapter to Syllabus', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal[600],
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 10),
+
+                // Committed chapters preview list
+                if (_chapters.isNotEmpty) ...[
+                  Text('Syllabus Chapters Added So Far:', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _chapters.length,
+                    itemBuilder: (context, index) {
+                      final ch = _chapters[index];
+                      final List topics = ch['topics'] ?? [];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.01),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: borderCol),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(ch['chapter_name'] ?? '', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12)),
+                                  const SizedBox(height: 4),
+                                  Wrap(
+                                    spacing: 6,
+                                    children: topics.map((t) => Chip(
+                                      visualDensity: VisualDensity.compact,
+                                      backgroundColor: Colors.transparent,
+                                      side: BorderSide(color: borderCol),
+                                      label: Text(t.toString(), style: const TextStyle(fontSize: 10)),
+                                    )).toList(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_rounded, size: 18, color: Colors.blue),
+                                  onPressed: () {
+                                    setState(() {
+                                      _chapterNameController.text = ch['chapter_name'] ?? '';
+                                      _tempTopics = List<String>.from(ch['topics'] ?? []);
+                                      _editingChapterIndex = index;
+                                    });
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                                  onPressed: () {
+                                    setState(() {
+                                      _chapters.removeAt(index);
+                                      if (_editingChapterIndex == index) {
+                                        _editingChapterIndex = null;
+                                        _chapterNameController.clear();
+                                        _tempTopics.clear();
+                                      } else if (_editingChapterIndex != null && _editingChapterIndex! > index) {
+                                        _editingChapterIndex = _editingChapterIndex! - 1;
+                                      }
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -1858,7 +2168,7 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
                           decoration: BoxDecoration(
                             color: cardBg,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                            border: Border.all(color: borderCol),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1873,12 +2183,7 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
                                   TextButton.icon(
                                     icon: const Icon(Icons.edit_rounded, size: 16, color: Color(0xFF4F46E5)),
                                     label: const Text('Edit', style: TextStyle(color: Color(0xFF4F46E5), fontSize: 12)),
-                                    onPressed: () {
-                                      setState(() {
-                                        _subjectController.text = entry['subject'] ?? '';
-                                        _contentController.text = entry['content'] ?? '';
-                                      });
-                                    },
+                                    onPressed: () => _editExistingSyllabus(entry),
                                   ),
                                 ],
                               ),
@@ -1890,10 +2195,7 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
                                   color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Text(
-                                  entry['content'] ?? '',
-                                  style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
-                                ),
+                                child: _buildSyllabusPreview(entry['content'] ?? '', currentText),
                               ),
                             ],
                           ),

@@ -3611,6 +3611,91 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
     );
   }
 
+  String _getFormattedSyllabusText(String rawContent) {
+    try {
+      final decoded = jsonDecode(rawContent);
+      if (decoded is List) {
+        final chapters = List<Map<String, dynamic>>.from(
+          decoded.map((x) => Map<String, dynamic>.from(x))
+        );
+        final buffer = StringBuffer();
+        for (var i = 0; i < chapters.length; i++) {
+          final ch = chapters[i];
+          final chName = ch['chapter_name'] ?? '';
+          final List topics = ch['topics'] ?? [];
+          buffer.writeln(chName);
+          for (final t in topics) {
+            buffer.writeln('• $t');
+          }
+          if (i < chapters.length - 1) {
+            buffer.writeln(); // Blank line between chapters
+          }
+        }
+        return buffer.toString().trim();
+      }
+    } catch (_) {}
+    return rawContent;
+  }
+
+  Widget _buildSyllabusContent(String rawContent, Color currentText) {
+    try {
+      final decoded = jsonDecode(rawContent);
+      if (decoded is List) {
+        final chapters = List<Map<String, dynamic>>.from(
+          decoded.map((x) => Map<String, dynamic>.from(x))
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: chapters.map((ch) {
+            final chName = ch['chapter_name'] ?? '';
+            final List topics = ch['topics'] ?? [];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    chName,
+                    style: TextStyle(
+                      color: currentText,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ...topics.map((t) => Padding(
+                    padding: const EdgeInsets.only(left: 12.0, bottom: 4.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(color: currentText.withOpacity(0.7), fontSize: 11)),
+                        Expanded(
+                          child: Text(
+                            t.toString(),
+                            style: TextStyle(
+                              color: currentText.withOpacity(0.8),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      }
+    } catch (_) {}
+
+    // Fallback plain text layout
+    return Text(
+      rawContent,
+      style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
@@ -4053,7 +4138,8 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
                                     IconButton(
                                       icon: const Icon(Icons.copy_rounded, color: Colors.grey, size: 16),
                                       onPressed: () {
-                                        Clipboard.setData(ClipboardData(text: syllabus['content'] ?? ''));
+                                        final copyText = _getFormattedSyllabusText(syllabus['content'] ?? '');
+                                        Clipboard.setData(ClipboardData(text: copyText));
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           const SnackBar(
                                             content: Text('Syllabus content copied to clipboard!'),
@@ -4074,9 +4160,9 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
                                     color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Text(
+                                  child: _buildSyllabusContent(
                                     syllabus['content'] ?? '',
-                                    style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+                                    currentText,
                                   ),
                                 ),
                               ],
