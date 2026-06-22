@@ -109446,7 +109446,7 @@ n=o.e
 s=6
 return A.m(n.AV("en-US"),$async$pM)
 case 6:s=7
-return A.m(n.B0(0.45),$async$pM)
+return A.m(n.B0(0.55),$async$pM)
 case 7:s=8
 return A.m(n.B1(1),$async$pM)
 case 8:s=9
@@ -110048,7 +110048,7 @@ if(m.c!=null)m.D(new A.aI1(m))
 n=[1]
 s=5
 break}s=7
-return A.m(j.cm("profiles").dT(0,"full_name, email, class, phone_number, role, teacher_specialization, schools(name)").cI("id",l.a).qY(),$async$te)
+return A.m(j.cm("profiles").dT(0,"full_name, email, class, phone_number, role, teacher_specialization, schools!school_id(name)").cI("id",l.a).qY(),$async$te)
 case 7:k=b
 if(k!=null){j=A.bJ(J.X(k,"full_name"))
 if(j==null)j=""
