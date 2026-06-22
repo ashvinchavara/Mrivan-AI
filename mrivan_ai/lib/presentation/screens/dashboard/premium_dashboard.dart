@@ -1087,6 +1087,10 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   final TextEditingController _chatController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  final SpeechToText _speech = SpeechToText();
+  bool _isListening = false;
+  bool _speechEnabled = false;
+
   List<Map<String, dynamic>> _sessions = [];
   String? _selectedSessionId;
   String? _selectedSubject = 'Math';
@@ -1123,6 +1127,86 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     _loadGradeFromProfile();
     _loadSessions();
     _loadDailyLimit();
+    _initSpeech();
+  }
+
+  @override
+  void dispose() {
+    _speech.stop();
+    _chatController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initSpeech() async {
+    try {
+      _speechEnabled = await _speech.initialize(
+        onError: (val) {
+          if (kDebugMode) print('AI Teacher STT Error: $val');
+          if (mounted) {
+            setState(() {
+              _isListening = false;
+            });
+          }
+        },
+        onStatus: (val) {
+          if (kDebugMode) print('AI Teacher STT Status: $val');
+          if (val == 'done' || val == 'notListening') {
+            if (mounted) {
+              setState(() {
+                _isListening = false;
+              });
+            }
+          }
+        },
+      );
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (kDebugMode) print('AI Teacher STT Init Exception: $e');
+    }
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) {
+        setState(() {
+          _isListening = false;
+        });
+      }
+    } else {
+      if (!_speechEnabled) {
+        await _initSpeech();
+      }
+      if (_speechEnabled) {
+        if (mounted) {
+          setState(() {
+            _isListening = true;
+          });
+        }
+        await _speech.listen(
+          onResult: (result) {
+            if (mounted) {
+              setState(() {
+                _chatController.text = result.recognizedWords;
+              });
+            }
+          },
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 4),
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Speech recognition is not available or permission denied.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _loadGradeFromProfile() async {
@@ -1239,6 +1323,13 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   Future<void> _sendMessage() async {
     final text = _chatController.text.trim();
     if (text.isEmpty || _selectedSessionId == null || _isSending) return;
+
+    if (_isListening) {
+      _speech.stop();
+      setState(() {
+        _isListening = false;
+      });
+    }
 
     final isFreePlan = widget.paymentPlan.toLowerCase().contains('free');
     if (isFreePlan && _queriesRemaining <= 0) {
@@ -2212,13 +2303,15 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
+                    } else {
+                      _toggleListening();
                     }
                   },
                   icon: Icon(
-                    Icons.mic,
+                    _isListening ? Icons.stop_circle_rounded : Icons.mic,
                     color: (isFreePlan || widget.paymentPlan.toLowerCase().contains('basic'))
                         ? Colors.grey
-                        : const Color(0xFF00F2FE),
+                        : (_isListening ? const Color(0xFFEF4444) : const Color(0xFF00F2FE)),
                   ),
                   tooltip: 'Speak Voice Input',
                 ),
@@ -2465,18 +2558,19 @@ class _SoundOrbState extends State<SoundOrb> with SingleTickerProviderStateMixin
               ],
             ),
             child: Center(
-            child: widget.state == InterviewState.idle
-                ? Icon(Icons.mic_none_rounded, size: 36, color: Colors.white.withOpacity(0.5))
-                : Text(
-                    widget.state == InterviewState.listening
-                        ? "Listening..."
-                        : widget.state == InterviewState.thinking
-                            ? "Thinking..."
-                            : widget.state == InterviewState.speaking
-                                ? "Speaking..."
-                                : "Connecting...",
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
+              child: widget.state == InterviewState.idle
+                  ? Icon(Icons.mic_none_rounded, size: 36, color: Colors.white.withOpacity(0.5))
+                  : Text(
+                      widget.state == InterviewState.listening
+                          ? "Listening..."
+                          : widget.state == InterviewState.thinking
+                              ? "Thinking..."
+                              : widget.state == InterviewState.speaking
+                                  ? "Speaking..."
+                                  : "Connecting...",
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+            ),
           ),
         );
       },
@@ -2627,7 +2721,7 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
     );
     final url = '$envBackendUrl/api/ai/tutor/chat';
 
-    final http.Response response;
+    http.Response response;
     try {
       response = await http.post(
         Uri.parse(url),

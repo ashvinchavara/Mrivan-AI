@@ -184,6 +184,16 @@ class StudyThemePainter extends CustomPainter {
     if (opacity <= 0.0) return;
 
     final double radius = 26.0;
+    final double blurSigma = (1.0 - opacity) * 16.0;
+    final bool applyBlur = blurSigma > 0.1;
+
+    if (applyBlur) {
+      final Rect bounds = Rect.fromCircle(center: center, radius: radius * 3.5);
+      canvas.saveLayer(
+        bounds,
+        Paint()..imageFilter = ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma, tileMode: TileMode.decal),
+      );
+    }
 
     // 1. Bulb glow
     final Paint glowPaint = Paint()
@@ -277,12 +287,26 @@ class StudyThemePainter extends CustomPainter {
         rayPaint,
       );
     }
+
+    if (applyBlur) {
+      canvas.restore();
+    }
   }
 
   void _drawGraduationCap(Canvas canvas, Offset center, double opacity) {
     if (opacity <= 0.0) return;
 
     final double size = 32.0;
+    final double blurSigma = (1.0 - opacity) * 16.0;
+    final bool applyBlur = blurSigma > 0.1;
+
+    if (applyBlur) {
+      final Rect bounds = Rect.fromCircle(center: center, radius: size * 3.0);
+      canvas.saveLayer(
+        bounds,
+        Paint()..imageFilter = ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma, tileMode: TileMode.decal),
+      );
+    }
 
     // 1. Blue/indigo glow
     final Paint glowPaint = Paint()
@@ -354,6 +378,10 @@ class StudyThemePainter extends CustomPainter {
       ..color = Colors.amber.shade500.withValues(alpha: opacity)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center + Offset(-size * 0.8, size * 0.5), 3.0, brushPaint);
+
+    if (applyBlur) {
+      canvas.restore();
+    }
   }
 
   void _drawFloatingSymbol(Canvas canvas, String symbol, Offset position, double size, double rotation, double themeTransition) {
