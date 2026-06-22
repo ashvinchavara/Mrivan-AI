@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../data/services/database_service.dart';
 import '../auth/payment_screen.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 class PremiumDashboard extends StatefulWidget {
   final String userName;
@@ -2377,6 +2379,111 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
 // ==========================================
 // SCREEN 3: CAREER MENTOR TAB
 // ==========================================
+enum InterviewState {
+  idle,
+  initializing,
+  speaking,
+  listening,
+  thinking
+}
+
+class SoundOrb extends StatefulWidget {
+  final InterviewState state;
+  const SoundOrb({super.key, required this.state});
+
+  @override
+  State<SoundOrb> createState() => _SoundOrbState();
+}
+
+class _SoundOrbState extends State<SoundOrb> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        List<Color> colors;
+        double scale;
+        
+        switch (widget.state) {
+          case InterviewState.idle:
+            colors = [Colors.grey.shade800, Colors.grey.shade900];
+            scale = 1.0;
+            break;
+          case InterviewState.initializing:
+            colors = [const Color(0xFF6C63FF), const Color(0xFF3F37C9)];
+            scale = 1.0 + math.sin(_controller.value * math.pi * 2) * 0.05;
+            break;
+          case InterviewState.speaking:
+            colors = [const Color(0xFF7209B7), const Color(0xFFB5179E)];
+            scale = 1.05 + math.sin(_controller.value * math.pi * 4) * 0.08;
+            break;
+          case InterviewState.listening:
+            colors = [const Color(0xFF4CC9F0), const Color(0xFF4895EF)];
+            scale = 1.1 + math.sin(_controller.value * math.pi * 8) * 0.12;
+            break;
+          case InterviewState.thinking:
+            colors = [const Color(0xFF4895EF), const Color(0xFF560BAD)];
+            scale = 1.0 + math.sin(_controller.value * math.pi * 12) * 0.07;
+            break;
+        }
+
+        return Transform.scale(
+          scale: scale,
+          child: Container(
+            width: 130,
+            height: 130,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: colors,
+                center: Alignment.center,
+                radius: 0.85,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: colors.first.withOpacity(0.4),
+                  blurRadius: widget.state == InterviewState.idle ? 10 : 30,
+                  spreadRadius: widget.state == InterviewState.idle ? 2 : 10,
+                )
+              ],
+            ),
+            child: Center(
+            child: widget.state == InterviewState.idle
+                ? Icon(Icons.mic_none_rounded, size: 36, color: Colors.white.withOpacity(0.5))
+                : Text(
+                    widget.state == InterviewState.listening
+                        ? "Listening..."
+                        : widget.state == InterviewState.thinking
+                            ? "Thinking..."
+                            : widget.state == InterviewState.speaking
+                                ? "Speaking..."
+                                : "Connecting...",
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class CareerCoachTab extends StatefulWidget {
   final bool isDarkMode;
   const CareerCoachTab({super.key, required this.isDarkMode});
@@ -2386,13 +2493,283 @@ class CareerCoachTab extends StatefulWidget {
 }
 
 class _CareerCoachTabState extends State<CareerCoachTab> {
-  bool _isRecording = false;
-  late math.Random _random;
+  final SpeechToText _stt = SpeechToText();
+  final FlutterTts _tts = FlutterTts();
+
+  bool _speechEnabled = false;
+  bool _ttsEnabled = true;
+  bool _useTextFallback = false;
+  String _currentWords = '';
+  String? _currentSessionId;
+
+  // Simulator config
+  String _selectedRole = 'Software Engineer';
+  final List<String> _roles = [
+    'Software Engineer',
+    'Data Scientist',
+    'Product Manager',
+    'Marketing Specialist',
+    'HR Recruiter',
+    'Financial Analyst',
+  ];
+  final TextEditingController _customRoleController = TextEditingController();
+
+  InterviewState _interviewState = InterviewState.idle;
+
+  // Chat log transcript
+  List<Map<String, String>> _interviewLog = [];
+
+  final TextEditingController _textController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _random = math.Random();
+    _initSpeech();
+    _initTts();
+  }
+
+  @override
+  void dispose() {
+    _stt.stop();
+    _tts.stop();
+    _textController.dispose();
+    _customRoleController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initSpeech() async {
+    try {
+      _speechEnabled = await _stt.initialize(
+        onError: (val) {
+          if (kDebugMode) print('STT Error: $val');
+          if (mounted) {
+            setState(() {
+              _speechEnabled = false;
+              _useTextFallback = true;
+            });
+          }
+        },
+        onStatus: (val) {
+          if (kDebugMode) print('STT Status: $val');
+          if (val == 'done' || val == 'notListening') {
+            if (_interviewState == InterviewState.listening && _currentWords.isNotEmpty) {
+              _sendAnswer(_currentWords);
+            }
+          }
+        },
+      );
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (kDebugMode) print('STT Init Exception: $e');
+    }
+  }
+
+  Future<void> _initTts() async {
+    try {
+      await _tts.setLanguage("en-US");
+      await _tts.setSpeechRate(0.45);
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+
+      _tts.setCompletionHandler(() {
+        if (_interviewState == InterviewState.speaking) {
+          _startListening();
+        }
+      });
+    } catch (e) {
+      if (kDebugMode) print('TTS Init Exception: $e');
+    }
+  }
+
+  Future<void> _speak(String text) async {
+    if (!_ttsEnabled) {
+      _startListening();
+      return;
+    }
+    setState(() {
+      _interviewState = InterviewState.speaking;
+    });
+    final cleanText = text.replaceAll(RegExp(r'[\*\#\_]'), '');
+    await _tts.speak(cleanText);
+  }
+
+  Future<void> _startListening() async {
+    if (!_speechEnabled || _useTextFallback) {
+      setState(() {
+        _interviewState = InterviewState.idle;
+      });
+      return;
+    }
+
+    setState(() {
+      _interviewState = InterviewState.listening;
+      _currentWords = '';
+    });
+
+    await _stt.listen(
+      onResult: (result) {
+        setState(() {
+          _currentWords = result.recognizedWords;
+        });
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 4),
+    );
+  }
+
+  Future<String> _callInterviewApi(String message, String sessionId) async {
+    final jwtToken = Supabase.instance.client.auth.currentSession?.accessToken;
+    const envBackendUrl = String.fromEnvironment(
+      'BACKEND_API_URL',
+      defaultValue: 'https://mrivan-ai.onrender.com',
+    );
+    final url = '$envBackendUrl/api/ai/tutor/chat';
+
+    final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+        body: jsonEncode({
+          'message': message,
+          'sessionId': sessionId,
+          'subject': 'Career',
+          'gradeLevel': 'Mock Interview',
+          'switchAi': false,
+        }),
+      ).timeout(const Duration(seconds: 15));
+    } catch (e) {
+      response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+        body: jsonEncode({
+          'message': message,
+          'sessionId': sessionId,
+          'subject': 'Career',
+          'gradeLevel': 'Mock Interview',
+          'switchAi': true,
+        }),
+      ).timeout(const Duration(seconds: 15));
+    }
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['response']?.toString() ?? 'Could not parse interviewer response';
+    } else {
+      throw Exception('Server error: ${response.statusCode}');
+    }
+  }
+
+  Future<void> _startInterview() async {
+    setState(() {
+      _interviewState = InterviewState.initializing;
+      _interviewLog = [];
+      _currentWords = '';
+    });
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) throw Exception("User not authenticated");
+
+      final role = _selectedRole == 'Other' ? _customRoleController.text.trim() : _selectedRole;
+      if (role.isEmpty) throw Exception("Please enter a target role");
+
+      final session = await DatabaseService.instance.createAIChatSession(
+        user.id,
+        "Mock Interview: $role",
+        "Career",
+      );
+
+      _currentSessionId = session['id']?.toString();
+      if (_currentSessionId == null) throw Exception("Failed to generate chat session");
+
+      String systemMessage = "CONTEXT: Act as a friendly and professional mock interviewer for the role of '$role'. Ask only one question at a time. Do not write everything at once. Respond to the user's answers and ask relevant follow-up questions. Keep your questions under 30 words so they are clear when spoken. Let's start! Say hello and ask the first question.";
+
+      setState(() {
+        _interviewState = InterviewState.thinking;
+      });
+
+      final responseText = await _callInterviewApi(systemMessage, _currentSessionId!);
+
+      setState(() {
+        _interviewLog.add({'role': 'ai', 'content': responseText});
+        _interviewState = InterviewState.speaking;
+      });
+
+      await _speak(responseText);
+    } catch (e) {
+      setState(() {
+        _interviewState = InterviewState.idle;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to start simulator: $e"),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _sendAnswer(String answerText) async {
+    if (answerText.trim().isEmpty || _currentSessionId == null) return;
+
+    await _stt.stop();
+    await _tts.stop();
+
+    setState(() {
+      _interviewLog.add({'role': 'user', 'content': answerText});
+      _interviewState = InterviewState.thinking;
+      _currentWords = '';
+    });
+
+    try {
+      final responseText = await _callInterviewApi(answerText, _currentSessionId!);
+
+      setState(() {
+        _interviewLog.add({'role': 'ai', 'content': responseText});
+        _interviewState = InterviewState.speaking;
+      });
+
+      await _speak(responseText);
+    } catch (e) {
+      setState(() {
+        _interviewState = InterviewState.idle;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to get response: $e"),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
@@ -2420,7 +2797,6 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // COL 1: Coach Audio Wave Simulator
               Expanded(
                 flex: 4,
                 child: Column(
@@ -2436,66 +2812,247 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Active Mock Interview Simulation', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: currentText)),
+                            Text(
+                              'Gemini Live AI Mock Interview',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: currentText),
+                            ),
                             const SizedBox(height: 6),
-                            const Text('Target Role: Senior Full Stack Engineer (Fintech API Focus)', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                            const SizedBox(height: 32),
-
-                            // Pulsing Wave Animation Container
-                            Container(
-                              height: 120,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF111116),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.white.withOpacity(0.04)),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: List.generate(24, (index) {
-                                  double waveHeight = _isRecording 
-                                      ? (15.0 + _random.nextDouble() * 85.0) 
-                                      : (5.0 + math.sin(index * 0.5).abs() * 15.0);
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 150),
-                                    margin: const EdgeInsets.symmetric(horizontal: 2.5),
-                                    width: 4,
-                                    height: waveHeight,
-                                    decoration: BoxDecoration(
-                                      color: _isRecording ? const Color(0xFF00F2FE) : const Color(0xFF6C63FF).withOpacity(0.5),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  );
-                                }),
-                              ),
+                            Text(
+                              _interviewState == InterviewState.idle 
+                                  ? 'Prepare and practice vocal simulation drills for your target career role.' 
+                                  : 'Session Active: ${_selectedRole == "Other" ? _customRoleController.text : _selectedRole}',
+                              style: const TextStyle(color: Colors.grey, fontSize: 11),
                             ),
                             const SizedBox(height: 24),
 
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      _isRecording = !_isRecording;
-                                    });
-                                  },
-                                  icon: Icon(
-                                    _isRecording ? Icons.stop_circle : Icons.mic,
-                                    color: Colors.white,
+                            if (_interviewState == InterviewState.idle) ...[
+                              Text('Select Target Role', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13)),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: borderCol),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    dropdownColor: cardBg,
+                                    isExpanded: true,
+                                    value: _selectedRole,
+                                    items: [
+                                      ..._roles.map((r) => DropdownMenuItem(value: r, child: Text(r, style: TextStyle(color: currentText, fontSize: 13)))),
+                                      DropdownMenuItem(value: 'Other', child: Text('Other / Custom Role', style: TextStyle(color: currentText, fontSize: 13))),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setState(() {
+                                          _selectedRole = val;
+                                        });
+                                      }
+                                    },
                                   ),
-                                  label: Text(
-                                    _isRecording ? 'COMPLETE ANSWER' : 'START VC RESPONSE',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _isRecording ? Colors.redAccent : const Color(0xFF4F46E5),
-                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                              if (_selectedRole == 'Other') ...[
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _customRoleController,
+                                  style: TextStyle(color: currentText, fontSize: 13),
+                                  decoration: InputDecoration(
+                                    labelText: 'Custom Target Role',
+                                    labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                                    focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF4F46E5))),
                                   ),
                                 ),
                               ],
-                            ),
+                              const SizedBox(height: 24),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _startInterview,
+                                  icon: const Icon(Icons.play_circle_fill, color: Colors.white),
+                                  label: const Text('START LIVE SIMULATION', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF4F46E5),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                ),
+                              ),
+                            ] else ...[
+                              Center(
+                                child: Column(
+                                  children: [
+                                    SoundOrb(state: _interviewState),
+                                    const SizedBox(height: 20),
+                                    Text(
+                                      _interviewState == InterviewState.listening
+                                          ? 'Mic listening... speak now'
+                                          : _interviewState == InterviewState.speaking
+                                              ? 'Interviewer is speaking...'
+                                              : _interviewState == InterviewState.thinking
+                                                  ? 'AI is analyzing response...'
+                                                  : 'Connecting...',
+                                      style: TextStyle(color: currentText, fontWeight: FontWeight.w500, fontSize: 13),
+                                    ),
+                                    if (_interviewState == InterviewState.listening && _currentWords.isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          '"$_currentWords"',
+                                          style: const TextStyle(color: Colors.grey, fontSize: 11, fontStyle: FontStyle.italic),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 24),
+
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        IconButton(
+                                          icon: Icon(
+                                            _ttsEnabled ? Icons.volume_up : Icons.volume_off,
+                                            color: _ttsEnabled ? const Color(0xFF4F46E5) : Colors.grey,
+                                          ),
+                                          tooltip: _ttsEnabled ? 'Mute AI Voice' : 'Unmute AI Voice',
+                                          onPressed: () {
+                                            setState(() {
+                                              _ttsEnabled = !_ttsEnabled;
+                                            });
+                                          },
+                                        ),
+                                        const SizedBox(width: 16),
+                                        IconButton(
+                                          icon: Icon(
+                                            _useTextFallback ? Icons.keyboard : Icons.keyboard_voice,
+                                            color: _useTextFallback ? const Color(0xFF4F46E5) : Colors.grey,
+                                          ),
+                                          tooltip: _useTextFallback ? 'Switch to Voice Input' : 'Switch to Text Input',
+                                          onPressed: () {
+                                            setState(() {
+                                              _useTextFallback = !_useTextFallback;
+                                              if (_useTextFallback) {
+                                                _stt.stop();
+                                              } else {
+                                                _startListening();
+                                              }
+                                            });
+                                          },
+                                        ),
+                                        const SizedBox(width: 16),
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            _tts.stop();
+                                            _stt.stop();
+                                            setState(() {
+                                              _interviewState = InterviewState.idle;
+                                              _currentSessionId = null;
+                                            });
+                                          },
+                                          icon: const Icon(Icons.stop, color: Colors.white, size: 16),
+                                          label: const Text('END', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.redAccent,
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    if (_useTextFallback && _interviewState == InterviewState.listening) ...[
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _textController,
+                                              style: TextStyle(color: currentText, fontSize: 13),
+                                              decoration: InputDecoration(
+                                                hintText: 'Type your answer here...',
+                                                hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                                                filled: true,
+                                                fillColor: widget.isDarkMode ? const Color(0xFF111116) : Colors.grey.withOpacity(0.04),
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                                enabledBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  borderSide: BorderSide(color: borderCol),
+                                                ),
+                                                focusedBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  borderSide: const BorderSide(color: Color(0xFF4F46E5)),
+                                                ),
+                                              ),
+                                              onSubmitted: (val) {
+                                                if (val.trim().isNotEmpty) {
+                                                  _sendAnswer(val);
+                                                  _textController.clear();
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: const Icon(Icons.send, color: Color(0xFF4F46E5)),
+                                            onPressed: () {
+                                              final val = _textController.text;
+                                              if (val.trim().isNotEmpty) {
+                                                _sendAnswer(val);
+                                                _textController.clear();
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              
+                              if (_interviewLog.isNotEmpty) ...[
+                                const SizedBox(height: 24),
+                                Text('Transcript History', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13)),
+                                const SizedBox(height: 8),
+                                Container(
+                                  height: 150,
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: widget.isDarkMode ? const Color(0xFF111116) : Colors.grey.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: borderCol),
+                                  ),
+                                  child: ListView.builder(
+                                    controller: _scrollController,
+                                    itemCount: _interviewLog.length,
+                                    itemBuilder: (context, idx) {
+                                      final msg = _interviewLog[idx];
+                                      final isAi = msg['role'] == 'ai';
+                                      _scrollToBottom();
+
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 8.0),
+                                        child: Text(
+                                          isAi ? 'Interviewer: ${msg['content']}' : 'You: ${msg['content']}',
+                                          style: TextStyle(
+                                            color: isAi ? const Color(0xFF4F46E5) : currentText.withOpacity(0.8),
+                                            fontSize: 11,
+                                            fontWeight: isAi ? FontWeight.bold : FontWeight.normal,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ],
                           ],
                         ),
                       ),
