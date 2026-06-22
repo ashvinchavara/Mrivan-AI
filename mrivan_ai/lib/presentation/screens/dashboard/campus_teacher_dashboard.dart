@@ -1767,11 +1767,20 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
   }
 
   void _addTopic() {
-    final topic = _topicController.text.trim();
-    if (topic.isEmpty) return;
+    final rawText = _topicController.text;
+    if (rawText.trim().isEmpty) return;
+
+    final topics = rawText
+        .split('\n')
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+
     setState(() {
-      if (!_tempTopics.contains(topic)) {
-        _tempTopics.add(topic);
+      for (final t in topics) {
+        if (!_tempTopics.contains(t)) {
+          _tempTopics.add(t);
+        }
       }
       _topicController.clear();
     });
