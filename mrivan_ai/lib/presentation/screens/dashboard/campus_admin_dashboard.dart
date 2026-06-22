@@ -1816,7 +1816,7 @@ class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
                     Text(
                       'No timetable slots configured yet. Add one using the form above!',
                       style: TextStyle(color: currentText, fontSize: 13),
-                      textAlign: Center,
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),

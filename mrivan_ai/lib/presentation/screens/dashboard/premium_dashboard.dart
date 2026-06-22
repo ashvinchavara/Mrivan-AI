@@ -3084,7 +3084,7 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                side: Border.all(color: borderCol),
+                                side: BorderSide(color: borderCol),
                               ),
                               child: ExpansionTile(
                                 leading: Icon(
