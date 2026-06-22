@@ -3667,6 +3667,8 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
                       children: _tempTopics.map((t) {
                         return InputChip(
                           backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.04),
+                          deleteIconColor: widget.isDarkMode ? Colors.white70 : Colors.black54,
+                          side: BorderSide(color: widget.isDarkMode ? Colors.white12 : Colors.black12),
                           label: Text(t, style: TextStyle(color: currentText, fontSize: 11)),
                           onDeleted: () {
                             setState(() {

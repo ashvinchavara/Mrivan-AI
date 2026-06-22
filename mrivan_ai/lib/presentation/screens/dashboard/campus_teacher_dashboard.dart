@@ -2900,6 +2900,8 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
                     children: _tempTopics.map((top) {
                       return InputChip(
                         backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.04),
+                        deleteIconColor: widget.isDarkMode ? Colors.white70 : Colors.black54,
+                        side: BorderSide(color: widget.isDarkMode ? Colors.white12 : Colors.black12),
                         label: Text(top, style: TextStyle(color: currentText, fontSize: 11)),
                         onDeleted: () {
                           setState(() {
@@ -2975,7 +2977,7 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
                                       visualDensity: VisualDensity.compact,
                                       backgroundColor: Colors.transparent,
                                       side: BorderSide(color: borderCol),
-                                      label: Text(t.toString(), style: const TextStyle(fontSize: 10)),
+                                      label: Text(t.toString(), style: TextStyle(color: currentText, fontSize: 10)),
                                     )).toList(),
                                   ),
                                 ],

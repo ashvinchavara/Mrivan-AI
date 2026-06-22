@@ -908,6 +908,7 @@ class _LandingPageScreenState extends State<LandingPageScreen>
       children: List.generate(clusters.length, (index) {
         final cluster = clusters[index];
         final isSelected = index == _selectedFeatureCluster;
+        final isBrightColor = cluster.color.computeLuminance() > 0.5;
         return ChoiceChip(
           selected: isSelected,
           showCheckmark: false,
@@ -915,7 +916,7 @@ class _LandingPageScreenState extends State<LandingPageScreen>
             cluster.icon,
             size: 18,
             color: isSelected
-                ? Colors.white
+                ? (isBrightColor ? _ink : Colors.white)
                 : (isDarkMode ? Colors.white70 : _ink.withValues(alpha: 0.65)),
           ),
           label: Text(cluster.title),
@@ -926,7 +927,7 @@ class _LandingPageScreenState extends State<LandingPageScreen>
               : Colors.white.withValues(alpha: 0.72),
           labelStyle: TextStyle(
             color: isSelected
-                ? Colors.white
+                ? (isBrightColor ? _ink : Colors.white)
                 : (isDarkMode ? Colors.white70 : _ink.withValues(alpha: 0.72)),
             fontWeight: FontWeight.w700,
           ),
