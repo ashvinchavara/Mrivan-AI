@@ -2665,7 +2665,7 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
   Future<void> _initTts() async {
     try {
       await _tts.setLanguage("en-US");
-      await _tts.setSpeechRate(0.45);
+      await _tts.setSpeechRate(0.55);
       await _tts.setVolume(1.0);
       await _tts.setPitch(1.0);
 
