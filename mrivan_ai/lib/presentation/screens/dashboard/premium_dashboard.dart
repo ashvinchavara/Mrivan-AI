@@ -12,6 +12,8 @@ import '../auth/payment_screen.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../student/quiz/mock_tests_list_screen.dart';
+import '../student/quiz/combined_quiz_screen.dart';
+import '../student/study_notes_view_screen.dart';
 import 'package:file_picker/file_picker.dart';
 
 class PremiumDashboard extends StatefulWidget {
@@ -57,83 +59,192 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
         final isDark = isDarkModeNotifier.value;
         final bg = isDark ? const Color(0xFF1E1E28) : Colors.white;
         final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
-        
-        return Container(
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+        String activeTopic = topic;
+        String activeSubject = subject.isNotEmpty ? subject : 'Computer Science';
+
+        final textController = TextEditingController(text: topic);
+
+        return StatefulBuilder(
+          builder: (bottomSheetContext, setModalState) {
+            final hasSyllabus = topic.isNotEmpty;
+
+            return Container(
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                top: 24,
+                left: 24,
+                right: 24,
+                bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      topic,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: textCol,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          hasSyllabus ? activeTopic : 'AI Study Assistant 🚀',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: textCol,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        color: Colors.grey,
+                        onPressed: () => Navigator.pop(bottomSheetContext),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    hasSyllabus
+                        ? 'Select an AI action for this topic in $activeSubject'
+                        : 'No syllabus guidelines attached. Enter a study topic below:',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (!hasSyllabus) ...[
+                    // Custom Topic Input Field
+                    TextField(
+                      controller: textController,
+                      style: TextStyle(color: textCol, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Topic Name (e.g. Memory Management)',
+                        labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                      onChanged: (val) {
+                        activeTopic = val;
+                      },
                     ),
+                    const SizedBox(height: 16),
+
+                    // Subject Selector
+                    Text(
+                      'Select Subject',
+                      style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ['Math', 'Physics', 'Chemistry', 'Biology', 'Computer Science'].map((sub) {
+                        final isSelected = activeSubject == sub;
+                        return ChoiceChip(
+                          label: Text(sub, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : textCol)),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFF4F46E5),
+                          backgroundColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                          onSelected: (selected) {
+                            if (selected) {
+                              setModalState(() {
+                                activeSubject = sub;
+                              });
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // AI Action Options
+                  _buildAiActionTile(
+                    context: bottomSheetContext,
+                    title: 'AI Generated Notes',
+                    subtitle: 'Get complete conceptual explanations and key takeaways.',
+                    icon: Icons.menu_book_rounded,
+                    color: const Color(0xFF4F46E5),
+                    onTap: () {
+                      if (activeTopic.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please enter a topic to generate notes.'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(bottomSheetContext);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => StudyNotesViewScreen(
+                            topic: activeTopic,
+                            subject: activeSubject,
+                            isDarkMode: isDark,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    color: Colors.grey,
-                    onPressed: () => Navigator.pop(bottomSheetContext),
+                  const SizedBox(height: 12),
+                  _buildAiActionTile(
+                    context: bottomSheetContext,
+                    title: 'Sample Questions',
+                    subtitle: 'Practice with standard, detailed questions and step-by-step answers.',
+                    icon: Icons.question_answer_rounded,
+                    color: Colors.teal,
+                    onTap: () {
+                      if (activeTopic.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please enter a topic to start quiz.'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(bottomSheetContext);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CombinedQuizScreen(
+                            topic: activeTopic,
+                            subject: activeSubject,
+                            isDarkMode: isDark,
+                          ),
+                        ),
+                      );
+                    },
                   ),
+                  const SizedBox(height: 12),
+                  _buildAiActionTile(
+                    context: bottomSheetContext,
+                    title: 'Mock Test',
+                    subtitle: 'Generate a practice test to gauge your current conceptual mastery.',
+                    icon: Icons.quiz_rounded,
+                    color: Colors.pink,
+                    onTap: () {
+                      Navigator.pop(bottomSheetContext);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MockTestsListScreen(
+                            isDarkMode: isDark,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Select an AI action for this topic in $subject',
-                style: const TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-              const SizedBox(height: 20),
-              _buildAiActionTile(
-                context: bottomSheetContext,
-                title: 'AI Generated Notes',
-                subtitle: 'Get complete conceptual explanations and key takeaways.',
-                icon: Icons.menu_book_rounded,
-                color: const Color(0xFF4F46E5),
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  _navigateToTutor(topic, 'AI Generated Notes', subject);
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildAiActionTile(
-                context: bottomSheetContext,
-                title: 'Sample Questions',
-                subtitle: 'Practice with standard, detailed questions and step-by-step answers.',
-                icon: Icons.question_answer_rounded,
-                color: Colors.teal,
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  _navigateToTutor(topic, 'Sample Questions', subject);
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildAiActionTile(
-                context: bottomSheetContext,
-                title: 'Mock Test',
-                subtitle: 'Generate a practice test to gauge your current conceptual mastery.',
-                icon: Icons.quiz_rounded,
-                color: Colors.pink,
-                onTap: () {
-                  Navigator.pop(bottomSheetContext);
-                  _navigateToTutor(topic, 'Mock Test', subject);
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -7025,7 +7136,34 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
                       ),
                 // 5. Class Syllabus Viewer
                 _syllabusList.isEmpty
-                    ? Center(child: Text('No syllabus guidelines published for your class yet.', style: TextStyle(color: currentText)))
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'No syllabus guidelines published for your class yet.',
+                                style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  _showTopicAiActions(context, '', 'Computer Science');
+                                },
+                                icon: const Icon(Icons.auto_awesome, size: 16),
+                                label: const Text('Study Custom Topic with AI'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4F46E5),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
                     : ListView.builder(
                         itemCount: _syllabusList.length,
                         itemBuilder: (context, idx) {

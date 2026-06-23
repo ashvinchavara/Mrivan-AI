@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'quiz_play_screen.dart';
+import 'combined_quiz_screen.dart';
 
 class MockTestsListScreen extends StatefulWidget {
   final bool isDarkMode;
@@ -297,7 +297,7 @@ class _MockTestsListScreenState extends State<MockTestsListScreen> {
                                                 Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
-                                                    builder: (context) => QuizPlayScreen(
+                                                    builder: (context) => CombinedQuizScreen(
                                                       testId: test['id'],
                                                       testTitle: title,
                                                       isDarkMode: widget.isDarkMode,
