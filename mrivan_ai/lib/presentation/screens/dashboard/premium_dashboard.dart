@@ -7150,7 +7150,7 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
                               const SizedBox(height: 16),
                               ElevatedButton.icon(
                                 onPressed: () {
-                                  _showTopicAiActions(context, '', 'Computer Science');
+                                  widget.onTopicTap?.call('', 'Computer Science');
                                 },
                                 icon: const Icon(Icons.auto_awesome, size: 16),
                                 label: const Text('Study Custom Topic with AI'),
