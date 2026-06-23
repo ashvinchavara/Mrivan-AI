@@ -11,6 +11,8 @@ import '../../../data/services/database_service.dart';
 import '../auth/payment_screen.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../student/quiz/mock_tests_list_screen.dart';
+import 'package:file_picker/file_picker.dart';
 
 class PremiumDashboard extends StatefulWidget {
   final String userName;
@@ -30,6 +32,176 @@ class PremiumDashboard extends StatefulWidget {
 
 class _PremiumDashboardState extends State<PremiumDashboard> {
   int _currentIndex = 0;
+  String? _initialTutorTopic;
+  String? _initialTutorMode;
+  String? _initialTutorSubject;
+
+  void _navigateToTutor(String topic, String mode, String subject) {
+    final aiTutorIdx = _tabs.indexOf('AI Teacher');
+    if (aiTutorIdx != -1) {
+      setState(() {
+        _initialTutorTopic = topic;
+        _initialTutorMode = mode;
+        _initialTutorSubject = subject;
+        _currentIndex = aiTutorIdx;
+      });
+    }
+  }
+
+  void _showTopicAiActions(BuildContext context, String topic, String subject) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (bottomSheetContext) {
+        final isDark = isDarkModeNotifier.value;
+        final bg = isDark ? const Color(0xFF1E1E28) : Colors.white;
+        final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
+        
+        return Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      topic,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textCol,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    color: Colors.grey,
+                    onPressed: () => Navigator.pop(bottomSheetContext),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Select an AI action for this topic in $subject',
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              _buildAiActionTile(
+                context: bottomSheetContext,
+                title: 'AI Generated Notes',
+                subtitle: 'Get complete conceptual explanations and key takeaways.',
+                icon: Icons.menu_book_rounded,
+                color: const Color(0xFF4F46E5),
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _navigateToTutor(topic, 'AI Generated Notes', subject);
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildAiActionTile(
+                context: bottomSheetContext,
+                title: 'Sample Questions',
+                subtitle: 'Practice with standard, detailed questions and step-by-step answers.',
+                icon: Icons.question_answer_rounded,
+                color: Colors.teal,
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _navigateToTutor(topic, 'Sample Questions', subject);
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildAiActionTile(
+                context: bottomSheetContext,
+                title: 'Mock Test',
+                subtitle: 'Generate a practice test to gauge your current conceptual mastery.',
+                icon: Icons.quiz_rounded,
+                color: Colors.pink,
+                onTap: () {
+                  Navigator.pop(bottomSheetContext);
+                  _navigateToTutor(topic, 'Mock Test', subject);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAiActionTile({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final isDark = isDarkModeNotifier.value;
+    final cardBg = isDark ? const Color(0xFF282836) : const Color(0xFFF8FAFC);
+    final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: textCol,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey, size: 14),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   List<String> get _tabs {
     final plan = widget.paymentPlan.toLowerCase();
@@ -128,10 +300,23 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                 });
               }
             },
+            initialTopic: _initialTutorTopic,
+            initialMode: _initialTutorMode,
+            initialSubject: _initialTutorSubject,
+            onClearInitial: () {
+              setState(() {
+                _initialTutorTopic = null;
+                _initialTutorMode = null;
+                _initialTutorSubject = null;
+              });
+            },
           );
         } else if (tabName == 'School CRM') {
           currentScreen = StudentCrmTab(
             isDarkMode: isDarkMode,
+            onTopicTap: (topic, subject) {
+              _showTopicAiActions(context, topic, subject);
+            },
           );
         } else if (tabName == 'Career & Coach') {
           final plan = widget.paymentPlan.toLowerCase();
@@ -168,6 +353,9 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             child: PerformanceAnalyticsTab(
               isDarkMode: isDarkMode,
               isCampusPlan: plan.contains('campus'),
+              onTopicTap: (topic, subject) {
+                _showTopicAiActions(context, topic, subject);
+              },
             ),
           );
         } else if (tabName == 'Profile Info') {
@@ -604,7 +792,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
 // ==========================================
 // SCREEN 1: DASHBOARD TAB
 // ==========================================
-class DashboardTab extends StatelessWidget {
+class DashboardTab extends StatefulWidget {
   final String userName;
   final String paymentPlan;
   final bool isDarkMode;
@@ -619,14 +807,376 @@ class DashboardTab extends StatelessWidget {
   });
 
   @override
+  State<DashboardTab> createState() => _DashboardTabState();
+}
+
+class _DashboardTabState extends State<DashboardTab> {
+  List<Map<String, dynamic>> _habitsList = [];
+  int _currentStreak = 0;
+  int _longestStreak = 0;
+  String? _lastActiveDate;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStreaksAndHabits();
+  }
+
+  Future<void> _loadStreaksAndHabits() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // 1. Fetch user streaks
+      final streakRes = await Supabase.instance.client
+          .from('user_streaks')
+          .select()
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (streakRes != null) {
+        _currentStreak = streakRes['current_streak'] ?? 0;
+        _longestStreak = streakRes['longest_streak'] ?? 0;
+        _lastActiveDate = streakRes['last_active_date'];
+      } else {
+        // Create initial streak record
+        final insertRes = await Supabase.instance.client
+            .from('user_streaks')
+            .insert({
+              'user_id': user.id,
+              'current_streak': 0,
+              'longest_streak': 0,
+            })
+            .select()
+            .single();
+        _currentStreak = insertRes['current_streak'] ?? 0;
+        _longestStreak = insertRes['longest_streak'] ?? 0;
+        _lastActiveDate = insertRes['last_active_date'];
+      }
+
+      // 2. Fetch habits
+      final habitsRes = await Supabase.instance.client
+          .from('habits')
+          .select()
+          .eq('user_id', user.id);
+
+      if (habitsRes.isNotEmpty) {
+        _habitsList = List<Map<String, dynamic>>.from(habitsRes);
+      } else {
+        // Pre-populate default habits
+        final defaultHabits = [
+          {'user_id': user.id, 'title': 'Solve 1 Coding Problem', 'is_completed': false},
+          {'user_id': user.id, 'title': 'AI Teacher Concept Q&A', 'is_completed': false},
+          {'user_id': user.id, 'title': 'Grade a Mock Interview', 'is_completed': false},
+          {'user_id': user.id, 'title': 'Complete a Mock Quiz', 'is_completed': false},
+        ];
+
+        final insertRes = await Supabase.instance.client
+            .from('habits')
+            .insert(defaultHabits)
+            .select();
+        _habitsList = List<Map<String, dynamic>>.from(insertRes);
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading streaks & habits: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleHabit(int index, bool val) async {
+    final habit = _habitsList[index];
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final todayStr = DateTime.now().toIso8601String().split('T')[0];
+
+    setState(() {
+      habit['is_completed'] = val;
+      habit['completed_at'] = val ? DateTime.now().toIso8601String() : null;
+    });
+
+    try {
+      await Supabase.instance.client
+          .from('habits')
+          .update({
+            'is_completed': val,
+            'completed_at': habit['completed_at'],
+          })
+          .eq('id', habit['id']);
+
+      final completedToday = _habitsList.where((h) => h['is_completed'] == true).length;
+      
+      if (completedToday == _habitsList.length && _habitsList.isNotEmpty) {
+        if (_lastActiveDate != todayStr) {
+          int newStreak = _currentStreak + 1;
+          final yesterdayStr = DateTime.now().subtract(const Duration(days: 1)).toIso8601String().split('T')[0];
+          
+          if (_lastActiveDate != null && _lastActiveDate != yesterdayStr && _currentStreak > 0) {
+            newStreak = 1;
+          } else if (_currentStreak == 0) {
+            newStreak = 1;
+          }
+
+          int newLongest = newStreak > _longestStreak ? newStreak : _longestStreak;
+
+          await Supabase.instance.client
+              .from('user_streaks')
+              .update({
+                'current_streak': newStreak,
+                'longest_streak': newLongest,
+                'last_active_date': todayStr,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('user_id', user.id);
+
+          setState(() {
+            _currentStreak = newStreak;
+            _longestStreak = newLongest;
+            _lastActiveDate = todayStr;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("🔥 Awesome! All daily habits completed. Streak extended!"),
+                backgroundColor: Colors.orangeAccent,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error updating habit: $e');
+    }
+  }
+
+  Future<void> _addCustomHabit(String title) async {
+    if (title.trim().isEmpty) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final res = await Supabase.instance.client
+          .from('habits')
+          .insert({
+            'user_id': user.id,
+            'title': title.trim(),
+            'is_completed': false,
+          })
+          .select()
+          .single();
+
+      setState(() {
+        _habitsList.add(res);
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error adding custom habit: $e');
+    }
+  }
+
+  void _showDailyPlannerBottomSheet() {
+    final customHabitController = TextEditingController();
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        final isDark = widget.isDarkMode;
+        final bg = isDark ? const Color(0xFF1E1E28) : Colors.white;
+        final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
+        final borderCol = isDark ? Colors.white10 : const Color(0xFFE2E8F0);
+        
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                top: 24,
+                left: 24,
+                right: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Daily Habits Planner 🚀',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textCol),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Complete all daily targets to increase your streak!',
+                            style: const TextStyle(color: Colors.grey, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        color: Colors.grey,
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Streaks visualizer card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderCol),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            const Text('Current Streak', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '🔥 $_currentStreak Days',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                            ),
+                          ],
+                        ),
+                        Container(width: 1, height: 32, color: borderCol),
+                        Column(
+                          children: [
+                            const Text('Longest Streak', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '🏆 $_longestStreak Days',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  Text('Your Habits Checklist', style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 12),
+
+                  if (_habitsList.isEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(
+                        child: Text(
+                          'No habits configured yet.',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 250),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _habitsList.length,
+                        itemBuilder: (context, idx) {
+                          final habit = _habitsList[idx];
+                          final isCompleted = habit['is_completed'] == true;
+                          return CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              habit['title'] ?? '',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isCompleted ? Colors.grey : textCol,
+                                decoration: isCompleted ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                            value: isCompleted,
+                            activeColor: const Color(0xFF00F2FE),
+                            onChanged: (val) async {
+                              await _toggleHabit(idx, val ?? false);
+                              setModalState(() {});
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 12),
+
+                  Text('Add Custom Daily Habit', style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: customHabitController,
+                          style: TextStyle(color: textCol, fontSize: 13),
+                          decoration: const InputDecoration(
+                            hintText: 'e.g. Read 1 tech blog post',
+                            hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (customHabitController.text.trim().isNotEmpty) {
+                            await _addCustomHabit(customHabitController.text);
+                            customHabitController.clear();
+                            setModalState(() {});
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00F2FE),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        child: const Icon(Icons.add, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isDesktop = size.width >= 950;
     
-    final currentText = isDarkMode ? Colors.white : const Color(0xFF0F172A);
-    final cardBg = isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
 
-    final plan = paymentPlan.toLowerCase();
+    final plan = widget.paymentPlan.toLowerCase();
     final isFreePlan = plan.contains('free');
     final hasProAccess = plan.contains('pro') || plan.contains('aspirant') || plan.contains('premium') || plan.contains('campus');
     final hasInterviewAccess = plan.contains('pro') || plan.contains('premium') || plan.contains('campus') || plan.contains('aspirant');
@@ -748,12 +1298,15 @@ class DashboardTab extends StatelessWidget {
               ),
               _buildMetricCard(
                 'Streak & Daily Planning',
-                '14 Days',
-                '92% habits targets hit this week',
+                '$_currentStreak Days',
+                _habitsList.isEmpty
+                    ? 'No habits active'
+                    : '${(_habitsList.where((h) => h['is_completed'] == true).length / _habitsList.length * 100).toStringAsFixed(0)}% targets completed today',
                 const Color(0xFF00F2FE),
                 Icons.stars,
                 cardBg,
                 isUnlocked: true,
+                onTap: _showDailyPlannerBottomSheet,
               ),
               _buildMetricCard(
                 'Mock Interview Performance',
@@ -876,6 +1429,7 @@ class DashboardTab extends StatelessWidget {
     Color bg, {
     bool isUnlocked = true,
     VoidCallback? onUpgrade,
+    VoidCallback? onTap,
   }) {
     final cardContent = Container(
       decoration: BoxDecoration(
@@ -929,7 +1483,12 @@ class DashboardTab extends StatelessWidget {
       ),
     );
 
-    if (isUnlocked) return cardContent;
+    if (isUnlocked) {
+      if (onTap != null) {
+        return GestureDetector(onTap: onTap, child: cardContent);
+      }
+      return cardContent;
+    }
 
     return GestureDetector(
       onTap: onUpgrade,
@@ -1072,12 +1631,20 @@ class AiTeacherTab extends StatefulWidget {
   final String paymentPlan;
   final bool isDarkMode;
   final VoidCallback onUpgrade;
+  final String? initialTopic;
+  final String? initialMode;
+  final String? initialSubject;
+  final VoidCallback? onClearInitial;
 
   const AiTeacherTab({
     super.key,
     required this.paymentPlan,
     required this.isDarkMode,
     required this.onUpgrade,
+    this.initialTopic,
+    this.initialMode,
+    this.initialSubject,
+    this.onClearInitial,
   });
 
   @override
@@ -1127,9 +1694,67 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   void initState() {
     super.initState();
     _loadGradeFromProfile();
-    _loadSessions();
     _loadDailyLimit();
     _initSpeech();
+    _loadSessions().then((_) {
+      _checkAndTriggerInitialSearch();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant AiTeacherTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTopic != null && widget.initialTopic != oldWidget.initialTopic) {
+      _checkAndTriggerInitialSearch();
+    }
+  }
+
+  void _checkAndTriggerInitialSearch() {
+    if (widget.initialTopic == null || !mounted) return;
+
+    final topic = widget.initialTopic!;
+    final mode = widget.initialMode ?? 'AI Generated Notes';
+    final subject = widget.initialSubject ?? 'Math';
+
+    // 1. Select the subject: check if it's in list or add it
+    final match = _subjects.firstWhere(
+      (s) => s.toLowerCase() == subject.toLowerCase(),
+      orElse: () => '',
+    );
+    if (match.isNotEmpty) {
+      _selectedSubject = match;
+    } else {
+      _subjects.add(subject);
+      _selectedSubject = subject;
+    }
+
+    // 2. Select the mode
+    _selectedLevel = mode;
+
+    // 3. Start a new temporary session
+    _startTempSession();
+
+    // 4. Construct the query
+    String query = '';
+    if (mode == 'AI Generated Notes') {
+      query = "Please generate complete notes and key takeaways for the topic '$topic' in $subject.";
+    } else if (mode == 'Sample Questions') {
+      query = "Please generate sample questions and detailed answers for the topic '$topic' in $subject.";
+    } else if (mode == 'Mock Test') {
+      query = "Please generate a mock test with questions for the topic '$topic' in $subject.";
+    } else {
+      query = "Please explain the topic '$topic' in $subject.";
+    }
+
+    _chatController.text = query;
+
+    // 5. Trigger sending message after a tiny delay to allow session state to propagate
+    Future.microtask(() {
+      if (mounted) {
+        _sendMessage();
+        widget.onClearInitial?.call();
+      }
+    });
   }
 
   @override
@@ -1873,13 +2498,13 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildConfigChip('Simple Explanation', Icons.face),
+          _buildConfigChip('Simple Explanation', Icons.face_rounded),
           const SizedBox(width: 12),
-          _buildConfigChip('Detailed Scientific Code', Icons.code),
+          _buildConfigChip('AI Generated Notes', Icons.menu_book_rounded),
           const SizedBox(width: 12),
-          _buildConfigChip('Analogies & Flashcards', Icons.collections),
+          _buildConfigChip('Sample Questions', Icons.question_answer_rounded),
           const SizedBox(width: 12),
-          _buildConfigChip('Socratic Method Practice', Icons.question_answer),
+          _buildConfigChip('Mock Test', Icons.quiz_rounded),
         ],
       ),
     );
@@ -1889,9 +2514,9 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     IconData getIconForStyle(String style) {
       switch (style) {
         case 'Simple Explanation': return Icons.face_rounded;
-        case 'Detailed Scientific Code': return Icons.code_rounded;
-        case 'Analogies & Flashcards': return Icons.collections_rounded;
-        case 'Socratic Method Practice': return Icons.question_answer_rounded;
+        case 'AI Generated Notes': return Icons.menu_book_rounded;
+        case 'Sample Questions': return Icons.question_answer_rounded;
+        case 'Mock Test': return Icons.quiz_rounded;
         default: return Icons.face_rounded;
       }
     }
@@ -1921,9 +2546,9 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
               style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.w600),
               items: [
                 'Simple Explanation',
-                'Detailed Scientific Code',
-                'Analogies & Flashcards',
-                'Socratic Method Practice'
+                'AI Generated Notes',
+                'Sample Questions',
+                'Mock Test'
               ].map((String value) {
                 return DropdownMenuItem<String>(
                   value: value,
@@ -2615,6 +3240,13 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
   // Chat log transcript
   List<Map<String, String>> _interviewLog = [];
 
+  bool _isAnalyzingResume = false;
+  int? _atsScore;
+  List<String> _matchedKeywords = [];
+  List<String> _missingKeywords = [];
+  String? _atsSuggestions;
+  String? _pickedFileName;
+
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -2868,6 +3500,404 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
     });
   }
 
+  Future<void> _gradeInterview() async {
+    if (_currentSessionId == null) return;
+    
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final role = _selectedRole == 'Other' ? _customRoleController.text.trim() : _selectedRole;
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            backgroundColor: cardBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            content: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: Color(0xFF4F46E5)),
+                  const SizedBox(height: 24),
+                  Text(
+                    'AI Tutor is grading your interview...',
+                    style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Evaluating your responses, identifying key strengths, and calculating your score.',
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final jwtToken = Supabase.instance.client.auth.currentSession?.accessToken;
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final url = '$envBackendUrl/api/ai/tutor/interview/grade';
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+        body: jsonEncode({
+          'sessionId': _currentSessionId,
+          'role': role,
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      // Pop the loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        final int score = result['score'] ?? 0;
+        final String feedback = result['feedback'] ?? '';
+        final List<dynamic> strengths = result['strengths'] ?? [];
+        final List<dynamic> improvements = result['improvements'] ?? [];
+
+        // Stop STT and TTS
+        await _tts.stop();
+        await _stt.stop();
+        setState(() {
+          _interviewState = InterviewState.idle;
+          _currentSessionId = null;
+        });
+
+        if (mounted) {
+          _showGradingReportDialog(score, feedback, strengths.cast<String>(), improvements.cast<String>());
+        }
+      } else {
+        throw Exception('Server returned ${response.statusCode}');
+      }
+    } catch (e) {
+      // Pop the loading dialog if it's still showing
+      if (mounted) Navigator.of(context).pop();
+
+      await _tts.stop();
+      await _stt.stop();
+      setState(() {
+        _interviewState = InterviewState.idle;
+        _currentSessionId = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to grade interview: $e"),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showGradingReportDialog(
+    int score,
+    String feedback,
+    List<String> strengths,
+    List<String> improvements,
+  ) {
+    final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+    final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
+    final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    // Let's color-code based on score range
+    Color scoreColor = const Color(0xFFEF4444); // red
+    if (score >= 80) {
+      scoreColor = const Color(0xFF10B981); // green
+    } else if (score >= 60) {
+      scoreColor = const Color(0xFFF59E0B); // orange
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: cardBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: borderCol)),
+          contentPadding: EdgeInsets.zero,
+          content: Container(
+            width: 480,
+            constraints: const BoxConstraints(maxHeight: 600),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Glowing Header / Banner
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: widget.isDarkMode
+                            ? [const Color(0xFF4F46E5).withOpacity(0.2), const Color(0xFF06B6D4).withOpacity(0.05)]
+                            : [const Color(0xFF4F46E5).withOpacity(0.08), const Color(0xFF06B6D4).withOpacity(0.02)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+                      border: Border(bottom: BorderSide(color: borderCol)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.stars_rounded, color: Color(0xFF4F46E5), size: 40),
+                        const SizedBox(height: 12),
+                        Text(
+                          'AI Interview Report Card',
+                          style: TextStyle(color: currentText, fontSize: 18, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Gemini evaluation of your simulated performance',
+                          style: TextStyle(color: Colors.grey, fontSize: 11),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Score gauge row
+                        Row(
+                          children: [
+                            // Circular Gauge or Big Indicator
+                            Container(
+                              width: 70,
+                              height: 70,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: scoreColor.withOpacity(0.1),
+                                border: Border.all(color: scoreColor, width: 3),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '$score%',
+                                style: TextStyle(color: scoreColor, fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    score >= 80 ? 'Excellent Match!' : score >= 60 ? 'Good Progress' : 'Needs Practice',
+                                    style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Your overall score is $score out of 100.',
+                                    style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Feedback summary
+                        Text('Summary Feedback', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12)),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: widget.isDarkMode ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: borderCol),
+                          ),
+                          child: Text(
+                            feedback,
+                            style: TextStyle(color: currentText.withOpacity(0.9), fontSize: 11, height: 1.4),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Strengths & Improvements tabs or lists
+                        if (strengths.isNotEmpty) ...[
+                          Text('Key Strengths', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12)),
+                          const SizedBox(height: 8),
+                          ...strengths.map((str) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 14),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    str,
+                                    style: TextStyle(color: currentText.withOpacity(0.8), fontSize: 11),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
+                          const SizedBox(height: 16),
+                        ],
+
+                        if (improvements.isNotEmpty) ...[
+                          Text('Areas to Improve', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12)),
+                          const SizedBox(height: 8),
+                          ...improvements.map((imp) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.arrow_circle_up_rounded, color: Color(0xFFF59E0B), size: 14),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    imp,
+                                    style: TextStyle(color: currentText.withOpacity(0.8), fontSize: 11),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  // Actions
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    decoration: BoxDecoration(
+                      border: Border(top: BorderSide(color: borderCol)),
+                    ),
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        backgroundColor: const Color(0xFF4F46E5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text('Close Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAndAnalyzeResume() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final fileBytes = file.bytes;
+      if (fileBytes == null) {
+        throw Exception("Failed to read file content");
+      }
+
+      setState(() {
+        _isAnalyzingResume = true;
+        _pickedFileName = file.name;
+        _atsScore = null;
+        _matchedKeywords = [];
+        _missingKeywords = [];
+        _atsSuggestions = null;
+      });
+
+      final jwtToken = Supabase.instance.client.auth.currentSession?.accessToken;
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final url = '$envBackendUrl/api/ai/resume/analyze';
+
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+      
+      // Add Authorization header
+      if (jwtToken != null) {
+        request.headers['Authorization'] = 'Bearer $jwtToken';
+      }
+      request.headers['Bypass-Tunnel-Reminder'] = 'true';
+
+      // Add target role
+      final role = _selectedRole == 'Other' ? _customRoleController.text.trim() : _selectedRole;
+      request.fields['role'] = role.isEmpty ? 'Software Engineer' : role;
+
+      // Add file
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'resume',
+          fileBytes,
+          filename: file.name,
+        ),
+      );
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 45));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _atsScore = data['score'] ?? 0;
+          _matchedKeywords = List<String>.from(data['matchedKeywords'] ?? []);
+          _missingKeywords = List<String>.from(data['missingKeywords'] ?? []);
+          _atsSuggestions = data['suggestions'] ?? '';
+          _isAnalyzingResume = false;
+        });
+      } else {
+        final err = jsonDecode(response.body);
+        throw Exception(err['error'] ?? 'Server returned ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        _isAnalyzingResume = false;
+        _pickedFileName = null;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("ATS Grader Error: $e"),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -3045,12 +4075,37 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
                                         const SizedBox(width: 16),
                                         ElevatedButton.icon(
                                           onPressed: () {
-                                            _tts.stop();
-                                            _stt.stop();
-                                            setState(() {
-                                              _interviewState = InterviewState.idle;
-                                              _currentSessionId = null;
-                                            });
+                                            showDialog(
+                                              context: context,
+                                              builder: (BuildContext context) {
+                                                return AlertDialog(
+                                                  backgroundColor: cardBg,
+                                                  title: Text('Finish & Grade Interview?', style: TextStyle(color: currentText, fontSize: 16, fontWeight: FontWeight.bold)),
+                                                  content: Text('Are you ready to submit your interview session for AI grading and receive feedback?', style: TextStyle(color: currentText, fontSize: 13)),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () {
+                                                        Navigator.pop(context); // Close confirm dialog
+                                                        _tts.stop();
+                                                        _stt.stop();
+                                                        setState(() {
+                                                          _interviewState = InterviewState.idle;
+                                                          _currentSessionId = null;
+                                                        });
+                                                      },
+                                                      child: const Text('Exit Without Grading', style: TextStyle(color: Colors.grey)),
+                                                    ),
+                                                    TextButton(
+                                                      onPressed: () {
+                                                        Navigator.pop(context); // Close confirm dialog
+                                                        _gradeInterview();
+                                                      },
+                                                      child: const Text('Submit & Grade', style: TextStyle(color: const Color(0xFF4F46E5), fontWeight: FontWeight.bold)),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            );
                                           },
                                           icon: const Icon(Icons.stop, color: Colors.white, size: 16),
                                           label: const Text('END', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
@@ -3167,55 +4222,173 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Portfolio & CV ATS Index Checker', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: currentText)),
-                            const SizedBox(height: 12),
-                            LinearProgressIndicator(
-                              value: 0.85,
-                              color: const Color(0xFF00F2FE),
-                              backgroundColor: Colors.grey.withOpacity(0.12),
-                              minHeight: 8,
+                            Text(
+                              'Portfolio & CV ATS Index Checker 📄',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: currentText),
                             ),
                             const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Job Match Grade: Excellent (85/100)', 
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: currentText),
-                                    overflow: TextOverflow.ellipsis,
+                            if (_isAnalyzingResume) ...[
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 24),
+                                child: Center(
+                                  child: Column(
+                                    children: [
+                                      const CircularProgressIndicator(color: Color(0xFF00F2FE)),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Analyzing "${_pickedFileName}"...',
+                                        style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Extracting PDF text and calculating job role matching index.',
+                                        style: TextStyle(color: Colors.grey, fontSize: 10),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                const Text('Target ATS cutoff: 75', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                const Icon(Icons.check_circle_outline, color: Color(0xFF10B981), size: 14),
-                                const SizedBox(width: 8),
-                                const Expanded(
-                                  child: Text(
-                                    'Keywords matching: "REST API", "State Architecture" found.', 
-                                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                              ),
+                            ] else if (_atsScore == null) ...[
+                              Text(
+                                'Upload your resume in PDF format to verify ATS keyword compliance and job role matchmaking.',
+                                style: TextStyle(color: currentText.withOpacity(0.7), fontSize: 12, height: 1.4),
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _pickAndAnalyzeResume,
+                                  icon: const Icon(Icons.upload_file_rounded, color: Colors.white, size: 18),
+                                  label: const Text(
+                                    'UPLOAD RESUME (PDF)',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF4F46E5),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
                                 ),
+                              ),
+                            ] else ...[
+                              // Job Match Grade display
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Target Role: ${_selectedRole == "Other" ? _customRoleController.text : _selectedRole}',
+                                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Score: $_atsScore/100',
+                                    style: TextStyle(
+                                      color: _atsScore! >= 80
+                                          ? const Color(0xFF10B981)
+                                          : _atsScore! >= 60
+                                              ? const Color(0xFFF59E0B)
+                                              : Colors.redAccent,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              LinearProgressIndicator(
+                                value: _atsScore! / 100.0,
+                                color: _atsScore! >= 80
+                                    ? const Color(0xFF10B981)
+                                    : _atsScore! >= 60
+                                        ? const Color(0xFFF59E0B)
+                                        : Colors.redAccent,
+                                backgroundColor: Colors.grey.withOpacity(0.12),
+                                minHeight: 8,
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Matched Keywords
+                              if (_matchedKeywords.isNotEmpty) ...[
+                                Text('Matched Keywords', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12)),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _matchedKeywords.map((kw) => Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF10B981).withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                                    ),
+                                    child: Text(
+                                      kw,
+                                      style: const TextStyle(color: Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  )).toList(),
+                                ),
+                                const SizedBox(height: 16),
                               ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                const Icon(Icons.warning_amber, color: Colors.amber, size: 14),
-                                const SizedBox(width: 8),
-                                const Expanded(
+
+                              // Missing Keywords
+                              if (_missingKeywords.isNotEmpty) ...[
+                                Text('Missing Keywords', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12)),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _missingKeywords.map((kw) => Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF59E0B).withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+                                    ),
+                                    child: Text(
+                                      kw,
+                                      style: const TextStyle(color: Color(0xFFF59E0B), fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  )).toList(),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
+                              // Suggestions
+                              if (_atsSuggestions != null && _atsSuggestions!.trim().isNotEmpty) ...[
+                                Text('Recommendations', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12)),
+                                const SizedBox(height: 8),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: widget.isDarkMode ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: borderCol),
+                                  ),
                                   child: Text(
-                                    'Recommendation: Add "Automated Continuous Integration" descriptions.', 
-                                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                                    _atsSuggestions!,
+                                    style: TextStyle(color: currentText.withOpacity(0.8), fontSize: 11, height: 1.4),
                                   ),
                                 ),
+                                const SizedBox(height: 20),
                               ],
-                            ),
+
+                              // Re-upload action
+                              SizedBox(
+                                width: double.infinity,
+                                child: TextButton.icon(
+                                  onPressed: _pickAndAnalyzeResume,
+                                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4F46E5), size: 16),
+                                  label: const Text('RE-UPLOAD RESUME', style: TextStyle(color: Color(0xFF4F46E5), fontWeight: FontWeight.bold, fontSize: 11)),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: const Color(0xFF4F46E5).withOpacity(0.3))),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -3297,11 +4470,13 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
 class PerformanceAnalyticsTab extends StatefulWidget {
   final bool isDarkMode;
   final bool isCampusPlan;
+  final Function(String topic, String subject)? onTopicTap;
 
   const PerformanceAnalyticsTab({
     super.key,
     required this.isDarkMode,
     required this.isCampusPlan,
+    this.onTopicTap,
   });
 
   @override
@@ -3314,6 +4489,38 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
 
   List<Map<String, dynamic>> _customChapters = [];
   List<String> _tempTopics = [];
+
+  bool _isLoadingAnalytics = false;
+  double _attendanceRate = 0.85; // default fallback
+  double _homeworkCompletionRate = 0.78; // default fallback
+  double _averageTestScore = 0.82; // default fallback
+  double _overallPerformanceProgress = 0.75; // default fallback
+
+  String _inferSubject(String chapterName) {
+    final lower = chapterName.toLowerCase();
+    if (lower.contains('math') || lower.contains('algebra') || lower.contains('geometry') || lower.contains('calculus')) {
+      return 'Math';
+    }
+    if (lower.contains('physics') || lower.contains('mechanics') || lower.contains('thermodynamics')) {
+      return 'Physics';
+    }
+    if (lower.contains('chemistry') || lower.contains('organic') || lower.contains('inorganic')) {
+      return 'Chemistry';
+    }
+    if (lower.contains('biology') || lower.contains('botany') || lower.contains('zoology')) {
+      return 'Biology';
+    }
+    if (lower.contains('history') || lower.contains('civics') || lower.contains('social')) {
+      return 'History';
+    }
+    if (lower.contains('english') || lower.contains('literature') || lower.contains('grammar')) {
+      return 'English';
+    }
+    if (lower.contains('computer') || lower.contains('programming') || lower.contains('database') || lower.contains('system') || lower.contains('concurrency') || lower.contains('network')) {
+      return 'Computer Science';
+    }
+    return 'Computer Science';
+  }
 
   @override
   void initState() {
@@ -3336,6 +4543,93 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
         ]
       },
     ];
+    if (widget.isCampusPlan) {
+      _loadLiveAnalytics();
+    }
+  }
+
+  Future<void> _loadLiveAnalytics() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isLoadingAnalytics = true;
+    });
+
+    try {
+      // 1. Fetch attendance
+      final attendanceRes = await Supabase.instance.client
+          .from('attendance')
+          .select('status')
+          .eq('student_id', user.id);
+      
+      if (attendanceRes.isNotEmpty) {
+        final total = attendanceRes.length;
+        final presentCount = attendanceRes.where((a) => a['status'] == 'present' || a['status'] == 'late').length;
+        setState(() {
+          _attendanceRate = presentCount / total;
+        });
+      }
+
+      // 2. Fetch test attempts
+      final testAttemptsRes = await Supabase.instance.client
+          .from('test_attempts')
+          .select('score')
+          .eq('student_id', user.id);
+      
+      if (testAttemptsRes.isNotEmpty) {
+        final totalScore = testAttemptsRes.fold<double>(0.0, (sum, a) => sum + (a['score'] ?? 0));
+        setState(() {
+          _averageTestScore = totalScore / (testAttemptsRes.length * 100.0);
+        });
+      }
+
+      // 3. Fetch homework submissions
+      final profileRes = await Supabase.instance.client
+          .from('profiles')
+          .select('class_id')
+          .eq('id', user.id)
+          .single();
+      
+      final classId = profileRes['class_id'];
+      if (classId != null) {
+        final homeworkRes = await Supabase.instance.client
+            .from('homework')
+            .select('id')
+            .eq('class_id', classId);
+        
+        final totalHomework = homeworkRes.length;
+        
+        final submissionRes = await Supabase.instance.client
+            .from('homework_submissions')
+            .select('id')
+            .eq('student_id', user.id);
+        
+        final submittedCount = submissionRes.length;
+        
+        if (totalHomework > 0) {
+          setState(() {
+            _homeworkCompletionRate = submittedCount / totalHomework;
+          });
+        } else if (submittedCount > 0) {
+          setState(() {
+            _homeworkCompletionRate = 1.0;
+          });
+        }
+      }
+
+      setState(() {
+        _overallPerformanceProgress = (_attendanceRate + _homeworkCompletionRate + _averageTestScore) / 3.0;
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error loading live analytics: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingAnalytics = false;
+        });
+      }
+    }
   }
 
   @override
@@ -3447,7 +4741,7 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
     final cardBg = widget.isDarkMode ? const Color(0xFF181824) : Colors.white;
     final borderCol = widget.isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0);
 
-    // Calculate progress if not campus plan
+    // Calculate progress
     double overallProgress = 0.0;
     int totalTopics = 0;
     int completedTopics = 0;
@@ -3462,6 +4756,8 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
       totalTopics = total;
       completedTopics = completed;
       overallProgress = total > 0 ? completed / total : 0.0;
+    } else {
+      overallProgress = _overallPerformanceProgress;
     }
 
     return SingleChildScrollView(
@@ -3816,6 +5112,14 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
                                       });
                                     },
                                     controlAffinity: ListTileControlAffinity.leading,
+                                    secondary: IconButton(
+                                      icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF4F46E5), size: 18),
+                                      onPressed: () {
+                                        final inferredSubject = _inferSubject(chName);
+                                        widget.onTopicTap?.call(tName, inferredSubject);
+                                      },
+                                      tooltip: 'AI Study Assistant',
+                                    ),
                                   );
                                 }).toList(),
                               ),
@@ -3856,7 +5160,7 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
                           size: Size.infinite,
                           painter: GrowthChartPainter(
                             isDarkMode: widget.isDarkMode,
-                            progress: widget.isCampusPlan ? 0.8 : overallProgress,
+                            progress: overallProgress,
                           ),
                         ),
                       ),
@@ -3873,7 +5177,7 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
                   ),
                 ),
               ),
-
+ 
               // Chart Card 2: Skill Distribution spider chart mock
               Container(
                 decoration: BoxDecoration(
@@ -3894,7 +5198,13 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
                           painter: SkillRadarPainter(
                             isDarkMode: widget.isDarkMode,
                             progressValues: widget.isCampusPlan
-                                ? [0.85, 0.72, 0.90, 0.68, 0.80]
+                                ? [
+                                    _averageTestScore,
+                                    0.3 + (_overallPerformanceProgress * 0.6),
+                                    _homeworkCompletionRate,
+                                    _attendanceRate,
+                                    0.4 + (_overallPerformanceProgress * 0.5),
+                                  ]
                                 : [
                                     0.4 + (overallProgress * 0.45),
                                     0.3 + (overallProgress * 0.52),
@@ -3930,6 +5240,27 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
                   _buildChecklistItem('AWS Cloud Practitioner Mock Exams', 'Completed: 3/5 mock tests. Predicted score: 91%', true, currentText),
                   _buildChecklistItem('System Design Blueprint revision', 'Assigned conceptual flashcards pending recall drills.', false, currentText),
                   _buildChecklistItem('Daily Coding Challenge Streak', 'Streak level: Stable 14 days active. 8 solved problems.', true, currentText),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MockTestsListScreen(
+                            isDarkMode: widget.isDarkMode,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.quiz_rounded, size: 18),
+                    label: const Text('Open CBT Mock Exams Portal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -4989,10 +6320,12 @@ class PlanFeatureGate extends StatelessWidget {
 
 class StudentCrmTab extends StatefulWidget {
   final bool isDarkMode;
+  final Function(String topic, String subject)? onTopicTap;
 
   const StudentCrmTab({
     super.key,
     required this.isDarkMode,
+    this.onTopicTap,
   });
 
   @override
@@ -5181,7 +6514,7 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
     return rawContent;
   }
 
-  Widget _buildSyllabusContent(String rawContent, Color currentText) {
+  Widget _buildSyllabusContent(String rawContent, Color currentText, String subject) {
     try {
       final decoded = jsonDecode(rawContent);
       if (decoded is List) {
@@ -5207,24 +6540,41 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  ...topics.map((t) => Padding(
-                    padding: const EdgeInsets.only(left: 12.0, bottom: 4.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('• ', style: TextStyle(color: currentText.withOpacity(0.7), fontSize: 11)),
-                        Expanded(
-                          child: Text(
-                            t.toString(),
-                            style: TextStyle(
-                              color: currentText.withOpacity(0.8),
-                              fontSize: 12,
-                            ),
+                  ...topics.map((t) {
+                    final topicName = t.toString();
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 12.0, bottom: 4.0),
+                      child: InkWell(
+                        onTap: () {
+                          widget.onTopicTap?.call(topicName, subject);
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                          child: Row(
+                            children: [
+                              Text('• ', style: TextStyle(color: currentText.withOpacity(0.7), fontSize: 11)),
+                              Expanded(
+                                child: Text(
+                                  topicName,
+                                  style: TextStyle(
+                                    color: currentText.withOpacity(0.8),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.auto_awesome_rounded,
+                                color: Color(0xFF4F46E5),
+                                size: 13,
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  )),
+                      ),
+                    );
+                  }),
                 ],
               ),
             );
@@ -5234,9 +6584,30 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
     } catch (_) {}
 
     // Fallback plain text layout
-    return Text(
-      rawContent,
-      style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+    return InkWell(
+      onTap: () {
+        widget.onTopicTap?.call(rawContent, subject);
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                rawContent,
+                style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0xFF4F46E5),
+              size: 13,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -5707,6 +7078,7 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
                                   child: _buildSyllabusContent(
                                     syllabus['content'] ?? '',
                                     currentText,
+                                    syllabus['subject'] ?? 'General',
                                   ),
                                 ),
                               ],

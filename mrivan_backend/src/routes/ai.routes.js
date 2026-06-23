@@ -1,7 +1,17 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const aiController = require('../controllers/ai.controller');
+const resumeController = require('../controllers/resume.controller');
 const { authenticate } = require('../middleware/auth.middleware');
+
+// Configure multer memory storage
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // limit to 10MB
+  }
+});
 
 // AI Tutor chat interaction
 router.post('/tutor/chat', authenticate, aiController.getTutorChat);
@@ -14,5 +24,11 @@ router.post('/quiz', authenticate, aiController.generateQuiz);
 
 // AI Voice Tutor explanation helper
 router.post('/voice', authenticate, aiController.getVoiceTutor);
+
+// AI Mock Interview grading
+router.post('/tutor/interview/grade', authenticate, aiController.gradeInterview);
+
+// AI Resume Analyzer / ATS Grader
+router.post('/resume/analyze', authenticate, upload.single('resume'), resumeController.analyzeResume);
 
 module.exports = router;

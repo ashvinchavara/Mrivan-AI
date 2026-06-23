@@ -254,4 +254,26 @@ CREATE INDEX IF NOT EXISTS idx_timetable_teacher ON public.timetable(teacher_id)
 -- Link attendance to timetable period optionally
 ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS timetable_id UUID REFERENCES public.timetable(id) ON DELETE SET NULL;
 
+-- 15. Create Habits Table
+CREATE TABLE IF NOT EXISTS public.habits (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    is_completed BOOLEAN DEFAULT FALSE NOT NULL,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_habits_user ON public.habits(user_id);
+
+-- 16. Create User Streaks Table
+CREATE TABLE IF NOT EXISTS public.user_streaks (
+    user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+    current_streak INT DEFAULT 0 NOT NULL,
+    longest_streak INT DEFAULT 0 NOT NULL,
+    last_active_date DATE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+
 

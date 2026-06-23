@@ -184,4 +184,40 @@ module.exports = {
   generateNotes,
   generateQuiz,
   getVoiceTutor,
+  gradeInterview,
+};
+
+/**
+ * 5. Grade Mock Interview Controller
+ */
+const gradeInterview = async (req, res, next) => {
+  try {
+    const { sessionId, role } = req.body;
+    if (!sessionId) return res.status(400).json({ error: 'Session ID is required' });
+
+    // Fetch message history for this chat session
+    const { data: messages, error } = await supabaseAdmin
+      .from('ai_chat_messages')
+      .select('sender, content')
+      .eq('session_id', sessionId)
+      .order('timestamp', { ascending: true });
+
+    if (error) throw error;
+
+    if (!messages || messages.length === 0) {
+      return res.status(400).json({ error: 'No interview conversation logs found for this session.' });
+    }
+
+    // Format chat logs into candidate/interviewer transcript
+    const transcript = messages
+      .map(m => `${m.sender === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`)
+      .join('\n');
+
+    // Grade and evaluate candidate answers via Gemini Service
+    const gradingResult = await geminiService.gradeMockInterview(transcript, role || 'General Role');
+
+    res.json(gradingResult);
+  } catch (err) {
+    next(err);
+  }
 };

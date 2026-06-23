@@ -523,4 +523,127 @@ module.exports = {
   generateStudyNotes,
   generateQuizQuestions,
   generateVoiceExplanation,
+  gradeMockInterview,
+  analyzeResume,
 };
+
+/**
+ * 5. Grade Mock Interview transcript using Gemini (returns JSON evaluation)
+ */
+async function gradeMockInterview(transcript, role) {
+  if (!ai && !ai2) {
+    return {
+      score: 75,
+      feedback: "Mock Interview completed (Demo Mode). Add GEMINI_API_KEY to .env to enable live AI grading.",
+      strengths: ["Completed the mock interview structure successfully"],
+      improvements: ["Provide more details in answers"]
+    };
+  }
+
+  const prompt = `You are an expert HR and Technical Recruiter. Grade the following mock interview transcript for the target role of "${role}".
+  
+  TRANSCRIPT:
+  ${transcript}
+  
+  Evaluate the candidate's responses comprehensively. You MUST return your evaluation strictly in the following JSON structure:
+  {
+    "score": 82, // integer between 0 and 100 representing overall suitability
+    "feedback": "General summary feedback and overall impressions...",
+    "strengths": ["Strength 1 text", "Strength 2 text"],
+    "improvements": ["Improvement 1 text", "Improvement 2 text"]
+  }
+  Do NOT include any markdown code blocks, backticks, or prefix text. Return only valid JSON.`;
+
+  const text = await runWithRotation('InterviewGrading', async (provider) => {
+    if (provider === 'gemini' || provider === 'gemini2') {
+      const client = provider === 'gemini' ? ai : ai2;
+      const response = await client.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      return response.text;
+    }
+    const config = PROVIDER_CONFIGS[provider];
+    const messages = [{ role: 'user', content: prompt }];
+    return await makeOpenAICall(config.url, config.getHeaders(), { model: config.model, messages });
+  });
+
+  try {
+    let jsonString = text.trim();
+    if (jsonString.startsWith('```json')) {
+      jsonString = jsonString.substring(7, jsonString.length - 3);
+    } else if (jsonString.startsWith('```')) {
+      jsonString = jsonString.substring(3, jsonString.length - 3);
+    }
+    return JSON.parse(jsonString.trim());
+  } catch (error) {
+    console.error('Failed to parse interview grading JSON. Raw:', text);
+    return {
+      score: 70,
+      feedback: "Interview completed. Grading could not be parsed into JSON format.",
+      strengths: ["Completed the mock interview successfully"],
+      improvements: ["Review transcript answers for precision"]
+    };
+  }
+}
+
+/**
+ * 6. Analyze Resume against a target job role using Gemini (returns JSON evaluation)
+ */
+async function analyzeResume(resumeText, role) {
+  if (!ai && !ai2) {
+    return {
+      score: 75,
+      matchedKeywords: ["Project Management", "Communication"],
+      missingKeywords: ["Technical Architecture"],
+      suggestions: "Add more details about technical implementations and frameworks used."
+    };
+  }
+
+  const prompt = `You are an expert HR Specialist and ATS (Applicant Tracking System) reviewer. Analyze the following candidate's resume text against the target job role: "${role}".
+  
+  RESUME TEXT:
+  ${resumeText}
+  
+  Evaluate the resume, compute an ATS score, identify matching keywords, missing keywords, and suggest improvements. You MUST return your evaluation strictly in the following JSON structure:
+  {
+    "score": 85, // integer between 0 and 100 representing suitability/match rate
+    "matchedKeywords": ["Keyword 1", "Keyword 2"],
+    "missingKeywords": ["Keyword 3", "Keyword 4"],
+    "suggestions": "Detailed suggestions and recommendations to improve the resume for this role."
+  }
+  Do NOT include any markdown code blocks, backticks, or prefix text. Return only valid JSON.`;
+
+  const text = await runWithRotation('ResumeAnalysis', async (provider) => {
+    if (provider === 'gemini' || provider === 'gemini2') {
+      const client = provider === 'gemini' ? ai : ai2;
+      const response = await client.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      return response.text;
+    }
+    const config = PROVIDER_CONFIGS[provider];
+    const messages = [{ role: 'user', content: prompt }];
+    return await makeOpenAICall(config.url, config.getHeaders(), { model: config.model, messages });
+  });
+
+  try {
+    let jsonString = text.trim();
+    if (jsonString.startsWith('```json')) {
+      jsonString = jsonString.substring(7, jsonString.length - 3);
+    } else if (jsonString.startsWith('```')) {
+      jsonString = jsonString.substring(3, jsonString.length - 3);
+    }
+    return JSON.parse(jsonString.trim());
+  } catch (error) {
+    console.error('Failed to parse resume analysis JSON. Raw:', text);
+    return {
+      score: 70,
+      matchedKeywords: [],
+      missingKeywords: [],
+      suggestions: "Resume analyzed. Evaluation could not be parsed into JSON format."
+    };
+  }
+}
+
