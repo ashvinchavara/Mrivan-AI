@@ -1216,7 +1216,7 @@ class _DashboardTabState extends State<DashboardTab> {
                         Text(
                           'You are currently on the Free Plan with limited features and a query cap.',
                           style: TextStyle(
-                            color: isDarkMode ? Colors.white70 : Colors.black87,
+                            color: widget.isDarkMode ? Colors.white70 : Colors.black87,
                             fontSize: 12,
                           ),
                         ),
@@ -1225,7 +1225,7 @@ class _DashboardTabState extends State<DashboardTab> {
                   ),
                   const SizedBox(width: 16),
                   ElevatedButton(
-                    onPressed: onUpgrade,
+                    onPressed: widget.onUpgrade,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFF2A6D),
                       foregroundColor: Colors.white,
@@ -1263,7 +1263,7 @@ class _DashboardTabState extends State<DashboardTab> {
               if (isDesktop) ...[
                 const SizedBox(width: 16),
                 ElevatedButton.icon(
-                  onPressed: onUpgrade,
+                  onPressed: widget.onUpgrade,
                   icon: const Icon(Icons.bolt, color: Colors.black, size: 18),
                   label: const Text('Fast Assistant', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
@@ -1294,7 +1294,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 Icons.trending_up,
                 cardBg,
                 isUnlocked: hasProAccess,
-                onUpgrade: onUpgrade,
+                onUpgrade: widget.onUpgrade,
               ),
               _buildMetricCard(
                 'Streak & Daily Planning',
@@ -1316,7 +1316,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 Icons.mic_external_on,
                 cardBg,
                 isUnlocked: hasInterviewAccess,
-                onUpgrade: onUpgrade,
+                onUpgrade: widget.onUpgrade,
               ),
             ],
           ),
@@ -1354,7 +1354,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 cardBg,
                 currentText,
                 isUnlocked: hasProAccess,
-                onUpgrade: onUpgrade,
+                onUpgrade: widget.onUpgrade,
               ),
               _buildFeatureTile(
                 '🎤 AI Interview Coach',
@@ -1364,7 +1364,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 cardBg,
                 currentText,
                 isUnlocked: hasInterviewAccess,
-                onUpgrade: onUpgrade,
+                onUpgrade: widget.onUpgrade,
               ),
               _buildFeatureTile(
                 '💼 Placement & Job Readiness',
@@ -1374,7 +1374,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 cardBg,
                 currentText,
                 isUnlocked: hasPlacementAccess,
-                onUpgrade: onUpgrade,
+                onUpgrade: widget.onUpgrade,
               ),
             ],
           ),
@@ -3668,7 +3668,7 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Gemini evaluation of your simulated performance',
+                          'AI evaluation of your simulated performance',
                           style: TextStyle(color: Colors.grey, fontSize: 11),
                           textAlign: TextAlign.center,
                         ),
@@ -3939,7 +3939,7 @@ class _CareerCoachTabState extends State<CareerCoachTab> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Gemini Live AI Mock Interview',
+                              'Live AI Mock Interview',
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: currentText),
                             ),
                             const SizedBox(height: 6),
