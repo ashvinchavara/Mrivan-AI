@@ -32,7 +32,6 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
     'Manage Classes',
     'Manage Timetable',
     'Placement Analytics',
-    'Campus Reports',
   ];
 
   Future<void> _handleSignOut() async {
@@ -101,9 +100,6 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
             break;
           case 5:
             currentScreen = AdminPlacementTab(isDarkMode: isDarkMode);
-            break;
-          case 6:
-            currentScreen = AdminReportsTab(isDarkMode: isDarkMode);
             break;
           default:
             currentScreen = Center(child: Text('Coming Soon', style: TextStyle(color: currentText)));
@@ -352,7 +348,6 @@ class _CampusAdminDashboardState extends State<CampusAdminDashboard> {
                     const BottomNavigationBarItem(icon: Icon(Icons.school_rounded), label: 'Classes'),
                     const BottomNavigationBarItem(icon: Icon(Icons.calendar_month_rounded), label: 'Timetable'),
                     const BottomNavigationBarItem(icon: Icon(Icons.assessment_rounded), label: 'Placements'),
-                    const BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Reports'),
                   ],
                 )
               : null,
@@ -978,91 +973,6 @@ class AdminPlacementTab extends StatelessWidget {
   }
 }
 
-// ----------------------------------------------------
-// Sub-tab 4: Campus Reports
-// ----------------------------------------------------
-class AdminReportsTab extends StatelessWidget {
-  final bool isDarkMode;
-
-  const AdminReportsTab({
-    super.key,
-    required this.isDarkMode,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final currentText = isDarkMode ? Colors.white : const Color(0xFF0F172A);
-    final cardBg = isDarkMode ? const Color(0xFF181824) : Colors.white;
-
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Campus Reports & Logs 📊',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: currentText),
-          ),
-          const SizedBox(height: 6),
-          const Text('Compile audit logs, download class progress reports, or analyze student usage stats.', style: TextStyle(color: Colors.grey, fontSize: 13)),
-          const SizedBox(height: 24),
-
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.withOpacity(0.1)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Generate Automated Reports', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14)),
-                const SizedBox(height: 16),
-                _buildReportDownloadItem('Monthly Student Attendance Log', 'Comprehensive checkins summary', isDarkMode),
-                const Divider(),
-                _buildReportDownloadItem('Faculty Adoption Metrics', 'Stats on AI lessons and test creation', isDarkMode),
-                const Divider(),
-                _buildReportDownloadItem('Placement Readiness Scorecard', 'Consolidated CV ranking matrices', isDarkMode),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReportDownloadItem(String title, String subtitle, bool isDark) {
-    final currentText = isDark ? Colors.white : const Color(0xFF0F172A);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-            ],
-          ),
-          ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.download_rounded, size: 16),
-            label: const Text('Download', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF155DFC),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ----------------------------------------------------
 // Sub-tab 3: Manage Classes
