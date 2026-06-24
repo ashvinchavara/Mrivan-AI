@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
 import '../../theme/theme_config.dart';
@@ -75,174 +75,371 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                 color: bg,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(bottomSheetContext).size.height * 0.85,
+              ),
               padding: EdgeInsets.only(
                 top: 24,
                 left: 24,
                 right: 24,
                 bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom + 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          hasSyllabus ? activeTopic : 'AI Study Assistant 🚀',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: textCol,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            hasSyllabus ? activeTopic : 'AI Study Assistant 🚀',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: textCol,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        color: Colors.grey,
-                        onPressed: () => Navigator.pop(bottomSheetContext),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    hasSyllabus
-                        ? 'Select an AI action for this topic in $activeSubject'
-                        : 'No syllabus guidelines attached. Enter a study topic below:',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (!hasSyllabus) ...[
-                    // Custom Topic Input Field
-                    TextField(
-                      controller: textController,
-                      style: TextStyle(color: textCol, fontSize: 13),
-                      decoration: const InputDecoration(
-                        labelText: 'Topic Name (e.g. Memory Management)',
-                        labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                      onChanged: (val) {
-                        activeTopic = val;
-                      },
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          color: Colors.grey,
+                          onPressed: () => Navigator.pop(bottomSheetContext),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      hasSyllabus
+                          ? 'Select an AI action for this topic in $activeSubject'
+                          : 'No syllabus guidelines attached. Enter a study topic below:',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                     const SizedBox(height: 16),
 
-                    // Subject Selector
-                    Text(
-                      'Select Subject',
-                      style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 12),
+                    if (!hasSyllabus) ...[
+                      // Custom Topic Input Field
+                      TextField(
+                        controller: textController,
+                        style: TextStyle(color: textCol, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Topic Name (e.g. Memory Management)',
+                          labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                        onChanged: (val) {
+                          activeTopic = val;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Subject Selector
+                      Text(
+                        'Select Subject',
+                        style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: ['Math', 'Physics', 'Chemistry', 'Biology', 'Computer Science'].map((sub) {
+                          final isSelected = activeSubject == sub;
+                          return ChoiceChip(
+                            label: Text(sub, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : textCol)),
+                            selected: isSelected,
+                            selectedColor: const Color(0xFF4F46E5),
+                            backgroundColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                            onSelected: (selected) {
+                              if (selected) {
+                                setModalState(() {
+                                  activeSubject = sub;
+                                });
+                              }
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // AI Action Options
+                    _buildAiActionTile(
+                      context: bottomSheetContext,
+                      title: 'AI Generated Notes',
+                      subtitle: 'Get complete conceptual explanations and key takeaways.',
+                      icon: Icons.menu_book_rounded,
+                      color: const Color(0xFF4F46E5),
+                      onTap: () {
+                        if (activeTopic.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter a topic to generate notes.'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.pop(bottomSheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => StudyNotesViewScreen(
+                              topic: activeTopic,
+                              subject: activeSubject,
+                              isDarkMode: isDark,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: ['Math', 'Physics', 'Chemistry', 'Biology', 'Computer Science'].map((sub) {
-                        final isSelected = activeSubject == sub;
-                        return ChoiceChip(
-                          label: Text(sub, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : textCol)),
-                          selected: isSelected,
-                          selectedColor: const Color(0xFF4F46E5),
-                          backgroundColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setModalState(() {
-                                activeSubject = sub;
+                    const SizedBox(height: 12),
+                    _buildAiActionTile(
+                      context: bottomSheetContext,
+                      title: 'AI Notes Hub',
+                      subtitle: 'Manage your saved study guides and create notes.',
+                      icon: Icons.folder_special_rounded,
+                      color: Colors.amber[800]!,
+                      onTap: () {
+                        Navigator.pop(bottomSheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AINotesScreen(
+                              isDarkMode: isDark,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildAiActionTile(
+                      context: bottomSheetContext,
+                      title: 'Sample Questions',
+                      subtitle: 'Practice with standard, detailed questions and step-by-step answers.',
+                      icon: Icons.question_answer_rounded,
+                      color: Colors.teal,
+                      onTap: () {
+                        if (activeTopic.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter a topic to start quiz.'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.pop(bottomSheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CombinedQuizScreen(
+                              topic: activeTopic,
+                              subject: activeSubject,
+                              isDarkMode: isDark,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildAiActionTile(
+                      context: bottomSheetContext,
+                      title: 'Mock Tests Directory',
+                      subtitle: 'Browse and select from all published CBT mock exams.',
+                      icon: Icons.assignment_rounded,
+                      color: Colors.pink,
+                      onTap: () {
+                        Navigator.pop(bottomSheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MockTestsListScreen(
+                              isDarkMode: isDark,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildAiActionTile(
+                      context: bottomSheetContext,
+                      title: 'CBT Exam Player',
+                      subtitle: 'Take your active/assigned CBT exam directly.',
+                      icon: Icons.play_circle_outline_rounded,
+                      color: Colors.blue,
+                      onTap: () async {
+                        // Show progress loader
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                        );
+                        try {
+                          const envBackendUrl = String.fromEnvironment(
+                            'BACKEND_API_URL',
+                            defaultValue: 'https://mrivan-ai.onrender.com',
+                          );
+                          final jwtToken = Supabase.instance.client.auth.currentSession?.accessToken;
+                          final response = await http.get(
+                            Uri.parse('$envBackendUrl/api/tests'),
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Bypass-Tunnel-Reminder': 'true',
+                              if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+                            },
+                          ).timeout(const Duration(seconds: 10));
+
+                          // Dismiss loader
+                          Navigator.pop(context);
+                          Navigator.pop(bottomSheetContext);
+
+                          if (response.statusCode == 200) {
+                            final list = jsonDecode(response.body);
+                            if (list is List && list.isNotEmpty) {
+                              final firstTest = list.first;
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => QuizPlayScreen(
+                                    testId: firstTest['id'],
+                                    testTitle: firstTest['title'] ?? 'Mock Test',
+                                    isDarkMode: isDark,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('No active CBT exams found. Redirecting to Mock Tests list.'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MockTestsListScreen(
+                                    isDarkMode: isDark,
+                                  ),
+                                ),
+                              );
+                            }
+                          } else {
+                            throw Exception('Failed to load tests');
+                          }
+                        } catch (e) {
+                          Navigator.pop(context); // Dismiss loader if error
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error loading exams: $e. Opening directory instead.')),
+                          );
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => MockTestsListScreen(
+                                isDarkMode: isDark,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildAiActionTile(
+                      context: bottomSheetContext,
+                      title: 'Quiz Results Report',
+                      subtitle: 'View your latest completed mock test score and analysis.',
+                      icon: Icons.analytics_rounded,
+                      color: Colors.purple,
+                      onTap: () async {
+                        // Show progress loader
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                        );
+                        try {
+                          final user = Supabase.instance.client.auth.currentUser;
+                          if (user == null) throw Exception('No active user session');
+
+                          final latestAttempt = await Supabase.instance.client
+                              .from('test_attempts')
+                              .select('id, score, answers, completed_at, mock_tests(title, total_marks, questions)')
+                              .eq('student_id', user.id)
+                              .order('completed_at', ascending: false)
+                              .limit(1)
+                              .maybeSingle();
+
+                          // Dismiss loader
+                          Navigator.pop(context);
+                          Navigator.pop(bottomSheetContext);
+
+                          if (latestAttempt != null) {
+                            final testObj = latestAttempt['mock_tests'] ?? {};
+                            final questions = testObj['questions'] as List? ?? [];
+                            final studentAnswers = latestAttempt['answers'] as Map? ?? {};
+                            final testTitle = testObj['title'] ?? 'Mock Test';
+
+                            int correctCount = 0;
+                            final gradingDetails = [];
+
+                            for (int i = 0; i < questions.length; i++) {
+                              final q = questions[i] as Map? ?? {};
+                              final studentAnswer = studentAnswers[i.toString()];
+                              final correctAnswer = q['correctAnswer'] ?? '';
+                              final isCorrect = studentAnswer != null && studentAnswer == correctAnswer;
+
+                              if (isCorrect) correctCount++;
+
+                              gradingDetails.add({
+                                'questionIndex': i,
+                                'questionText': q['question'] ?? '',
+                                'studentAnswer': studentAnswer ?? 'Unanswered',
+                                'correctAnswer': correctAnswer,
+                                'isCorrect': isCorrect,
+                                'explanation': q['explanation'] ?? '',
                               });
                             }
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
 
-                  // AI Action Options
-                  _buildAiActionTile(
-                    context: bottomSheetContext,
-                    title: 'AI Generated Notes',
-                    subtitle: 'Get complete conceptual explanations and key takeaways.',
-                    icon: Icons.menu_book_rounded,
-                    color: const Color(0xFF4F46E5),
-                    onTap: () {
-                      if (activeTopic.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter a topic to generate notes.'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.pop(bottomSheetContext);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => StudyNotesViewScreen(
-                            topic: activeTopic,
-                            subject: activeSubject,
-                            isDarkMode: isDark,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _buildAiActionTile(
-                    context: bottomSheetContext,
-                    title: 'Sample Questions',
-                    subtitle: 'Practice with standard, detailed questions and step-by-step answers.',
-                    icon: Icons.question_answer_rounded,
-                    color: Colors.teal,
-                    onTap: () {
-                      if (activeTopic.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter a topic to start quiz.'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.pop(bottomSheetContext);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CombinedQuizScreen(
-                            topic: activeTopic,
-                            subject: activeSubject,
-                            isDarkMode: isDark,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _buildAiActionTile(
-                    context: bottomSheetContext,
-                    title: 'Mock Test',
-                    subtitle: 'Generate a practice test to gauge your current conceptual mastery.',
-                    icon: Icons.quiz_rounded,
-                    color: Colors.pink,
-                    onTap: () {
-                      Navigator.pop(bottomSheetContext);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => MockTestsListScreen(
-                            isDarkMode: isDark,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                            final resultsData = {
+                              'score': latestAttempt['score'] ?? 0,
+                              'totalMarks': testObj['total_marks'] ?? 100,
+                              'correctCount': correctCount,
+                              'totalQuestions': questions.length,
+                              'gradingDetails': gradingDetails,
+                            };
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => QuizResultsScreen(
+                                  resultsData: resultsData,
+                                  testTitle: testTitle,
+                                  isDarkMode: isDark,
+                                ),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('You have not attempted any mock tests yet.'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          Navigator.pop(context); // Dismiss loader if error
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to load score report: $e')),
+                          );
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             );
           },
