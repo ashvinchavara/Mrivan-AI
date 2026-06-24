@@ -3353,7 +3353,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Sessions list sidebar (Desktop only)
-                if (size.width > 750)
+                if (size.width > 750 && _selectedLevel == 'Simple Explanation')
                   Container(
                     width: 240,
                     margin: const EdgeInsets.only(right: 16),
