@@ -526,6 +526,7 @@ module.exports = {
   gradeMockInterview,
   analyzeResume,
   parseSyllabus,
+  parseTimetable,
 };
 
 /**
@@ -716,6 +717,76 @@ Do NOT include any markdown code blocks, backticks, or prefix text. Return only 
         "chapter_name": "Imported Syllabus",
         "topics": ["General overview of lessons"]
       }
+    ];
+  }
+}
+
+/**
+ * Parse a timetable PDF/TXT document into structured JSON schedule entries.
+ * Returns an array of { day_of_week, subject, time_slot, teacher_name } objects.
+ */
+async function parseTimetable(timetableText) {
+  if (!ai && !ai2) {
+    return [
+      { day_of_week: 'Monday', subject: 'Mathematics', time_slot: '09:00 AM - 10:00 AM', teacher_name: '' },
+    ];
+  }
+
+  const prompt = `You are an expert school timetable analyst. Convert the following raw timetable text into a structured JSON array of schedule entries.
+
+RAW TIMETABLE TEXT:
+${timetableText}
+
+You MUST return your evaluation strictly in the following JSON structure (an array of objects):
+[
+  {
+    "day_of_week": "Monday",
+    "subject": "Mathematics",
+    "time_slot": "09:00 AM - 10:00 AM",
+    "teacher_name": "Mr. Smith"
+  },
+  {
+    "day_of_week": "Monday",
+    "subject": "Physics",
+    "time_slot": "10:00 AM - 11:00 AM",
+    "teacher_name": ""
+  }
+]
+
+Rules:
+- day_of_week must be one of: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
+- time_slot should be in "HH:MM AM/PM - HH:MM AM/PM" format or as written in the document
+- teacher_name can be empty string "" if not mentioned
+- subject should be the subject/course name
+- If the same subject appears multiple days, create a separate entry for each day
+- Do NOT include any markdown code blocks, backticks, or extra text. Return only valid JSON array.`;
+
+  const text = await runWithRotation('TimetableParsing', async (provider) => {
+    if (provider === 'gemini' || provider === 'gemini2') {
+      const client = provider === 'gemini' ? ai : ai2;
+      const response = await client.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      return response.text;
+    }
+    const config = PROVIDER_CONFIGS[provider];
+    const messages = [{ role: 'user', content: prompt }];
+    return await makeOpenAICall(config.url, config.getHeaders(), { model: config.model, messages });
+  });
+
+  try {
+    let jsonString = text.trim();
+    if (jsonString.startsWith('```json')) {
+      jsonString = jsonString.substring(7, jsonString.length - 3);
+    } else if (jsonString.startsWith('```')) {
+      jsonString = jsonString.substring(3, jsonString.length - 3);
+    }
+    return JSON.parse(jsonString.trim());
+  } catch (error) {
+    console.error('Failed to parse timetable JSON. Raw:', text);
+    return [
+      { day_of_week: 'Monday', subject: 'General Timetable', time_slot: 'See attached schedule', teacher_name: '' },
     ];
   }
 }

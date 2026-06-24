@@ -4,6 +4,7 @@ const multer = require('multer');
 const aiController = require('../controllers/ai.controller');
 const resumeController = require('../controllers/resume.controller');
 const syllabusController = require('../controllers/syllabus.controller');
+const timetableController = require('../controllers/timetable.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 
 // Configure multer memory storage
@@ -34,5 +35,8 @@ router.post('/resume/analyze', authenticate, upload.single('resume'), resumeCont
 
 // AI Syllabus Parser
 router.post('/syllabus/parse', authenticate, upload.single('syllabus'), syllabusController.parseSyllabus);
+
+// AI Timetable Parser
+router.post('/timetable/parse', authenticate, upload.single('timetable'), timetableController.parseTimetable);
 
 module.exports = router;

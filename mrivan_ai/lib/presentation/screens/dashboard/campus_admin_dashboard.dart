@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import '../../../data/services/database_service.dart';
 import '../../theme/theme_config.dart';
 import '../../widgets/animated_background.dart';
@@ -1295,6 +1298,8 @@ class AdminManageTimetableTab extends StatefulWidget {
 class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
   final _subjectController = TextEditingController();
   final _timeSlotController = TextEditingController();
+  final _classNameController = TextEditingController();
+  final _uploadClassNameController = TextEditingController();
 
   List<Map<String, dynamic>> _timetable = [];
   List<Map<String, dynamic>> _classes = [];
@@ -1306,6 +1311,7 @@ class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
 
   bool _loading = true;
   bool _saving = false;
+  bool _isUploadingTimetable = false;
 
   final List<String> _daysOfWeek = [
     'Monday',
@@ -1327,6 +1333,8 @@ class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
   void dispose() {
     _subjectController.dispose();
     _timeSlotController.dispose();
+    _classNameController.dispose();
+    _uploadClassNameController.dispose();
     super.dispose();
   }
 
@@ -1359,11 +1367,29 @@ class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
   Future<void> _saveTimetableEntry() async {
     final subject = _subjectController.text.trim();
     final timeSlot = _timeSlotController.text.trim();
+    final className = _classNameController.text.trim();
 
-    if (_selectedClassId == null || _selectedTeacherId == null || subject.isEmpty || timeSlot.isEmpty) {
+    if (className.isEmpty || _selectedTeacherId == null || subject.isEmpty || timeSlot.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select class & teacher, and enter subject & time slot.'),
+          content: Text('Please enter class name, select a teacher, and fill in subject & time slot.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Match typed class name against loaded classes (case-insensitive), or use first class as fallback
+    final matchedClass = _classes.firstWhere(
+      (c) => (c['name'] ?? '').toString().toLowerCase() == className.toLowerCase(),
+      orElse: () => _classes.isNotEmpty ? _classes.first : {},
+    );
+    final classId = matchedClass['id'] as String? ?? _selectedClassId;
+    if (classId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No matching class found. Please check the class name.'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -1375,7 +1401,7 @@ class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
     try {
       await DatabaseService.instance.saveTimetableEntry(
         schoolId: widget.schoolId,
-        classId: _selectedClassId!,
+        classId: classId,
         teacherId: _selectedTeacherId!,
         subject: subject,
         dayOfWeek: _selectedDay,
@@ -1441,6 +1467,132 @@ class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
     }
   }
 
+  /// Pick a PDF or TXT timetable file, send to backend, bulk-save parsed entries.
+  Future<void> _pickAndParseTimetableFile() async {
+    final uploadClassName = _uploadClassNameController.text.trim();
+    if (uploadClassName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter the class name before uploading a timetable.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'txt'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final fileBytes = file.bytes;
+      if (fileBytes == null) throw Exception('Failed to read file content');
+
+      setState(() => _isUploadingTimetable = true);
+
+      final jwtToken = Supabase.instance.client.auth.currentSession?.accessToken;
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+
+      final request = http.MultipartRequest('POST', Uri.parse('$envBackendUrl/api/ai/timetable/parse'));
+      if (jwtToken != null) request.headers['Authorization'] = 'Bearer $jwtToken';
+      request.headers['Bypass-Tunnel-Reminder'] = 'true';
+      request.files.add(http.MultipartFile.fromBytes('timetable', fileBytes, filename: file.name));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 200) {
+        String errMsg = 'Server returned status ${response.statusCode}';
+        try {
+          final errBody = jsonDecode(response.body);
+          errMsg = errBody['error'] ?? errMsg;
+        } catch (_) {}
+        throw Exception(errMsg);
+      }
+
+      final List parsedEntries = jsonDecode(response.body);
+
+      // Resolve class ID from typed name
+      final matchedClass = _classes.firstWhere(
+        (c) => (c['name'] ?? '').toString().toLowerCase() == uploadClassName.toLowerCase(),
+        orElse: () => _classes.isNotEmpty ? _classes.first : {},
+      );
+      final classId = matchedClass['id'] as String?;
+      if (classId == null) {
+        throw Exception('Class "$uploadClassName" not found. Please check the class name.');
+      }
+
+      int saved = 0;
+      for (final entry in parsedEntries) {
+        if (entry is! Map) continue;
+        final day = entry['day_of_week']?.toString() ?? '';
+        final subject = entry['subject']?.toString() ?? '';
+        final timeSlot = entry['time_slot']?.toString() ?? '';
+        final teacherName = entry['teacher_name']?.toString() ?? '';
+
+        if (day.isEmpty || subject.isEmpty) continue;
+
+        // Try to match teacher by name
+        String teacherId;
+        if (teacherName.isNotEmpty) {
+          final matchedTeacher = _teachers.firstWhere(
+            (t) => (t['full_name'] ?? '').toString().toLowerCase().contains(teacherName.toLowerCase()),
+            orElse: () => _teachers.isNotEmpty ? _teachers.first : {},
+          );
+          teacherId = matchedTeacher['id'] as String? ?? '';
+        } else {
+          teacherId = _teachers.isNotEmpty ? (_teachers.first['id'] as String? ?? '') : '';
+        }
+        if (teacherId.isEmpty) continue;
+
+        try {
+          await DatabaseService.instance.saveTimetableEntry(
+            schoolId: widget.schoolId,
+            classId: classId,
+            teacherId: teacherId,
+            subject: subject,
+            dayOfWeek: day,
+            timeSlot: timeSlot.isNotEmpty ? timeSlot : 'TBD',
+          );
+          saved++;
+        } catch (_) {}
+      }
+
+      // Reload
+      final updated = await DatabaseService.instance.fetchTimetable(widget.schoolId);
+      setState(() => _timetable = updated);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ $saved timetable entries imported successfully!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) print('Timetable parse error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to import timetable: ${e.toString()}'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingTimetable = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
@@ -1472,7 +1624,71 @@ class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
           ),
           const SizedBox(height: 20),
 
-          // Input Form Card
+          // ── AI Timetable Importer Card ──────────────────────────
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderCol),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 16, color: Color(0xFF155DFC)),
+                    const SizedBox(width: 8),
+                    Text('Import Timetable via AI Parser',
+                        style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Upload a PDF or TXT timetable file. AI will extract all periods, subjects and time slots automatically.',
+                  style: TextStyle(color: Colors.grey, fontSize: 11),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _uploadClassNameController,
+                  style: TextStyle(color: currentText, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Class Name (e.g. MCA Semester 1, Grade 10-A)',
+                    labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.class_rounded, size: 18),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (_isUploadingTimetable)
+                  const Row(
+                    children: [
+                      SizedBox(
+                        height: 16, width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF155DFC))),
+                      ),
+                      SizedBox(width: 10),
+                      Text('Uploading and parsing timetable...', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ],
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: _pickAndParseTimetableFile,
+                    icon: const Icon(Icons.cloud_upload_outlined, size: 16, color: Colors.white),
+                    label: const Text('Upload PDF / TXT', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF155DFC),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 16),
+
+          // ── Manual Entry Form Card ──────────────────────────────
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1484,44 +1700,24 @@ class _AdminManageTimetableTabState extends State<AdminManageTimetableTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Add Timetable Entry',
+                  'Add Timetable Entry Manually',
                   style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 const SizedBox(height: 16),
-                
-                // Class and Day Row
+
+                // Class name (typed) and Day Row
                 Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Class', style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: borderCol),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                dropdownColor: cardBg,
-                                value: _selectedClassId,
-                                isExpanded: true,
-                                items: _classes.map((c) {
-                                  return DropdownMenuItem<String>(
-                                    value: c['id'],
-                                    child: Text(c['name'] ?? '', style: TextStyle(color: currentText, fontSize: 13)),
-                                  );
-                                }).toList(),
-                                onChanged: (val) {
-                                  setState(() => _selectedClassId = val);
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: TextField(
+                        controller: _classNameController,
+                        style: TextStyle(color: currentText, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Class Name (e.g. MCA Sem 1)',
+                          labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.class_rounded, size: 18),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
