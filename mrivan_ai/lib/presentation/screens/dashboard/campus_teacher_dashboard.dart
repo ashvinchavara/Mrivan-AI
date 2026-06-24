@@ -2585,8 +2585,12 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode != 200) {
-        final errBody = jsonDecode(response.body);
-        throw Exception(errBody['error'] ?? 'Server returned status ${response.statusCode}');
+        String errMsg = 'Server returned status ${response.statusCode}';
+        try {
+          final errBody = jsonDecode(response.body);
+          errMsg = errBody['error'] ?? errMsg;
+        } catch (_) {}
+        throw Exception(errMsg);
       }
 
       final List parsedChapters = jsonDecode(response.body);

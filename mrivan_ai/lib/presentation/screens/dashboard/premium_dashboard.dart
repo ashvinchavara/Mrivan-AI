@@ -1857,8 +1857,12 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode != 200) {
-        final errBody = jsonDecode(response.body);
-        throw Exception(errBody['error'] ?? 'Server returned status ${response.statusCode}');
+        String errMsg = 'Server returned status ${response.statusCode}';
+        try {
+          final errBody = jsonDecode(response.body);
+          errMsg = errBody['error'] ?? errMsg;
+        } catch (_) {}
+        throw Exception(errMsg);
       }
 
       final parsedChapters = jsonDecode(response.body);
@@ -5893,8 +5897,12 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode != 200) {
-        final errBody = jsonDecode(response.body);
-        throw Exception(errBody['error'] ?? 'Server returned status ${response.statusCode}');
+        String errMsg = 'Server returned status ${response.statusCode}';
+        try {
+          final errBody = jsonDecode(response.body);
+          errMsg = errBody['error'] ?? errMsg;
+        } catch (_) {}
+        throw Exception(errMsg);
       }
 
       final List parsedChapters = jsonDecode(response.body);
@@ -6004,7 +6012,6 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
     double overallProgress = 0.0;
     int totalTopics = 0;
     int completedTopics = 0;
-    List<Map<String, dynamic>> allTopics = [];
     if (!widget.isCampusPlan) {
       int total = 0;
       int completed = 0;
@@ -6012,13 +6019,6 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
         final List topics = ch['topics'] ?? [];
         total += topics.length;
         completed += topics.where((t) => t['completed'] == true).length;
-        for (final t in topics) {
-          allTopics.add({
-            'topic_name': t['topic_name'] ?? '',
-            'completed': t['completed'] ?? false,
-            'chapter_name': ch['chapter_name'] ?? '',
-          });
-        }
       }
       totalTopics = total;
       completedTopics = completed;
@@ -6572,27 +6572,12 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Syllabus revision checklist & tests tracking', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: currentText)),
-                  const SizedBox(height: 16),
-                  if (allTopics.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        'No syllabus checklist items created yet. Configure your syllabus checklist above to begin tracking.',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    )
-                  else
-                    ...allTopics.take(3).map((topic) {
-                      final name = topic['topic_name'] as String;
-                      final isDone = topic['completed'] as bool;
-                      return _buildChecklistItem(
-                        name,
-                        isDone ? 'Revision Completed (100% mastery)' : 'Pending conceptual recall drills',
-                        isDone,
-                        currentText,
-                      );
-                    }),
+                  Text('Mock Tests & Exam Prep', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: currentText)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Take AI-powered mock tests to evaluate your exam readiness based on your uploaded syllabus.',
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
                     onPressed: () {
