@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math' as math;
 import '../../theme/theme_config.dart';
@@ -11,9 +12,9 @@ import '../../../data/services/database_service.dart';
 import '../auth/payment_screen.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import '../student/quiz/mock_tests_list_screen.dart';
-import '../student/quiz/combined_quiz_screen.dart';
-import '../student/study_notes_view_screen.dart';
+
+
+import '../../widgets/animated_background.dart';
 import 'package:file_picker/file_picker.dart';
 
 class PremiumDashboard extends StatefulWidget {
@@ -7232,3 +7233,3468 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
     );
   }
 }
+
+
+
+// ==========================================
+// MERGED FROM: combined_quiz_screen.dart
+// ==========================================
+
+
+class CombinedQuizScreen extends StatefulWidget {
+  final String? testId;
+  final String? testTitle;
+  final String? topic;
+  final String? subject;
+  final bool isDarkMode;
+
+  const CombinedQuizScreen({
+    super.key,
+    this.testId,
+    this.testTitle,
+    this.topic,
+    this.subject,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<CombinedQuizScreen> createState() => _CombinedQuizScreenState();
+}
+
+class _CombinedQuizScreenState extends State<CombinedQuizScreen> {
+  final SupabaseClient _client = Supabase.instance.client;
+  bool _isLoading = true;
+  String _errorMessage = '';
+  List<dynamic> _questions = [];
+
+  int _currentIndex = 0;
+  final Map<String, String> _answers = {}; // Key: question index as string, Value: chosen answer string
+
+  Timer? _timer;
+  int _secondsRemaining = 0;
+  bool _isSubmitting = false;
+  bool _isSubmitted = false;
+
+  Map<String, dynamic> _resultsData = {};
+  String _activeView = 'quiz'; // 'quiz' or 'results'
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchQuizData();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchQuizData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final jwtToken = _client.auth.currentSession?.accessToken;
+
+      if (widget.testId != null) {
+        // Mode 1: Fetch Mock Test from School CRM database
+        final response = await http.get(
+          Uri.parse('$envBackendUrl/api/tests/${widget.testId}'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Bypass-Tunnel-Reminder': 'true',
+            if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+          },
+        ).timeout(const Duration(seconds: 15));
+
+        if (response.statusCode != 200) {
+          throw Exception('Server returned status code ${response.statusCode}');
+        }
+
+        final data = jsonDecode(response.body);
+        if (data == null || data['questions'] == null) {
+          throw Exception('Could not parse mock test questions.');
+        }
+
+        _questions = data['questions'] is List ? data['questions'] : [];
+        final durationMins = data['duration_minutes'] ?? 60;
+        _secondsRemaining = durationMins * 60;
+        _startTimer();
+      } else if (widget.topic != null && widget.subject != null) {
+        // Mode 2: Generate AI practice quiz on-the-fly for specified topic
+        final response = await http.post(
+          Uri.parse('$envBackendUrl/api/ai/quiz'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Bypass-Tunnel-Reminder': 'true',
+            if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+          },
+          body: jsonEncode({
+            'subject': widget.subject,
+            'topic': widget.topic,
+            'count': 5,
+          }),
+        ).timeout(const Duration(seconds: 25));
+
+        if (response.statusCode != 200) {
+          throw Exception('Server returned status code ${response.statusCode}');
+        }
+
+        final data = jsonDecode(response.body);
+        _questions = data is List ? data : [];
+        
+        // 2 minutes per question default timer
+        _secondsRemaining = _questions.length * 2 * 60;
+        if (_secondsRemaining > 0) {
+          _startTimer();
+        }
+      } else {
+        throw Exception('Invalid quiz configuration: missing test ID and topic parameters.');
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading quiz data: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining <= 0) {
+        timer.cancel();
+        _autoSubmitQuiz();
+      } else {
+        if (mounted) {
+          setState(() {
+            _secondsRemaining--;
+          });
+        }
+      }
+    });
+  }
+
+  String _formatDuration(int totalSeconds) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _autoSubmitQuiz() async {
+    if (_isSubmitting) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Time\'s up! Submitting your answers automatically...'),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    await _submitAnswers();
+  }
+
+  Future<void> _submitAnswers() async {
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+    _timer?.cancel();
+
+    try {
+      if (widget.testId != null) {
+        // Mode 1: Submit school mock test to backend for auto-grading
+        const envBackendUrl = String.fromEnvironment(
+          'BACKEND_API_URL',
+          defaultValue: 'https://mrivan-ai.onrender.com',
+        );
+        final jwtToken = _client.auth.currentSession?.accessToken;
+
+        final response = await http.post(
+          Uri.parse('$envBackendUrl/api/tests/${widget.testId}/attempt'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Bypass-Tunnel-Reminder': 'true',
+            if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+          },
+          body: jsonEncode({
+            'answers': _answers,
+          }),
+        ).timeout(const Duration(seconds: 20));
+
+        if (response.statusCode != 200) {
+          throw Exception('Server returned status code ${response.statusCode}');
+        }
+
+        final responseData = jsonDecode(response.body);
+        setState(() {
+          _resultsData = responseData;
+          _isSubmitted = true;
+          _isSubmitting = false;
+          _activeView = 'results';
+        });
+      } else {
+        // Mode 2: Grade AI-generated practice quiz offline (correctAnswer is already in question data)
+        int correctCount = 0;
+        final totalQuestions = _questions.length;
+        final totalMarks = totalQuestions * 10;
+        int score = 0;
+        List<dynamic> gradingDetails = [];
+
+        for (int i = 0; i < _questions.length; i++) {
+          final q = _questions[i];
+          final correctAns = q['correctAnswer'] ?? '';
+          final studentAns = _answers[i.toString()] ?? '';
+          final isCorrect = studentAns.trim().toLowerCase() == correctAns.toString().trim().toLowerCase();
+
+          if (isCorrect) {
+            score += 10;
+            correctCount++;
+          }
+
+          gradingDetails.add({
+            'questionIndex': i,
+            'questionText': q['question'],
+            'studentAnswer': studentAns,
+            'correctAnswer': correctAns,
+            'isCorrect': isCorrect,
+            'explanation': q['explanation'] ?? '',
+          });
+        }
+
+        setState(() {
+          _resultsData = {
+            'score': score,
+            'totalMarks': totalMarks,
+            'correctCount': correctCount,
+            'totalQuestions': totalQuestions,
+            'gradingDetails': gradingDetails,
+          };
+          _isSubmitted = true;
+          _isSubmitting = false;
+          _activeView = 'results';
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Submission error: $e');
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to submit attempt: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _startTimer(); // resume timer in case of transient network failure
+      }
+    }
+  }
+
+  void _confirmSubmitDialog() {
+    final unansweredCount = _questions.length - _answers.length;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+        final currentCard = widget.isDarkMode ? const Color(0xFF1E1E28) : Colors.white;
+
+        return AlertDialog(
+          backgroundColor: currentCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Submit Exam?', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 16)),
+          content: Text(
+            unansweredCount > 0
+                ? 'You have $unansweredCount unanswered questions. Are you sure you want to finish and submit?'
+                : 'Are you sure you want to complete and submit your answers now?',
+            style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 13)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _submitAnswers();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4F46E5),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Submit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgDark = const Color(0xFF111116);
+    final bgLight = const Color(0xFFF8FAFC);
+    final cardDark = const Color(0xFF181824);
+    final cardLight = const Color(0xFFFFFFFF);
+    final textDark = const Color(0xFFF1F5F9);
+    final textLight = const Color(0xFF0F172A);
+    final borderDark = Colors.white10;
+    final borderLight = const Color(0xFFE2E8F0);
+
+    final currentBg = widget.isDarkMode ? bgDark : bgLight;
+    final currentCard = widget.isDarkMode ? cardDark : cardLight;
+    final currentText = widget.isDarkMode ? textDark : textLight;
+    final currentBorder = widget.isDarkMode ? borderDark : borderLight;
+
+    final quizTitle = widget.testTitle ?? (widget.topic != null ? 'AI Practice: ${widget.topic}' : 'Practice Quiz');
+
+    return Scaffold(
+      backgroundColor: currentBg,
+      appBar: AppBar(
+        title: Text(
+          quizTitle,
+          style: TextStyle(color: currentText, fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        iconTheme: IconThemeData(color: currentText),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        actions: [
+          // Sleek Tab/View Switcher Toggle
+          if (!_isLoading && _errorMessage.isEmpty)
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(right: 16),
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: widget.isDarkMode ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _activeView = 'quiz';
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _activeView == 'quiz' ? const Color(0xFF4F46E5) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Quiz',
+                          style: TextStyle(
+                            color: _activeView == 'quiz' ? Colors.white : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _isSubmitted
+                          ? () {
+                              setState(() {
+                                _activeView = 'results';
+                              });
+                            }
+                          : () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please complete and submit the quiz to see results.'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _activeView == 'results' ? const Color(0xFF4F46E5) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Opacity(
+                          opacity: _isSubmitted ? 1.0 : 0.5,
+                          child: Text(
+                            'Results',
+                            style: TextStyle(
+                              color: _activeView == 'results' ? Colors.white : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5))))
+          : _errorMessage.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Failed to Load Quiz',
+                          style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(_errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _fetchQuizData,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4F46E5),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : _isSubmitting
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5))),
+                          const SizedBox(height: 16),
+                          Text('Evaluating your test answers...', style: TextStyle(color: currentText, fontSize: 13)),
+                        ],
+                      ),
+                    )
+                  : _activeView == 'quiz'
+                      ? _buildQuizView(currentBg, currentCard, currentText, currentBorder)
+                      : _buildResultsView(currentBg, currentCard, currentText, currentBorder),
+    );
+  }
+
+  Widget _buildQuizView(Color currentBg, Color currentCard, Color currentText, Color currentBorder) {
+    if (_questions.isEmpty) {
+      return Center(
+        child: Text('No questions available.', style: TextStyle(color: currentText)),
+      );
+    }
+
+    final question = _questions[_currentIndex];
+    final options = question['options'] as List? ?? [];
+    final selectedAns = _answers[_currentIndex.toString()];
+
+    // Review mode configurations
+    final correctAns = question['correctAnswer'] ?? '';
+    final explanation = question['explanation'] ?? '';
+
+    return Column(
+      children: [
+        // Progress and timer bar (only active if not submitted)
+        if (!_isSubmitted) ...[
+          LinearProgressIndicator(
+            value: _questions.isEmpty ? 0.0 : (_currentIndex + 1) / _questions.length,
+            backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black12,
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+            minHeight: 4,
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            color: currentCard.withOpacity(0.4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Question ${_currentIndex + 1} of ${_questions.length}',
+                  style: TextStyle(color: currentText.withOpacity(0.7), fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+                if (_secondsRemaining > 0)
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.timer_outlined,
+                        color: _secondsRemaining < 60 ? Colors.redAccent : const Color(0xFF4F46E5),
+                        size: 13,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatDuration(_secondsRemaining),
+                        style: TextStyle(
+                          color: _secondsRemaining < 60 ? Colors.redAccent : const Color(0xFF4F46E5),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ] else ...[
+          // Post-Submit progress bar (constant 100%)
+          LinearProgressIndicator(
+            value: (_currentIndex + 1) / _questions.length,
+            backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black12,
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+            minHeight: 4,
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            color: Colors.green.withOpacity(0.1),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Review Mode: Question ${_currentIndex + 1} of ${_questions.length}',
+                  style: const TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                const Icon(Icons.check_circle_rounded, color: Colors.green, size: 14),
+              ],
+            ),
+          ),
+        ],
+
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(20.0),
+            children: [
+              // Question Box
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: currentCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: currentBorder),
+                ),
+                child: Text(
+                  question['question'] ?? '',
+                  style: TextStyle(
+                    color: currentText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Question Options
+              ...options.map((opt) {
+                final optionText = opt.toString();
+                final isSelected = selectedAns == optionText;
+
+                Color tileBorderColor = currentBorder;
+                Color tileBgColor = currentCard;
+                Color checkColor = Colors.transparent;
+                Color textStyleColor = currentText;
+
+                if (_isSubmitted) {
+                  // Review Mode styling
+                  final isCorrectOption = optionText.trim().toLowerCase() == correctAns.toString().trim().toLowerCase();
+                  final isStudentSelected = selectedAns == optionText;
+
+                  if (isCorrectOption) {
+                    // Correct answer: green outline
+                    tileBorderColor = Colors.green;
+                    tileBgColor = Colors.green.withOpacity(0.08);
+                    checkColor = Colors.green;
+                    textStyleColor = Colors.green;
+                  } else if (isStudentSelected) {
+                    // Incorrect selection: red outline
+                    tileBorderColor = Colors.redAccent;
+                    tileBgColor = Colors.redAccent.withOpacity(0.08);
+                    checkColor = Colors.redAccent;
+                    textStyleColor = Colors.redAccent;
+                  }
+                } else {
+                  // Active test taking mode
+                  if (isSelected) {
+                    tileBorderColor = const Color(0xFF4F46E5);
+                    tileBgColor = const Color(0xFF4F46E5).withOpacity(0.08);
+                    checkColor = const Color(0xFF4F46E5);
+                    textStyleColor = const Color(0xFF4F46E5);
+                  }
+                }
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: InkWell(
+                    onTap: _isSubmitted
+                        ? null // Read-only in review mode
+                        : () {
+                            setState(() {
+                              _answers[_currentIndex.toString()] = optionText;
+                            });
+                          },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Ink(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: tileBgColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: tileBorderColor,
+                          width: isSelected || (_isSubmitted && (optionText == correctAns || isSelected)) ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: checkColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: checkColor == Colors.transparent ? Colors.grey : checkColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: checkColor != Colors.transparent
+                                ? Icon(
+                                    checkColor == Colors.redAccent ? Icons.close : Icons.check,
+                                    color: Colors.white,
+                                    size: 12,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              optionText,
+                              style: TextStyle(
+                                color: textStyleColor,
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+
+              // Show explanation directly in review mode
+              if (_isSubmitted && explanation.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: currentBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.auto_awesome, color: Color(0xFF4F46E5), size: 14),
+                          SizedBox(width: 6),
+                          Text(
+                            'AI Explanation',
+                            style: TextStyle(color: Color(0xFF4F46E5), fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        explanation,
+                        style: TextStyle(color: currentText.withOpacity(0.85), fontSize: 11, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        // Navigation Panel
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            color: currentCard,
+            border: Border(top: BorderSide(color: currentBorder)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Previous
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_rounded),
+                color: _currentIndex > 0 ? currentText : Colors.grey[400],
+                onPressed: _currentIndex > 0
+                    ? () {
+                        setState(() {
+                          _currentIndex--;
+                        });
+                      }
+                    : null,
+              ),
+
+              Text(
+                '${_currentIndex + 1} / ${_questions.length}',
+                style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+
+              // Next or Finish (if not submitted)
+              if (!_isSubmitted) ...[
+                _currentIndex < _questions.length - 1
+                    ? ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _currentIndex++;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4F46E5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Text('Next', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            SizedBox(width: 4),
+                            Icon(Icons.arrow_forward_ios_rounded, size: 10),
+                          ],
+                        ),
+                      )
+                    : ElevatedButton.icon(
+                        onPressed: _confirmSubmitDialog,
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 14),
+                        label: const Text('Finish', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+              ] else ...[
+                // Next in Review Mode
+                _currentIndex < _questions.length - 1
+                    ? ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _currentIndex++;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4F46E5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Text('Next', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            SizedBox(width: 4),
+                            Icon(Icons.arrow_forward_ios_rounded, size: 10),
+                          ],
+                        ),
+                      )
+                    : ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _activeView = 'results';
+                          });
+                        },
+                        icon: const Icon(Icons.analytics_rounded, size: 14),
+                        label: const Text('View Results', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResultsView(Color currentBg, Color currentCard, Color currentText, Color currentBorder) {
+    final score = _resultsData['score'] ?? 0;
+    final totalMarks = _resultsData['totalMarks'] ?? 100;
+    final correctCount = _resultsData['correctCount'] ?? 0;
+    final totalQuestions = _resultsData['totalQuestions'] ?? 0;
+    final gradingDetails = _resultsData['gradingDetails'] as List? ?? [];
+
+    final percentage = totalMarks > 0 ? (score / totalMarks) * 100 : 0.0;
+    final isPassed = percentage >= 50.0;
+
+    return ListView(
+      padding: const EdgeInsets.all(20.0),
+      children: [
+        // Score Summary Card
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: currentCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: currentBorder),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              )
+            ],
+          ),
+          child: Column(
+            children: [
+              Text(
+                isPassed ? '🎉 Great Job! Quiz Completed' : '📚 Keep Learning! Quiz Completed',
+                style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 15),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: CircularProgressIndicator(
+                      value: totalMarks > 0 ? score / totalMarks : 0,
+                      strokeWidth: 10,
+                      backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black12,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        isPassed ? Colors.green : Colors.orange,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${percentage.toStringAsFixed(0)}%',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: isPassed ? Colors.green : Colors.orange,
+                        ),
+                      ),
+                      Text(
+                        '$score / $totalMarks Marks',
+                        style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem('Passed', isPassed ? 'Yes' : 'No', isPassed ? Colors.green : Colors.orange),
+                  _buildStatItem('Correct', '$correctCount / $totalQuestions', currentText),
+                  _buildStatItem('Accuracy', '${totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toStringAsFixed(0) : 0}%', currentText),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+
+        Row(
+          children: [
+            Icon(Icons.list_alt_rounded, color: const Color(0xFF4F46E5), size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'Performance Summary Details',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: currentText),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // Quick list of questions indicating pass/fail status
+        ...gradingDetails.map((detail) {
+          final qIndex = (detail['questionIndex'] ?? 0) + 1;
+          final qText = detail['questionText'] ?? '';
+          final studentAns = detail['studentAnswer'] ?? '';
+          final isCorrect = detail['isCorrect'] ?? false;
+          final detailColor = isCorrect ? Colors.green : Colors.redAccent;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: currentCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: currentBorder),
+            ),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: detailColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Q$qIndex',
+                  style: TextStyle(color: detailColor, fontWeight: FontWeight.bold, fontSize: 10),
+                ),
+              ),
+              title: Text(
+                qText,
+                style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                studentAns.isEmpty ? 'Unanswered' : 'Your Answer: $studentAns',
+                style: TextStyle(color: studentAns.isEmpty ? Colors.grey : detailColor, fontSize: 10),
+              ),
+              trailing: Icon(
+                isCorrect ? Icons.check_circle_outline_rounded : Icons.cancel_outlined,
+                color: detailColor,
+                size: 18,
+              ),
+              onTap: () {
+                setState(() {
+                  _currentIndex = qIndex - 1;
+                  _activeView = 'quiz';
+                });
+              },
+            ),
+          );
+        }),
+        const SizedBox(height: 24),
+
+        // Primary actions
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _currentIndex = 0;
+                    _activeView = 'quiz';
+                  });
+                },
+                icon: const Icon(Icons.menu_book_rounded, size: 16),
+                label: const Text('Review Questions', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                icon: const Icon(Icons.home_outlined, size: 16),
+                label: const Text('Back to Dashboard', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: currentText,
+                  side: BorderSide(color: currentBorder),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 40),
+      ],
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+}
+
+
+
+// ==========================================
+// MERGED FROM: mock_tests_list_screen.dart
+// ==========================================
+
+
+class MockTestsListScreen extends StatefulWidget {
+  final bool isDarkMode;
+  const MockTestsListScreen({super.key, required this.isDarkMode});
+
+  @override
+  State<MockTestsListScreen> createState() => _MockTestsListScreenState();
+}
+
+class _MockTestsListScreenState extends State<MockTestsListScreen> {
+  final SupabaseClient _client = Supabase.instance.client;
+  List<dynamic> _tests = [];
+  List<dynamic> _attempts = [];
+  bool _isLoading = true;
+  String _errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPortalData();
+  }
+
+  Future<void> _loadPortalData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) {
+        throw Exception('User session not found.');
+      }
+
+      // 1. Fetch available mock tests from backend API
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final jwtToken = _client.auth.currentSession?.accessToken;
+
+      final response = await http.get(
+        Uri.parse('$envBackendUrl/api/tests'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) {
+        throw Exception('Server returned status code ${response.statusCode}');
+      }
+
+      final testData = jsonDecode(response.body);
+
+      // 2. Fetch student attempts history from Supabase mock_tests/test_attempts join
+      final attemptData = await _client
+          .from('test_attempts')
+          .select('id, score, completed_at, mock_tests(title, total_marks, subject)')
+          .eq('student_id', user.id)
+          .order('completed_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          _tests = testData is List ? testData : [];
+          _attempts = attemptData is List ? attemptData : [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Mock Exam Portal Error: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgDark = const Color(0xFF111116);
+    final bgLight = const Color(0xFFF8FAFC);
+    final cardDark = const Color(0xFF181824);
+    final cardLight = const Color(0xFFFFFFFF);
+    final textDark = const Color(0xFFF1F5F9);
+    final textLight = const Color(0xFF0F172A);
+    final borderDark = Colors.white10;
+    final borderLight = const Color(0xFFE2E8F0);
+
+    final currentBg = widget.isDarkMode ? bgDark : bgLight;
+    final currentCard = widget.isDarkMode ? cardDark : cardLight;
+    final currentText = widget.isDarkMode ? textDark : textLight;
+    final currentBorder = widget.isDarkMode ? borderDark : borderLight;
+
+    return Scaffold(
+      backgroundColor: currentBg,
+      appBar: AppBar(
+        title: Text(
+          'CBT Mock Exam Space 📝',
+          style: TextStyle(color: currentText, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        iconTheme: IconThemeData(color: currentText),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh_rounded, color: const Color(0xFF4F46E5)),
+            onPressed: _loadPortalData,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5))))
+          : _errorMessage.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Connection Error',
+                          style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _errorMessage,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _loadPortalData,
+                          icon: const Icon(Icons.refresh_rounded, size: 16),
+                          label: const Text('Try Again'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4F46E5),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadPortalData,
+                  color: const Color(0xFF4F46E5),
+                  child: ListView(
+                    padding: const EdgeInsets.all(16.0),
+                    children: [
+                      // Header Card
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: widget.isDarkMode
+                                ? [const Color(0xFF2E1A47), const Color(0xFF1A1F3C)]
+                                : [const Color(0xFFEEF2FF), const Color(0xFFE0E7FF)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: currentBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Computer-Based Testing (CBT) Center 💻',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Test your knowledge with real-time graded exams. Attempts will be saved to your dashboard analytics automatically.',
+                              style: TextStyle(fontSize: 12, color: widget.isDarkMode ? Colors.grey[300] : Colors.grey[700], height: 1.4),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Section 1: Available Exams
+                      Row(
+                        children: [
+                          Icon(Icons.quiz_rounded, color: const Color(0xFF4F46E5), size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Available Mock Exams',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: currentText),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _tests.isEmpty
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(vertical: 30),
+                              alignment: Alignment.center,
+                              child: Text(
+                                'No exams published yet by your teachers.',
+                                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _tests.length,
+                              itemBuilder: (context, index) {
+                                final test = _tests[index];
+                                final title = test['title'] ?? 'Mock Test';
+                                final subject = test['subject'] ?? 'General';
+                                final duration = test['duration_minutes'] ?? 60;
+                                final marks = test['total_marks'] ?? 100;
+                                final desc = test['description'] ?? '';
+
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  color: currentCard,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(color: currentBorder),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF4F46E5).withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                subject,
+                                                style: const TextStyle(
+                                                  color: Color(0xFF4F46E5),
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            Row(
+                                              children: [
+                                                const Icon(Icons.timer_outlined, color: Colors.grey, size: 14),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  '$duration mins',
+                                                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          title,
+                                          style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                                        ),
+                                        if (desc.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            desc,
+                                            style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                        const SizedBox(height: 12),
+                                        const Divider(height: 1),
+                                        const SizedBox(height: 12),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Total: $marks Marks',
+                                              style: TextStyle(color: currentText, fontSize: 12, fontWeight: FontWeight.w600),
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => CombinedQuizScreen(
+                                                      testId: test['id'],
+                                                      testTitle: title,
+                                                      isDarkMode: widget.isDarkMode,
+                                                    ),
+                                                  ),
+                                                ).then((_) => _loadPortalData());
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFF4F46E5),
+                                                foregroundColor: Colors.white,
+                                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              ),
+                                              child: const Text('Start Exam', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                      const SizedBox(height: 24),
+
+                      // Section 2: Attempt History
+                      Row(
+                        children: [
+                          Icon(Icons.history_rounded, color: Colors.teal, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Past Attempts History',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: currentText),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _attempts.isEmpty
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(vertical: 30),
+                              alignment: Alignment.center,
+                              child: Text(
+                                'You haven\'t attempted any mock exams yet.',
+                                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                              ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _attempts.length,
+                              itemBuilder: (context, index) {
+                                final attempt = _attempts[index];
+                                final testObj = attempt['mock_tests'] ?? {};
+                                final title = testObj['title'] ?? 'Mock Test';
+                                final subject = testObj['subject'] ?? 'General';
+                                final totalMarks = testObj['total_marks'] ?? 100;
+                                final score = attempt['score'] ?? 0;
+                                final completedAt = attempt['completed_at'] != null
+                                    ? DateTime.parse(attempt['completed_at']).toLocal()
+                                    : DateTime.now();
+
+                                final formattedDate = '${completedAt.day}/${completedAt.month}/${completedAt.year}';
+                                final isPassed = score >= (totalMarks * 0.5);
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: currentCard,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: currentBorder),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: (isPassed ? Colors.green : Colors.orange).withOpacity(0.1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          isPassed ? Icons.check_circle_outline_rounded : Icons.pending_actions_rounded,
+                                          color: isPassed ? Colors.green : Colors.orange,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              title,
+                                              style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 12),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '$subject • Completed on $formattedDate',
+                                              style: const TextStyle(color: Colors.grey, fontSize: 10),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            '$score/$totalMarks',
+                                            style: TextStyle(
+                                              color: isPassed ? Colors.green : Colors.orange,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          Text(
+                                            '${((score / totalMarks) * 100).toStringAsFixed(0)}%',
+                                            style: const TextStyle(color: Colors.grey, fontSize: 10),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+
+
+// ==========================================
+// MERGED FROM: quiz_play_screen.dart
+// ==========================================
+
+
+class QuizPlayScreen extends StatefulWidget {
+  final String testId;
+  final String testTitle;
+  final bool isDarkMode;
+
+  const QuizPlayScreen({
+    super.key,
+    required this.testId,
+    required this.testTitle,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<QuizPlayScreen> createState() => _QuizPlayScreenState();
+}
+
+class _QuizPlayScreenState extends State<QuizPlayScreen> {
+  final SupabaseClient _client = Supabase.instance.client;
+  bool _isLoading = true;
+  String _errorMessage = '';
+  Map<String, dynamic> _testData = {};
+  List<dynamic> _questions = [];
+
+  int _currentIndex = 0;
+  final Map<String, String> _answers = {}; // Key: question index as string, Value: chosen answer string
+
+  Timer? _timer;
+  int _secondsRemaining = 0;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTestDetails();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchTestDetails() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final jwtToken = _client.auth.currentSession?.accessToken;
+
+      final response = await http.get(
+        Uri.parse('$envBackendUrl/api/tests/${widget.testId}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) {
+        throw Exception('Server returned status code ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body);
+      if (data == null || data['questions'] == null) {
+        throw Exception('Could not parse mock test questions.');
+      }
+
+      _testData = data;
+      _questions = data['questions'] is List ? data['questions'] : [];
+
+      final durationMins = data['duration_minutes'] ?? 60;
+      _secondsRemaining = durationMins * 60;
+
+      _startTimer();
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error fetching test questions: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining <= 0) {
+        timer.cancel();
+        _autoSubmitQuiz();
+      } else {
+        if (mounted) {
+          setState(() {
+            _secondsRemaining--;
+          });
+        }
+      }
+    });
+  }
+
+  String _formatDuration(int totalSeconds) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _autoSubmitQuiz() async {
+    if (_isSubmitting) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Time\'s up! Submitting your answers automatically...'),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    await _submitAnswers();
+  }
+
+  Future<void> _submitAnswers() async {
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+    _timer?.cancel();
+
+    try {
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final jwtToken = _client.auth.currentSession?.accessToken;
+
+      final response = await http.post(
+        Uri.parse('$envBackendUrl/api/tests/${widget.testId}/attempt'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+        body: jsonEncode({
+          'answers': _answers,
+        }),
+      ).timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) {
+        throw Exception('Server returned status code ${response.statusCode}');
+      }
+
+      final responseData = jsonDecode(response.body);
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => QuizResultsScreen(
+              resultsData: responseData,
+              testTitle: widget.testTitle,
+              isDarkMode: widget.isDarkMode,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print('Submission error: $e');
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to submit attempt: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _startTimer(); // resume timer in case of transient network failure
+      }
+    }
+  }
+
+  void _confirmSubmitDialog() {
+    final unansweredCount = _questions.length - _answers.length;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final currentText = widget.isDarkMode ? Colors.white : const Color(0xFF0F172A);
+        final currentCard = widget.isDarkMode ? const Color(0xFF1E1E28) : Colors.white;
+
+        return AlertDialog(
+          backgroundColor: currentCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Submit Exam?', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 16)),
+          content: Text(
+            unansweredCount > 0
+                ? 'You have $unansweredCount unanswered questions. Are you sure you want to finish and submit?'
+                : 'Are you sure you want to complete and submit your answers now?',
+            style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 13)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _submitAnswers();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4F46E5),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Submit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgDark = const Color(0xFF111116);
+    final bgLight = const Color(0xFFF8FAFC);
+    final cardDark = const Color(0xFF181824);
+    final cardLight = const Color(0xFFFFFFFF);
+    final textDark = const Color(0xFFF1F5F9);
+    final textLight = const Color(0xFF0F172A);
+    final borderDark = Colors.white10;
+    final borderLight = const Color(0xFFE2E8F0);
+
+    final currentBg = widget.isDarkMode ? bgDark : bgLight;
+    final currentCard = widget.isDarkMode ? cardDark : cardLight;
+    final currentText = widget.isDarkMode ? textDark : textLight;
+    final currentBorder = widget.isDarkMode ? borderDark : borderLight;
+
+    return Scaffold(
+      backgroundColor: currentBg,
+      appBar: AppBar(
+        title: Text(
+          widget.testTitle,
+          style: TextStyle(color: currentText, fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        iconTheme: IconThemeData(color: currentText),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          if (!_isLoading && _errorMessage.isEmpty)
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(right: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _secondsRemaining < 60 ? Colors.redAccent.withOpacity(0.1) : const Color(0xFF4F46E5).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _secondsRemaining < 60 ? Colors.redAccent : const Color(0xFF4F46E5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      color: _secondsRemaining < 60 ? Colors.redAccent : const Color(0xFF4F46E5),
+                      size: 14,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatDuration(_secondsRemaining),
+                      style: TextStyle(
+                        color: _secondsRemaining < 60 ? Colors.redAccent : const Color(0xFF4F46E5),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5))))
+          : _errorMessage.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Failed to Load Exam',
+                          style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(_errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _fetchTestDetails,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4F46E5),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : _isSubmitting
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5))),
+                          const SizedBox(height: 16),
+                          Text('Evaluating your test attempts...', style: TextStyle(color: currentText, fontSize: 13)),
+                        ],
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        // Progress Indicator
+                        LinearProgressIndicator(
+                          value: _questions.isEmpty ? 0.0 : (_currentIndex + 1) / _questions.length,
+                          backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black12,
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                          minHeight: 4,
+                        ),
+
+                        Expanded(
+                          child: ListView(
+                            padding: const EdgeInsets.all(20.0),
+                            children: [
+                              // Question Box
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: currentCard,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: currentBorder),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Question ${_currentIndex + 1} of ${_questions.length}',
+                                      style: const TextStyle(color: Color(0xFF4F46E5), fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      _questions[_currentIndex]['question'] ?? '',
+                                      style: TextStyle(
+                                        color: currentText,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // Question Options
+                              ...(() {
+                                final options = _questions[_currentIndex]['options'] as List? ?? [];
+                                return options.map((opt) {
+                                  final optionText = opt.toString();
+                                  final isSelected = _answers[_currentIndex.toString()] == optionText;
+                                  final activeColor = const Color(0xFF4F46E5);
+
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    child: InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _answers[_currentIndex.toString()] = optionText;
+                                        });
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Ink(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                        decoration: BoxDecoration(
+                                          color: isSelected ? activeColor.withOpacity(0.08) : currentCard,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isSelected ? activeColor : currentBorder,
+                                            width: isSelected ? 1.5 : 1.0,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 20,
+                                              height: 20,
+                                              decoration: BoxDecoration(
+                                                color: isSelected ? activeColor : Colors.transparent,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: isSelected ? activeColor : Colors.grey,
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              child: isSelected
+                                                  ? const Icon(Icons.check, color: Colors.white, size: 12)
+                                                  : null,
+                                            ),
+                                            const SizedBox(width: 14),
+                                            Expanded(
+                                              child: Text(
+                                                optionText,
+                                                style: TextStyle(
+                                                  color: isSelected ? activeColor : currentText,
+                                                  fontSize: 12,
+                                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList();
+                              }()),
+                            ],
+                          ),
+                        ),
+
+                        // Navigation Panel
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: currentCard,
+                            border: Border(top: BorderSide(color: currentBorder)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Previous
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back_ios_rounded),
+                                color: _currentIndex > 0 ? currentText : Colors.grey[400],
+                                onPressed: _currentIndex > 0
+                                    ? () {
+                                        setState(() {
+                                          _currentIndex--;
+                                        });
+                                      }
+                                    : null,
+                              ),
+
+                              // Quick Jump indicator dots or numbers
+                              Text(
+                                '${_currentIndex + 1} / ${_questions.length}',
+                                style: TextStyle(color: currentText, fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+
+                              // Next or Submit
+                              _currentIndex < _questions.length - 1
+                                  ? ElevatedButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _currentIndex++;
+                                        });
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF4F46E5),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      child: const Row(
+                                        children: [
+                                          Text('Next', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                          SizedBox(width: 4),
+                                          Icon(Icons.arrow_forward_ios_rounded, size: 10),
+                                        ],
+                                      ),
+                                    )
+                                  : ElevatedButton.icon(
+                                      onPressed: _confirmSubmitDialog,
+                                      icon: const Icon(Icons.check_circle_outline_rounded, size: 14),
+                                      label: const Text('Finish', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+    );
+  }
+}
+
+
+
+// ==========================================
+// MERGED FROM: quiz_results_screen.dart
+// ==========================================
+
+
+class QuizResultsScreen extends StatelessWidget {
+  final Map<String, dynamic> resultsData;
+  final String testTitle;
+  final bool isDarkMode;
+
+  const QuizResultsScreen({
+    super.key,
+    required this.resultsData,
+    required this.testTitle,
+    required this.isDarkMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgDark = const Color(0xFF111116);
+    final bgLight = const Color(0xFFF8FAFC);
+    final cardDark = const Color(0xFF181824);
+    final cardLight = const Color(0xFFFFFFFF);
+    final textDark = const Color(0xFFF1F5F9);
+    final textLight = const Color(0xFF0F172A);
+    final borderDark = Colors.white10;
+    final borderLight = const Color(0xFFE2E8F0);
+
+    final currentBg = isDarkMode ? bgDark : bgLight;
+    final currentCard = isDarkMode ? cardDark : cardLight;
+    final currentText = isDarkMode ? textDark : textLight;
+    final currentBorder = isDarkMode ? borderDark : borderLight;
+
+    final score = resultsData['score'] ?? 0;
+    final totalMarks = resultsData['totalMarks'] ?? 100;
+    final correctCount = resultsData['correctCount'] ?? 0;
+    final totalQuestions = resultsData['totalQuestions'] ?? 0;
+    final gradingDetails = resultsData['gradingDetails'] as List? ?? [];
+
+    final percentage = totalMarks > 0 ? (score / totalMarks) * 100 : 0.0;
+    final isPassed = percentage >= 50.0;
+
+    return Scaffold(
+      backgroundColor: currentBg,
+      appBar: AppBar(
+        title: const Text(
+          'Exam Score Report 📊',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        ),
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20.0),
+        children: [
+          // Circular Score Card
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: currentCard,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: currentBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                )
+              ],
+            ),
+            child: Column(
+              children: [
+                Text(
+                  testTitle,
+                  style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 15),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Spacer(), // dummy spacer just in case
+                    SizedBox(
+                      width: 120,
+                      height: 120,
+                      child: CircularProgressIndicator(
+                        value: totalMarks > 0 ? score / totalMarks : 0,
+                        strokeWidth: 10,
+                        backgroundColor: isDarkMode ? Colors.white10 : Colors.black12,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isPassed ? Colors.green : Colors.orange,
+                        ),
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${percentage.toStringAsFixed(0)}%',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: isPassed ? Colors.green : Colors.orange,
+                          ),
+                        ),
+                        Text(
+                          '$score / $totalMarks Marks',
+                          style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatItem('Passed', isPassed ? 'Yes' : 'No', isPassed ? Colors.green : Colors.orange),
+                    _buildStatItem('Correct', '$correctCount / $totalQuestions', currentText),
+                    _buildStatItem('Accuracy', '${totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toStringAsFixed(0) : 0}%', currentText),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // Detailed Review Title
+          Row(
+            children: [
+              Icon(Icons.list_alt_rounded, color: const Color(0xFF4F46E5), size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Question-by-Question Review',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: currentText),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Question-by-Question review list
+          ...gradingDetails.map((detail) {
+            final qIndex = (detail['questionIndex'] ?? 0) + 1;
+            final qText = detail['questionText'] ?? '';
+            final studentAns = detail['studentAnswer'] ?? '';
+            final correctAns = detail['correctAnswer'] ?? '';
+            final isCorrect = detail['isCorrect'] ?? false;
+            final explanation = detail['explanation'] ?? '';
+
+            final detailColor = isCorrect ? Colors.green : Colors.redAccent;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: currentCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: currentBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: detailColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Q$qIndex',
+                          style: TextStyle(color: detailColor, fontWeight: FontWeight.bold, fontSize: 10),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          qText,
+                          style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+
+                  // Answers review row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Your Answer', style: TextStyle(color: Colors.grey, fontSize: 9)),
+                            const SizedBox(height: 4),
+                            Text(
+                              studentAns,
+                              style: TextStyle(
+                                color: isCorrect ? Colors.green : Colors.redAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!isCorrect) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Correct Answer', style: TextStyle(color: Colors.grey, fontSize: 9)),
+                              const SizedBox(height: 4),
+                              Text(
+                                correctAns,
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  // AI Explanation block
+                  if (explanation.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: currentBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.auto_awesome, color: Color(0xFF4F46E5), size: 12),
+                              SizedBox(width: 6),
+                              Text(
+                                'AI Explanation',
+                                style: TextStyle(color: Color(0xFF4F46E5), fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            explanation,
+                            style: TextStyle(color: currentText.withOpacity(0.8), fontSize: 11, height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+
+          const SizedBox(height: 12),
+
+          // Return Home Button
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.arrow_back_rounded, size: 16),
+            label: const Text('Back to Exam Portal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4F46E5),
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+}
+
+
+
+// ==========================================
+// MERGED FROM: study_notes_view_screen.dart
+// ==========================================
+
+
+class StudyNotesViewScreen extends StatefulWidget {
+  final String topic;
+  final String subject;
+  final bool isDarkMode;
+
+  const StudyNotesViewScreen({
+    super.key,
+    required this.topic,
+    required this.subject,
+    required this.isDarkMode,
+  });
+
+  @override
+  State<StudyNotesViewScreen> createState() => _StudyNotesViewScreenState();
+}
+
+class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
+  final SupabaseClient _client = Supabase.instance.client;
+  bool _isLoading = true;
+  String _errorMessage = '';
+  String _notesMarkdown = '';
+  bool _isSavedToLibrary = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStudyNotes();
+  }
+
+  Future<void> _fetchStudyNotes() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final jwtToken = _client.auth.currentSession?.accessToken;
+
+      final response = await http.post(
+        Uri.parse('$envBackendUrl/api/ai/notes'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+        body: jsonEncode({
+          'topic': widget.topic,
+          'subject': widget.subject,
+          'gradeLevel': '10',
+          'saveToLibrary': false,
+        }),
+      ).timeout(const Duration(seconds: 25));
+
+      if (response.statusCode != 200) {
+        throw Exception('Server returned status code ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body);
+      if (data == null || data['notes'] == null) {
+        throw Exception('Failed to parse generated notes.');
+      }
+
+      if (mounted) {
+        setState(() {
+          _notesMarkdown = data['notes'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error fetching study notes: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveNotesToLibrary() async {
+    if (_isSaving || _isSavedToLibrary) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final jwtToken = _client.auth.currentSession?.accessToken;
+
+      final response = await http.post(
+        Uri.parse('$envBackendUrl/api/ai/notes'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+        body: jsonEncode({
+          'topic': widget.topic,
+          'subject': widget.subject,
+          'gradeLevel': '10',
+          'saveToLibrary': true,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) {
+        throw Exception('Server returned status code ${response.statusCode}');
+      }
+
+      if (mounted) {
+        setState(() {
+          _isSavedToLibrary = true;
+          _isSaving = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📚 Notes successfully saved to your study library!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error saving notes: $e');
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save notes: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgDark = const Color(0xFF111116);
+    final bgLight = const Color(0xFFF8FAFC);
+    final cardDark = const Color(0xFF181824);
+    final cardLight = const Color(0xFFFFFFFF);
+    final textDark = const Color(0xFFF1F5F9);
+    final textLight = const Color(0xFF0F172A);
+    final borderDark = Colors.white10;
+    final borderLight = const Color(0xFFE2E8F0);
+
+    final currentBg = widget.isDarkMode ? bgDark : bgLight;
+    final currentCard = widget.isDarkMode ? cardDark : cardLight;
+    final currentText = widget.isDarkMode ? textDark : textLight;
+    final currentBorder = widget.isDarkMode ? borderDark : borderLight;
+
+    return Scaffold(
+      backgroundColor: currentBg,
+      appBar: AppBar(
+        title: Text(
+          widget.topic,
+          style: TextStyle(color: currentText, fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        iconTheme: IconThemeData(color: currentText),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        actions: [
+          if (!_isLoading && _errorMessage.isEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.copy_rounded, color: Color(0xFF4F46E5)),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _notesMarkdown));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Notes copied to clipboard!'),
+                    backgroundColor: Color(0xFF4F46E5),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              tooltip: 'Copy Notes',
+            ),
+            IconButton(
+              icon: Icon(
+                _isSavedToLibrary ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined,
+                color: _isSavedToLibrary ? Colors.green : Colors.grey,
+              ),
+              onPressed: _saveNotesToLibrary,
+              tooltip: 'Save to Library',
+            ),
+          ]
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5))))
+          : _errorMessage.isNotEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Failed to generate study notes',
+                          style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(_errorMessage, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _fetchStudyNotes,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4F46E5),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(20.0),
+                  children: [
+                    // Study Notes Header Info Card
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: widget.isDarkMode
+                              ? [const Color(0xFF1E1A3C), const Color(0xFF13131A)]
+                              : [const Color(0xFFEEF2FF), const Color(0xFFE0E7FF)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: currentBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.auto_awesome, color: Color(0xFF4F46E5), size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'AI Generated conceptual study notes',
+                                  style: TextStyle(
+                                    color: widget.isDarkMode ? Colors.white : const Color(0xFF4F46E5),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Subject: ${widget.subject} • Target: Class 10 Syllabus',
+                                  style: const TextStyle(color: Colors.grey, fontSize: 10),
+                                ),
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Render parsed markdown notes
+                    ..._parseAndRenderMarkdown(_notesMarkdown, currentText, currentCard, currentBorder),
+                    
+                    const SizedBox(height: 40),
+                  ],
+                ),
+    );
+  }
+
+  List<Widget> _parseAndRenderMarkdown(String rawText, Color textCol, Color cardCol, Color borderCol) {
+    final List<Widget> widgets = [];
+    final lines = rawText.split('\n');
+
+    bool inCodeBlock = false;
+    List<String> codeBlockLines = [];
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i];
+
+      // Code blocks start or end
+      if (line.trim().startsWith('```')) {
+        if (inCodeBlock) {
+          // End of code block: render gathered content
+          inCodeBlock = false;
+          widgets.add(
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: borderCol),
+              ),
+              child: Text(
+                codeBlockLines.join('\n'),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
+          );
+          codeBlockLines.clear();
+        } else {
+          // Start of code block
+          inCodeBlock = true;
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeBlockLines.add(line);
+        continue;
+      }
+
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        widgets.add(const SizedBox(height: 10));
+        continue;
+      }
+
+      // Parse headers
+      if (trimmed.startsWith('# ')) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 12.0, bottom: 6.0),
+            child: Text(
+              trimmed.substring(2),
+              style: TextStyle(
+                color: textCol,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      } else if (trimmed.startsWith('## ')) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 10.0, bottom: 4.0),
+            child: Text(
+              trimmed.substring(3),
+              style: TextStyle(
+                color: textCol,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      } else if (trimmed.startsWith('### ')) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+            child: Text(
+              trimmed.substring(4),
+              style: TextStyle(
+                color: textCol,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        );
+      } 
+      // Parse bullet points
+      else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        final content = trimmed.substring(2);
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 12.0, bottom: 6.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('• ', style: TextStyle(color: textCol.withOpacity(0.7), fontSize: 13)),
+                Expanded(
+                  child: _renderTextWithBoldSupport(content, textCol, 12),
+                ),
+              ],
+            ),
+          ),
+        );
+      } 
+      // Standard paragraph
+      else {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: _renderTextWithBoldSupport(trimmed, textCol, 12, height: 1.5),
+          ),
+        );
+      }
+    }
+
+    return widgets;
+  }
+
+  // Helper to parse **bold text** inside paragraphs/bullets
+  Widget _renderTextWithBoldSupport(String text, Color textCol, double fontSize, {double height = 1.3}) {
+    final List<TextSpan> spans = [];
+    final regExp = RegExp(r'\*\*(.*?)\*\*');
+    int lastIndex = 0;
+
+    for (final match in regExp.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      );
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex)));
+    }
+
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(color: textCol.withOpacity(0.85), fontSize: fontSize, height: height),
+        children: spans,
+      ),
+    );
+  }
+}
+
+
+
+// ==========================================
+// MERGED FROM: ai_notes_screen.dart
+// ==========================================
+
+
+class AINotesScreen extends StatefulWidget {
+  final bool isDarkMode;
+  const AINotesScreen({super.key, required this.isDarkMode});
+
+  @override
+  State<AINotesScreen> createState() => _AINotesScreenState();
+}
+
+// Named AINotesScreen but the class name will match standard
+class _AINotesScreenState extends State<AINotesScreen> {
+  final SupabaseClient _client = Supabase.instance.client;
+  late bool _isDarkMode;
+
+  List<Map<String, dynamic>> _savedNotes = [];
+  bool _isLoadingLibrary = false;
+  bool _isGenerating = false;
+
+  // Form states
+  final TextEditingController _topicController = TextEditingController();
+  String _selectedSubject = 'Math';
+  String _gradeLevel = '10th Grade';
+  
+  // Active viewing notes
+  String? _activeNotesTitle;
+  String? _activeNotesContent;
+
+  final List<String> _subjects = ['Math', 'Physics', 'Chemistry', 'Biology', 'History', 'English', 'Computer Science'];
+  final List<String> _grades = ['8th Grade', '9th Grade', '10th Grade', '11th Grade', '12th Grade', 'College'];
+
+  @override
+  void initState() {
+    super.initState();
+    _isDarkMode = widget.isDarkMode;
+    _loadLibrary();
+  }
+
+  Future<void> _loadLibrary() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isLoadingLibrary = true;
+    });
+
+    try {
+      final list = await DatabaseService.instance.fetchNotes(user.id);
+      setState(() {
+        _savedNotes = list;
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error loading notes library: $e');
+    } finally {
+      setState(() {
+        _isLoadingLibrary = false;
+      });
+    }
+  }
+
+  Future<void> _generateNotes() async {
+    final topic = _topicController.text.trim();
+    final user = _client.auth.currentUser;
+    if (topic.isEmpty || user == null || _isGenerating) return;
+
+    setState(() {
+      _isGenerating = true;
+      _activeNotesTitle = topic;
+      _activeNotesContent = "Mr. Ivan is outlining your study guide, compiling definitions, and generating analogies...";
+    });
+
+    try {
+      final jwtToken = _client.auth.currentSession?.accessToken;
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final urls = [
+        '$envBackendUrl/api/ai/notes',
+      ];
+
+      String markdownContent = '';
+      http.Response? response;
+      dynamic lastError;
+      
+      try {
+        for (final url in urls) {
+          try {
+            response = await http.post(
+              Uri.parse(url),
+              headers: {
+                'Content-Type': 'application/json',
+                'Bypass-Tunnel-Reminder': 'true',
+                if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+              },
+              body: jsonEncode({
+                'topic': topic,
+                'subject': _selectedSubject,
+                'gradeLevel': _gradeLevel,
+                'saveToLibrary': true, // Backend saves it directly if operational
+              }),
+            ).timeout(const Duration(seconds: 5));
+            
+            if (response.statusCode == 200) {
+              break;
+            } else {
+              throw Exception('Backend returned status code ${response.statusCode}');
+            }
+          } catch (e) {
+            lastError = e;
+            if (kDebugMode) {
+              print('Failed to connect to $url: $e');
+            }
+          }
+        }
+
+        if (response != null && response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          markdownContent = data['notes'] ?? '';
+        } else {
+          throw lastError ?? Exception('Could not connect to any backend API endpoint');
+        }
+      } catch (backendError) {
+        if (kDebugMode) {
+          print('Backend offline or failed, generating simulated study guide: $backendError');
+        }
+        
+        // Generate simulated markdown guide locally
+        markdownContent = _generateSimulatedStudyGuide(topic, _selectedSubject, _gradeLevel);
+
+        // Save to Supabase library directly since backend was offline
+        await DatabaseService.instance.saveNote(
+          userId: user.id,
+          title: topic,
+          content: markdownContent,
+          subject: _selectedSubject,
+          classLevel: _gradeLevel,
+          isAiGenerated: true,
+        );
+      }
+
+      setState(() {
+        _activeNotesContent = markdownContent;
+      });
+      
+      _topicController.clear();
+      _loadLibrary(); // Reload list to include newly created item
+
+    } catch (e) {
+      if (kDebugMode) print('Error generating study notes: $e');
+      setState(() {
+        _activeNotesContent = "Failed to generate study notes. Please check your connection and try again.";
+      });
+    } finally {
+      setState(() {
+        _isGenerating = false;
+      });
+    }
+  }
+
+  String _generateSimulatedStudyGuide(String topic, String subject, String grade) {
+    return """# Study Guide: $topic
+## Subject: $subject ($grade)
+
+---
+
+### 1. Core Outline & Definitions
+*   **Definition**: The fundamental parameter governing $topic is defined as the measure of its primary states.
+*   **Key Concept**: Always analyze the variables and constants in equilibrium before formulating calculations.
+
+### 2. Conceptual Analogies
+> Think of it like a highway system:
+> *   **Vessels/Nodes**: Represent capacity limits.
+> *   **Flowrate**: Represents speed or concentration.
+> *   **Obstructions**: Act as resistance parameters.
+
+### 3. Step-by-Step Problem Solving Guide
+1.  **Identify State Boundaries**: Determine the starting conditions.
+2.  **Apply Equilibrium Equations**: Resolve forces or parameters balancing the system.
+3.  **Validate Dimensions**: Check that unit terms match perfectly on both sides.
+
+### 4. Practice Quiz Questions
+1.  *True/False*: Can $topic change state in a closed thermodynamic system? (Answer: True, thermal equilibrium permits state changes).
+2.  *Short Answer*: What happens when resistance values double? (Answer: The throughput capacity declines proportionally by half).
+
+---
+*Created by Mr. Ivan AI Study Assistant on ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}*""";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: AnimatedBackground(
+        isDarkMode: _isDarkMode,
+        child: Stack(
+          children: [
+            // Header
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              left: 16,
+              right: 16,
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        color: _isDarkMode ? Colors.black26 : Colors.white24,
+                        child: IconButton(
+                          icon: Icon(Icons.arrow_back_rounded, color: _isDarkMode ? Colors.white : Colors.black87),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          color: _isDarkMode ? Colors.black26 : Colors.white24,
+                          child: Row(
+                            children: [
+                              Icon(Icons.auto_awesome_rounded, color: const Color(0xFF155DFC)),
+                              const SizedBox(width: 8),
+                              Text(
+                                'AI Study Notes Generator',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: _isDarkMode ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Body content
+            Positioned.fill(
+              top: MediaQuery.of(context).padding.top + 80,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      // Sidebar: Notes List (Desktop/Web view)
+                      if (MediaQuery.of(context).size.width > 750)
+                        SizedBox(
+                          width: 250,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 16.0),
+                            child: _buildGlassCard(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Saved Guides',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: _isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+                                    ),
+                                  ),
+                                  const Divider(),
+                                  Expanded(
+                                    child: _isLoadingLibrary
+                                        ? const Center(child: CircularProgressIndicator())
+                                        : _savedNotes.isEmpty
+                                            ? Center(
+                                                child: Text(
+                                                  'No saved guides',
+                                                  style: TextStyle(color: _isDarkMode ? Colors.white54 : Colors.black54),
+                                                ),
+                                              )
+                                            : ListView.builder(
+                                                itemCount: _savedNotes.length,
+                                                itemBuilder: (context, index) {
+                                                  final note = _savedNotes[index];
+                                                  final isSelected = note['title'] == _activeNotesTitle;
+                                                  return Container(
+                                                    margin: const EdgeInsets.only(bottom: 8),
+                                                    decoration: BoxDecoration(
+                                                      color: isSelected
+                                                          ? (_isDarkMode ? Colors.white12 : Colors.black12)
+                                                          : Colors.transparent,
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    child: ListTile(
+                                                      title: Text(
+                                                        note['title'] ?? '',
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: _isDarkMode ? Colors.white : Colors.black87,
+                                                        ),
+                                                      ),
+                                                      subtitle: Text(
+                                                        note['subject'] ?? 'General',
+                                                        style: TextStyle(fontSize: 11, color: _isDarkMode ? Colors.white54 : Colors.black54),
+                                                      ),
+                                                      onTap: () {
+                                                        setState(() {
+                                                          _activeNotesTitle = note['title'];
+                                                          _activeNotesContent = note['content'];
+                                                        });
+                                                      },
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      // Generator Form or Active Notes View
+                      Expanded(
+                        child: _activeNotesContent == null
+                            ? _buildFormPanel()
+                            : _buildNotesViewerPanel(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormPanel() {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: _buildGlassCard(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.menu_book_rounded,
+                size: 54,
+                color: _isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Generate Study Notes',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: _isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Enter a topic, select the subject framework, and let Mr. Ivan build an interactive concept guide.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _isDarkMode ? Colors.white70 : Colors.black54,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _topicController,
+                style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: 'Topic Name',
+                  hintText: 'e.g. Photosynthesis, Ohm\'s Law, WWII',
+                  labelStyle: TextStyle(color: _isDarkMode ? Colors.white70 : Colors.black54),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedSubject,
+                dropdownColor: _isDarkMode ? Colors.grey.shade900 : Colors.white,
+                style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: 'Subject',
+                  labelStyle: TextStyle(color: _isDarkMode ? Colors.white70 : Colors.black54),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                items: _subjects.map((sub) => DropdownMenuItem(value: sub, child: Text(sub))).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedSubject = val);
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _gradeLevel,
+                dropdownColor: _isDarkMode ? Colors.grey.shade900 : Colors.white,
+                style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black87),
+                decoration: InputDecoration(
+                  labelText: 'Class Grade Level',
+                  labelStyle: TextStyle(color: _isDarkMode ? Colors.white70 : Colors.black54),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                items: _grades.map((gr) => DropdownMenuItem(value: gr, child: Text(gr))).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _gradeLevel = val);
+                },
+              ),
+              const SizedBox(height: 28),
+              ElevatedButton(
+                onPressed: _generateNotes,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: const Color(0xFF155DFC),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Generate Outline'),
+              ),
+              if (MediaQuery.of(context).size.width <= 750 && _savedNotes.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: _showSavedNotesSheet,
+                  child: const Text('Open Saved Guides'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotesViewerPanel() {
+    return _buildGlassCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          // Sub-header controls
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: _isDarkMode ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.03),
+              border: Border(bottom: BorderSide(color: _isDarkMode ? Colors.white10 : Colors.black12)),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () {
+                    setState(() {
+                      _activeNotesTitle = null;
+                      _activeNotesContent = null;
+                    });
+                  },
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _activeNotesTitle ?? 'Study Guide Outline',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: _isDarkMode ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+                if (!_isGenerating)
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded, color: Color(0xFF155DFC)),
+                    onPressed: () {
+                      // Simple copy notification
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Study guide copied to clipboard!')),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+
+          // Notes rendering viewport
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: _isGenerating
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 50),
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 20),
+                          Text(
+                            "Generating Outlines...",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _isDarkMode ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Mr. Ivan is organizing syllabus definitions, structuring analogies, and writing practice tests...",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: _isDarkMode ? Colors.white54 : Colors.black54),
+                          ),
+                        ],
+                      ),
+                    )
+                  : _buildCustomMarkdown(_activeNotesContent ?? ''),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Simple, reliable markdown UI builder to avoid large markdown packages
+  Widget _buildCustomMarkdown(String text) {
+    final lines = text.split('\n');
+    List<Widget> widgets = [];
+
+    for (var line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) {
+        widgets.add(const SizedBox(height: 8));
+        continue;
+      }
+
+      if (trimmed.startsWith('# ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 8),
+          child: Text(
+            trimmed.substring(2),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _isDarkMode ? Colors.white : Colors.black87),
+          ),
+        ));
+      } else if (trimmed.startsWith('## ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 6),
+          child: Text(
+            trimmed.substring(3),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF155DFC)),
+          ),
+        ));
+      } else if (trimmed.startsWith('### ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Text(
+            trimmed.substring(4),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _isDarkMode ? Colors.white70 : Colors.black87),
+          ),
+        ));
+      } else if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(left: 12.0, bottom: 4.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("• ", style: TextStyle(fontWeight: FontWeight.bold, color: const Color(0xFF155DFC))),
+              Expanded(
+                child: Text(
+                  trimmed.substring(2),
+                  style: TextStyle(fontSize: 14, color: _isDarkMode ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
+                ),
+              ),
+            ],
+          ),
+        ));
+      } else if (trimmed.startsWith('1. ') || trimmed.startsWith('2. ') || trimmed.startsWith('3. ') || trimmed.startsWith('4. ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(left: 12.0, bottom: 4.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(trimmed.substring(0, 3), style: TextStyle(fontWeight: FontWeight.bold, color: const Color(0xFF155DFC))),
+              Expanded(
+                child: Text(
+                  trimmed.substring(3),
+                  style: TextStyle(fontSize: 14, color: _isDarkMode ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
+                ),
+              ),
+            ],
+          ),
+        ));
+      } else if (trimmed.startsWith('> ')) {
+        widgets.add(Container(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _isDarkMode ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+            border: Border(left: BorderSide(color: const Color(0xFF155DFC), width: 4)),
+            borderRadius: const BorderRadius.only(topRight: Radius.circular(8), bottomRight: Radius.circular(8)),
+          ),
+          child: Text(
+            trimmed.substring(2),
+            style: TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: _isDarkMode ? Colors.white70 : Colors.black54),
+          ),
+        ));
+      } else if (trimmed.startsWith('---')) {
+        widgets.add(Divider(color: _isDarkMode ? Colors.white24 : Colors.black12, height: 24));
+      } else {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 6.0),
+          child: Text(
+            trimmed,
+            style: TextStyle(fontSize: 14, height: 1.4, color: _isDarkMode ? Colors.white.withValues(alpha: 0.9) : Colors.black87),
+          ),
+        ));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
+    );
+  }
+
+  Widget _buildGlassCard({required Widget child, required EdgeInsets padding}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: _isDarkMode ? Colors.black.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: _isDarkMode ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.45),
+              width: 1.5,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  void _showSavedNotesSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+            child: Container(
+              color: _isDarkMode ? Colors.black87 : Colors.white.withValues(alpha: 0.9),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Saved Outlines',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _isDarkMode ? Colors.white : Colors.black87),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _savedNotes.length,
+                      itemBuilder: (context, index) {
+                        final note = _savedNotes[index];
+                        return ListTile(
+                          title: Text(
+                            note['title'] ?? '',
+                            style: TextStyle(color: _isDarkMode ? Colors.white : Colors.black87),
+                          ),
+                          subtitle: Text(note['subject'] ?? 'General'),
+                          onTap: () {
+                            Navigator.pop(context);
+                            setState(() {
+                              _activeNotesTitle = note['title'];
+                              _activeNotesContent = note['content'];
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+

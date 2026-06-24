@@ -178,15 +178,6 @@ const getVoiceTutor = async (req, res, next) => {
     next(err);
   }
 };
-
-module.exports = {
-  getTutorChat,
-  generateNotes,
-  generateQuiz,
-  getVoiceTutor,
-  gradeInterview,
-};
-
 /**
  * 5. Grade Mock Interview Controller
  */
@@ -220,4 +211,12 @@ const gradeInterview = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+module.exports = {
+  getTutorChat,
+  generateNotes,
+  generateQuiz,
+  getVoiceTutor,
+  gradeInterview,
 };
