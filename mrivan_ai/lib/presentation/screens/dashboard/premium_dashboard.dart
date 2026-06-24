@@ -6004,6 +6004,7 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
     double overallProgress = 0.0;
     int totalTopics = 0;
     int completedTopics = 0;
+    List<Map<String, dynamic>> allTopics = [];
     if (!widget.isCampusPlan) {
       int total = 0;
       int completed = 0;
@@ -6011,6 +6012,13 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
         final List topics = ch['topics'] ?? [];
         total += topics.length;
         completed += topics.where((t) => t['completed'] == true).length;
+        for (final t in topics) {
+          allTopics.add({
+            'topic_name': t['topic_name'] ?? '',
+            'completed': t['completed'] ?? false,
+            'chapter_name': ch['chapter_name'] ?? '',
+          });
+        }
       }
       totalTopics = total;
       completedTopics = completed;
@@ -6564,11 +6572,27 @@ class _PerformanceAnalyticsTabState extends State<PerformanceAnalyticsTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('AI revision checklist & tests tracking', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: currentText)),
+                  Text('Syllabus revision checklist & tests tracking', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: currentText)),
                   const SizedBox(height: 16),
-                  _buildChecklistItem('AWS Cloud Practitioner Mock Exams', 'Completed: 3/5 mock tests. Predicted score: 91%', true, currentText),
-                  _buildChecklistItem('System Design Blueprint revision', 'Assigned conceptual flashcards pending recall drills.', false, currentText),
-                  _buildChecklistItem('Daily Coding Challenge Streak', 'Streak level: Stable 14 days active. 8 solved problems.', true, currentText),
+                  if (allTopics.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'No syllabus checklist items created yet. Configure your syllabus checklist above to begin tracking.',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    )
+                  else
+                    ...allTopics.take(3).map((topic) {
+                      final name = topic['topic_name'] as String;
+                      final isDone = topic['completed'] as bool;
+                      return _buildChecklistItem(
+                        name,
+                        isDone ? 'Revision Completed (100% mastery)' : 'Pending conceptual recall drills',
+                        isDone,
+                        currentText,
+                      );
+                    }),
                   const SizedBox(height: 20),
                   ElevatedButton.icon(
                     onPressed: () {
