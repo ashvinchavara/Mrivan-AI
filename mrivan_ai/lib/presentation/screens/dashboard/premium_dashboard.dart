@@ -1582,6 +1582,9 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   final Map<String, String> _notesCache = {};
   String? _notesLoadingTopic;
   String? _expandedTopic;
+  String? _selectedUploadSubject = 'Math';
+  bool _isUploadingSyllabusFile = false;
+  String _schoolId = '';
 
   // Selection variables for syllabus dropdowns
   String? _selectedSyllabusSubject;
@@ -1763,7 +1766,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     try {
       final profile = await _client
           .from('profiles')
-          .select('class_id, class')
+          .select('class_id, class, school_id')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -1771,6 +1774,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
         if (mounted) {
           setState(() {
             _classId = profile['class_id'] as String? ?? '';
+            _schoolId = profile['school_id'] as String? ?? '';
             _gradeLevel = profile['class'] as String? ?? '10th Grade';
           });
         }
@@ -1790,6 +1794,109 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
       if (mounted) {
         setState(() {
           _isLoadingSyllabus = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _pickAndParseSyllabusFile() async {
+    if (_classId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: No class assigned to your profile. Please complete onboarding.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final activeSubject = _selectedUploadSubject ?? 'Math';
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'txt'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final fileBytes = file.bytes;
+      if (fileBytes == null) {
+        throw Exception("Failed to read file content");
+      }
+
+      setState(() {
+        _isUploadingSyllabusFile = true;
+      });
+
+      final jwtToken = Supabase.instance.client.auth.currentSession?.accessToken;
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final url = '$envBackendUrl/api/ai/syllabus/parse';
+
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+
+      if (jwtToken != null) {
+        request.headers['Authorization'] = 'Bearer $jwtToken';
+      }
+      request.headers['Bypass-Tunnel-Reminder'] = 'true';
+
+      final multipartFile = http.MultipartFile.fromBytes(
+        'syllabus',
+        fileBytes,
+        filename: file.name,
+      );
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 200) {
+        final errBody = jsonDecode(response.body);
+        throw Exception(errBody['error'] ?? 'Server returned status ${response.statusCode}');
+      }
+
+      final parsedChapters = jsonDecode(response.body);
+
+      // Now save this parsed syllabus structure to supabase database!
+      final schoolIdValue = _schoolId.isNotEmpty ? _schoolId : '00000000-0000-0000-0000-000000000000'; // fallback school ID
+
+      await DatabaseService.instance.saveSyllabus(
+        schoolId: schoolIdValue,
+        classId: _classId,
+        subject: activeSubject,
+        content: jsonEncode(parsedChapters),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Syllabus for $activeSubject uploaded & parsed successfully!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      // Reload syllabus state to update UI dynamically!
+      await _loadSyllabus();
+
+    } catch (e) {
+      if (kDebugMode) print('Error parsing/uploading syllabus: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to import syllabus: ${e.toString()}'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingSyllabusFile = false;
         });
       }
     }
@@ -3279,6 +3386,74 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                   ),
                   child: Text(buttonLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(Icons.upload_file_rounded, size: 16, color: currentText),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AI Syllabus Importer',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: currentText),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Upload syllabus PDF/TXT to auto-import topics for your class via AI.',
+                  style: TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _selectedUploadSubject,
+                  dropdownColor: cardBg,
+                  style: TextStyle(color: currentText, fontSize: 12),
+                  decoration: InputDecoration(
+                    labelText: 'Target Subject',
+                    labelStyle: const TextStyle(color: Colors.grey, fontSize: 10),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: borderCol)),
+                  ),
+                  items: _subjects.map((sub) {
+                    return DropdownMenuItem(value: sub, child: Text(sub, style: const TextStyle(fontSize: 12)));
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedUploadSubject = val;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (_isUploadingSyllabusFile)
+                  const Column(
+                    children: [
+                      SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text('Parsing syllabus with AI...', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ],
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: _pickAndParseSyllabusFile,
+                    icon: const Icon(Icons.cloud_upload_outlined, size: 16),
+                    label: const Text('Upload & Import Syllabus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 44),
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: const Color(0xFF4F46E5),
+                      elevation: 0,
+                      side: const BorderSide(color: Color(0xFF4F46E5)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
               ],
             ),
           ),

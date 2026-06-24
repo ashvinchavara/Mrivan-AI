@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const aiController = require('../controllers/ai.controller');
 const resumeController = require('../controllers/resume.controller');
+const syllabusController = require('../controllers/syllabus.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 
 // Configure multer memory storage
@@ -30,5 +31,8 @@ router.post('/tutor/interview/grade', authenticate, aiController.gradeInterview)
 
 // AI Resume Analyzer / ATS Grader
 router.post('/resume/analyze', authenticate, upload.single('resume'), resumeController.analyzeResume);
+
+// AI Syllabus Parser
+router.post('/syllabus/parse', authenticate, upload.single('syllabus'), syllabusController.parseSyllabus);
 
 module.exports = router;

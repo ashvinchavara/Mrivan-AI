@@ -525,6 +525,7 @@ module.exports = {
   generateVoiceExplanation,
   gradeMockInterview,
   analyzeResume,
+  parseSyllabus,
 };
 
 /**
@@ -644,6 +645,78 @@ async function analyzeResume(resumeText, role) {
       missingKeywords: [],
       suggestions: "Resume analyzed. Evaluation could not be parsed into JSON format."
     };
+  }
+}
+
+/**
+ * 7. Parse raw syllabus text into structured JSON chapters using Gemini
+ */
+async function parseSyllabus(syllabusText) {
+  if (!ai && !ai2) {
+    return [
+      {
+        "chapter_name": "Unit 1: Introduction",
+        "topics": ["Overview of syllabus", "Basic Core Concepts"]
+      }
+    ];
+  }
+
+  const prompt = `You are an expert curriculum designer and educator. Convert the following raw syllabus text into a highly structured JSON array of chapters/lessons, where each chapter has a chapter name and list of topics.
+
+RAW SYLLABUS TEXT:
+${syllabusText}
+
+You MUST return your evaluation strictly in the following JSON structure:
+[
+  {
+    "chapter_name": "Chapter 1: Title or Lesson Name",
+    "topics": [
+      "Topic Name 1",
+      "Topic Name 2",
+      "Topic Name 3"
+    ]
+  },
+  {
+    "chapter_name": "Chapter 2: Title or Lesson Name",
+    "topics": [
+      "Topic Name A",
+      "Topic Name B"
+    ]
+  }
+]
+
+Do NOT include any markdown code blocks, backticks, or prefix text. Return only valid JSON.`;
+
+  const text = await runWithRotation('SyllabusParsing', async (provider) => {
+    if (provider === 'gemini' || provider === 'gemini2') {
+      const client = provider === 'gemini' ? ai : ai2;
+      const response = await client.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      return response.text;
+    }
+    const config = PROVIDER_CONFIGS[provider];
+    const messages = [{ role: 'user', content: prompt }];
+    return await makeOpenAICall(config.url, config.getHeaders(), { model: config.model, messages });
+  });
+
+  try {
+    let jsonString = text.trim();
+    if (jsonString.startsWith('```json')) {
+      jsonString = jsonString.substring(7, jsonString.length - 3);
+    } else if (jsonString.startsWith('```')) {
+      jsonString = jsonString.substring(3, jsonString.length - 3);
+    }
+    return JSON.parse(jsonString.trim());
+  } catch (error) {
+    console.error('Failed to parse syllabus parsing JSON. Raw:', text);
+    return [
+      {
+        "chapter_name": "Imported Syllabus",
+        "topics": ["General overview of lessons"]
+      }
+    ];
   }
 }
 
