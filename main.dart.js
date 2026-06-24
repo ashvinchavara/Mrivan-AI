@@ -109760,7 +109760,7 @@ g=A.R(A.b([A.a0(A.b([A.ah(A.R(A.b([A.f("Personal AI Teacher Space \ud83d\udc68\u
 g=A.Br(g,B.cr,A.O7(),B.a8,B.a8,new A.axm())
 s=t.p
 r=A.b([],s)
-if(h.a.a>750){h=A.C(16)
+if(h.a.a>750&&n.cx===l){h=A.C(16)
 q=A.aB(c,1)
 p=A.a0(A.b([A.f("History",m,m,m,m,A.m(m,m,f,m,m,m,m,m,m,m,m,15,m,m,B.i,m,m,!0,m,m,m,m,m,m,m,m),m,m,m),A.cy(m,m,B.T3,m,m,n.gaxw(),m,m,"New Session")],s),B.l,B.Z,B.f,0)
 if(n.ay)o=B.bw
