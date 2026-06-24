@@ -51,6 +51,18 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
     }
   }
 
+  void _safeNavigate(BuildContext parentContext, BuildContext sheetContext, Widget destination) {
+    Navigator.pop(sheetContext);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (parentContext.mounted) {
+        Navigator.push(
+          parentContext,
+          MaterialPageRoute(builder: (context) => destination),
+        );
+      }
+    });
+  }
+
   void _showTopicAiActions(BuildContext context, String topic, String subject) {
     showModalBottomSheet(
       context: context,
@@ -183,15 +195,13 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                           );
                           return;
                         }
-                        Navigator.pop(bottomSheetContext);
-                        Navigator.push(
+                        _safeNavigate(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => StudyNotesViewScreen(
-                              topic: activeTopic,
-                              subject: activeSubject,
-                              isDarkMode: isDark,
-                            ),
+                          bottomSheetContext,
+                          StudyNotesViewScreen(
+                            topic: activeTopic,
+                            subject: activeSubject,
+                            isDarkMode: isDark,
                           ),
                         );
                       },
@@ -204,13 +214,11 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                       icon: Icons.folder_special_rounded,
                       color: Colors.amber[800]!,
                       onTap: () {
-                        Navigator.pop(bottomSheetContext);
-                        Navigator.push(
+                        _safeNavigate(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => AINotesScreen(
-                              isDarkMode: isDark,
-                            ),
+                          bottomSheetContext,
+                          AINotesScreen(
+                            isDarkMode: isDark,
                           ),
                         );
                       },
@@ -232,15 +240,13 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                           );
                           return;
                         }
-                        Navigator.pop(bottomSheetContext);
-                        Navigator.push(
+                        _safeNavigate(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => CombinedQuizScreen(
-                              topic: activeTopic,
-                              subject: activeSubject,
-                              isDarkMode: isDark,
-                            ),
+                          bottomSheetContext,
+                          CombinedQuizScreen(
+                            topic: activeTopic,
+                            subject: activeSubject,
+                            isDarkMode: isDark,
                           ),
                         );
                       },
@@ -253,13 +259,11 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                       icon: Icons.assignment_rounded,
                       color: Colors.pink,
                       onTap: () {
-                        Navigator.pop(bottomSheetContext);
-                        Navigator.push(
+                        _safeNavigate(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => MockTestsListScreen(
-                              isDarkMode: isDark,
-                            ),
+                          bottomSheetContext,
+                          MockTestsListScreen(
+                            isDarkMode: isDark,
                           ),
                         );
                       },
@@ -273,10 +277,14 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                       color: Colors.blue,
                       onTap: () async {
                         // Show progress loader
+                        BuildContext? dialogContext;
                         showDialog(
                           context: context,
                           barrierDismissible: false,
-                          builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                          builder: (ctx) {
+                            dialogContext = ctx;
+                            return const Center(child: CircularProgressIndicator());
+                          },
                         );
                         try {
                           const envBackendUrl = String.fromEnvironment(
@@ -294,21 +302,21 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                           ).timeout(const Duration(seconds: 10));
 
                           // Dismiss loader
-                          Navigator.pop(context);
-                          Navigator.pop(bottomSheetContext);
+                          if (dialogContext != null && dialogContext!.mounted) {
+                            Navigator.pop(dialogContext!);
+                          }
 
                           if (response.statusCode == 200) {
                             final list = jsonDecode(response.body);
                             if (list is List && list.isNotEmpty) {
                               final firstTest = list.first;
-                              Navigator.push(
+                              _safeNavigate(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (context) => QuizPlayScreen(
-                                    testId: firstTest['id'],
-                                    testTitle: firstTest['title'] ?? 'Mock Test',
-                                    isDarkMode: isDark,
-                                  ),
+                                bottomSheetContext,
+                                QuizPlayScreen(
+                                  testId: firstTest['id'],
+                                  testTitle: firstTest['title'] ?? 'Mock Test',
+                                  isDarkMode: isDark,
                                 ),
                               );
                             } else {
@@ -318,12 +326,11 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                                   behavior: SnackBarBehavior.floating,
                                 ),
                               );
-                              Navigator.push(
+                              _safeNavigate(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (context) => MockTestsListScreen(
-                                    isDarkMode: isDark,
-                                  ),
+                                bottomSheetContext,
+                                MockTestsListScreen(
+                                  isDarkMode: isDark,
                                 ),
                               );
                             }
@@ -331,16 +338,17 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                             throw Exception('Failed to load tests');
                           }
                         } catch (e) {
-                          Navigator.pop(context); // Dismiss loader if error
+                          if (dialogContext != null && dialogContext!.mounted) {
+                            Navigator.pop(dialogContext!);
+                          }
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Error loading exams: $e. Opening directory instead.')),
                           );
-                          Navigator.push(
+                          _safeNavigate(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => MockTestsListScreen(
-                                isDarkMode: isDark,
-                              ),
+                            bottomSheetContext,
+                            MockTestsListScreen(
+                              isDarkMode: isDark,
                             ),
                           );
                         }
@@ -355,10 +363,14 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                       color: Colors.purple,
                       onTap: () async {
                         // Show progress loader
+                        BuildContext? dialogContext;
                         showDialog(
                           context: context,
                           barrierDismissible: false,
-                          builder: (ctx) => const Center(child: CircularProgressIndicator()),
+                          builder: (ctx) {
+                            dialogContext = ctx;
+                            return const Center(child: CircularProgressIndicator());
+                          },
                         );
                         try {
                           final user = Supabase.instance.client.auth.currentUser;
@@ -373,8 +385,9 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                               .maybeSingle();
 
                           // Dismiss loader
-                          Navigator.pop(context);
-                          Navigator.pop(bottomSheetContext);
+                          if (dialogContext != null && dialogContext!.mounted) {
+                            Navigator.pop(dialogContext!);
+                          }
 
                           if (latestAttempt != null) {
                             final testObj = latestAttempt['mock_tests'] ?? {};
@@ -411,14 +424,13 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                               'gradingDetails': gradingDetails,
                             };
 
-                            Navigator.push(
+                            _safeNavigate(
                               context,
-                              MaterialPageRoute(
-                                builder: (context) => QuizResultsScreen(
-                                  resultsData: resultsData,
-                                  testTitle: testTitle,
-                                  isDarkMode: isDark,
-                                ),
+                              bottomSheetContext,
+                              QuizResultsScreen(
+                                resultsData: resultsData,
+                                testTitle: testTitle,
+                                isDarkMode: isDark,
                               ),
                             );
                           } else {
@@ -430,7 +442,9 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                             );
                           }
                         } catch (e) {
-                          Navigator.pop(context); // Dismiss loader if error
+                          if (dialogContext != null && dialogContext!.mounted) {
+                            Navigator.pop(dialogContext!);
+                          }
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Failed to load score report: $e')),
                           );
