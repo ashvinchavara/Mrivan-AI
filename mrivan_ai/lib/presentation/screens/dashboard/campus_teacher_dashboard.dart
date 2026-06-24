@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import '../../../data/services/database_service.dart';
 import '../../theme/theme_config.dart';
@@ -2501,6 +2502,7 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
   bool _loadingClasses = true;
   bool _loadingSyllabus = false;
   bool _saving = false;
+  bool _isUploadingSyllabusFile = false;
 
   // Structured syllabus data
   List<Map<String, dynamic>> _chapters = [];
@@ -2535,6 +2537,102 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
       });
     } catch (e) {
       if (mounted) setState(() => _loadingClasses = false);
+    }
+  }
+
+  Future<void> _pickAndParseSyllabusFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'txt'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final fileBytes = file.bytes;
+      if (fileBytes == null) {
+        throw Exception("Failed to read file content");
+      }
+
+      setState(() {
+        _isUploadingSyllabusFile = true;
+      });
+
+      final jwtToken = Supabase.instance.client.auth.currentSession?.accessToken;
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final url = '$envBackendUrl/api/ai/syllabus/parse';
+
+      final request = http.MultipartRequest('POST', Uri.parse(url));
+
+      if (jwtToken != null) {
+        request.headers['Authorization'] = 'Bearer $jwtToken';
+      }
+      request.headers['Bypass-Tunnel-Reminder'] = 'true';
+
+      final multipartFile = http.MultipartFile.fromBytes(
+        'syllabus',
+        fileBytes,
+        filename: file.name,
+      );
+      request.files.add(multipartFile);
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 200) {
+        final errBody = jsonDecode(response.body);
+        throw Exception(errBody['error'] ?? 'Server returned status ${response.statusCode}');
+      }
+
+      final List parsedChapters = jsonDecode(response.body);
+      final List<Map<String, dynamic>> mappedChapters = [];
+      for (final ch in parsedChapters) {
+        if (ch is Map) {
+          final String chName = ch['chapter_name'] as String? ?? '';
+          final List rawTopics = ch['topics'] ?? [];
+          final List<String> topicsList = [];
+          for (final t in rawTopics) {
+            topicsList.add(t.toString());
+          }
+          mappedChapters.add({
+            'chapter_name': chName,
+            'topics': topicsList,
+          });
+        }
+      }
+
+      setState(() {
+        _chapters = mappedChapters;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Syllabus file parsed and loaded into manager! Add/edit or click Save & Publish below to save it.'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+    } catch (e) {
+      if (kDebugMode) print('Error parsing/uploading syllabus: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to import syllabus: ${e.toString()}'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingSyllabusFile = false;
+        });
+      }
     }
   }
 
@@ -2844,6 +2942,61 @@ class _TeacherSyllabusTabState extends State<TeacherSyllabusTab> {
                     labelText: 'Subject Name (e.g. Mathematics, Science)',
                     labelStyle: TextStyle(color: Colors.grey, fontSize: 12),
                     border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: widget.isDarkMode ? Colors.white10 : Colors.black.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: borderCol),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.auto_awesome, size: 16, color: Colors.teal[600]),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Import via AI Syllabus Parser',
+                            style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Upload a PDF or TXT syllabus file to automatically extract all chapters and topics.',
+                        style: TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_isUploadingSyllabusFile)
+                        const Row(
+                          children: [
+                            SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5)),
+                              ),
+                            ),
+                            SizedBox(width: 10),
+                            Text('Uploading and parsing syllabus with AI...', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                          ],
+                        )
+                      else
+                        ElevatedButton.icon(
+                          onPressed: _pickAndParseSyllabusFile,
+                          icon: const Icon(Icons.cloud_upload_outlined, size: 16, color: Colors.white),
+                          label: const Text('Upload PDF / TXT', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4F46E5),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 20),
