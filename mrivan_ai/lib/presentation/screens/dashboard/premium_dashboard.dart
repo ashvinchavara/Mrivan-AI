@@ -35,6 +35,7 @@ class PremiumDashboard extends StatefulWidget {
 
 class _PremiumDashboardState extends State<PremiumDashboard> {
   int _currentIndex = 0;
+  bool _showProfileInfo = false;
   String? _initialTutorTopic;
   String? _initialTutorMode;
   String? _initialTutorSubject;
@@ -85,7 +86,6 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
         'School CRM',
         'Career & Coach',
         'Performance',
-        'Profile Info',
       ];
     }
     final isPremium = plan.contains('premium');
@@ -95,7 +95,6 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
         'AI Teacher',
         'Career & Coach',
         'Performance',
-        'Profile Info',
       ];
     }
     return [
@@ -103,7 +102,6 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
       'AI Teacher',
       'Career & Coach',
       'Performance',
-      'Profile Info',
     ];
   }
 
@@ -146,19 +144,22 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
         final currentBorder = isDarkMode ? borderDark : borderLight;
 
         Widget currentScreen;
-        final tabName = _tabs[_currentIndex];
-        if (tabName == 'Dashboard') {
+        if (_showProfileInfo) {
+          currentScreen = ProfileInfoTab(
+            key: const ValueKey('profile_info'),
+            paymentPlan: widget.paymentPlan,
+            email: widget.email,
+            isDarkMode: isDarkMode,
+          );
+        } else {
+          final tabName = _tabs[_currentIndex];
+          if (tabName == 'Dashboard') {
           currentScreen = DashboardTab(
             userName: widget.userName,
             paymentPlan: widget.paymentPlan,
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('Profile Info');
-              if (upgradeIdx != -1) {
-                setState(() {
-                  _currentIndex = upgradeIdx;
-                });
-              }
+              setState(() => _showProfileInfo = true);
             },
           );
         } else if (tabName == 'AI Teacher') {
@@ -166,12 +167,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             paymentPlan: widget.paymentPlan,
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('Profile Info');
-              if (upgradeIdx != -1) {
-                setState(() {
-                  _currentIndex = upgradeIdx;
-                });
-              }
+              setState(() => _showProfileInfo = true);
             },
             initialTopic: _initialTutorTopic,
             initialMode: _initialTutorMode,
@@ -199,12 +195,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             requiredPlan: 'Pro Student Plan',
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('Profile Info');
-              if (upgradeIdx != -1) {
-                setState(() {
-                  _currentIndex = upgradeIdx;
-                });
-              }
+              setState(() => _showProfileInfo = true);
             },
             child: CareerCoachTab(isDarkMode: isDarkMode),
           );
@@ -216,12 +207,7 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
             requiredPlan: 'Pro Student/Exam Plan',
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('Profile Info');
-              if (upgradeIdx != -1) {
-                setState(() {
-                  _currentIndex = upgradeIdx;
-                });
-              }
+              setState(() => _showProfileInfo = true);
             },
             child: PerformanceAnalyticsTab(
               isDarkMode: isDarkMode,
@@ -231,26 +217,16 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
               },
             ),
           );
-        } else if (tabName == 'Profile Info') {
-          currentScreen = ProfileInfoTab(
-            paymentPlan: widget.paymentPlan,
-            email: widget.email,
-            isDarkMode: isDarkMode,
-          );
         } else {
           currentScreen = DashboardTab(
             userName: widget.userName,
             paymentPlan: widget.paymentPlan,
             isDarkMode: isDarkMode,
             onUpgrade: () {
-              final upgradeIdx = _tabs.indexOf('Profile Info');
-              if (upgradeIdx != -1) {
-                setState(() {
-                  _currentIndex = upgradeIdx;
-                });
-              }
+              setState(() => _showProfileInfo = true);
             },
           );
+        }
         }
 
         return Scaffold(
@@ -282,16 +258,69 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                     ],
                   ),
                   actions: [
-                    IconButton(
-                      icon: Icon(
-                        isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                        color: isDarkMode ? const Color(0xFFFFB020) : const Color(0xFF4F46E5),
+                    // Avatar popup menu — Profile, Dark Mode, Sign Out
+                    PopupMenuButton<String>(
+                      tooltip: 'Account',
+                      icon: CircleAvatar(
+                        radius: 16,
+                        backgroundColor: isDarkMode ? const Color(0xFF6C63FF).withOpacity(0.2) : const Color(0xFF4F46E5).withOpacity(0.12),
+                        child: Text(
+                          initialText,
+                          style: TextStyle(
+                            color: isDarkMode ? const Color(0xFF00F2FE) : const Color(0xFF4F46E5),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
-                      onPressed: () {
-                        isDarkModeNotifier.value = !isDarkMode;
+                      onSelected: (value) {
+                        if (value == 'profile') {
+                          setState(() => _showProfileInfo = true);
+                        } else if (value == 'darkmode') {
+                          isDarkModeNotifier.value = !isDarkMode;
+                        } else if (value == 'signout') {
+                          _handleSignOut();
+                        }
                       },
-                      tooltip: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'profile',
+                          child: Row(
+                            children: [
+                              Icon(Icons.manage_accounts_rounded, size: 18, color: isDarkMode ? Colors.white70 : const Color(0xFF4F46E5)),
+                              const SizedBox(width: 10),
+                              const Text('Profile & Settings'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'darkmode',
+                          child: Row(
+                            children: [
+                              Icon(
+                                isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                                size: 18,
+                                color: isDarkMode ? const Color(0xFFFFB020) : const Color(0xFF64748B),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(isDarkMode ? 'Light Mode' : 'Dark Mode'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        const PopupMenuItem(
+                          value: 'signout',
+                          child: Row(
+                            children: [
+                              Icon(Icons.logout_rounded, size: 18, color: Color(0xFFF05A7E)),
+                              SizedBox(width: 10),
+                              Text('Sign Out', style: TextStyle(color: Color(0xFFF05A7E))),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(width: 4),
                   ],
                   backgroundColor: currentCard,
                   elevation: 0,
@@ -344,27 +373,46 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                             ],
                           ),
                         ),
+                         // Only show nav tabs (not Profile Info)
                         for (int i = 0; i < _tabs.length; i++)
                           ListTile(
                             leading: Icon(
                               _getIcon(i),
-                              color: _currentIndex == i ? const Color(0xFF4F46E5) : const Color(0xFF64748B),
+                              color: (!_showProfileInfo && _currentIndex == i) ? const Color(0xFF4F46E5) : const Color(0xFF64748B),
                             ),
                             title: Text(
                               _tabs[i],
                               style: TextStyle(
-                                color: _currentIndex == i ? const Color(0xFF4F46E5) : const Color(0xFF64748B),
-                                fontWeight: _currentIndex == i ? FontWeight.bold : FontWeight.normal,
+                                color: (!_showProfileInfo && _currentIndex == i) ? const Color(0xFF4F46E5) : const Color(0xFF64748B),
+                                fontWeight: (!_showProfileInfo && _currentIndex == i) ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
-                            selected: _currentIndex == i,
+                            selected: !_showProfileInfo && _currentIndex == i,
                             onTap: () {
                               setState(() {
                                 _currentIndex = i;
+                                _showProfileInfo = false;
                               });
                               Navigator.pop(context);
                             },
                           ),
+                        const Divider(color: Color(0xFFE2E8F0)),
+                        // Profile & Settings item
+                        ListTile(
+                          leading: Icon(Icons.manage_accounts_rounded, color: _showProfileInfo ? const Color(0xFF4F46E5) : const Color(0xFF64748B)),
+                          title: Text(
+                            'Profile & Settings',
+                            style: TextStyle(
+                              color: _showProfileInfo ? const Color(0xFF4F46E5) : const Color(0xFF64748B),
+                              fontWeight: _showProfileInfo ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
+                          selected: _showProfileInfo,
+                          onTap: () {
+                            setState(() => _showProfileInfo = true);
+                            Navigator.pop(context);
+                          },
+                        ),
                         const Divider(color: Color(0xFFE2E8F0)),
                         ListTile(
                           leading: Icon(
@@ -405,10 +453,11 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
               : null,
           bottomNavigationBar: !isDesktop
               ? BottomNavigationBar(
-                  currentIndex: _currentIndex,
+                  currentIndex: _showProfileInfo ? 0 : _currentIndex,
                   onTap: (index) {
                     setState(() {
                       _currentIndex = index;
+                      _showProfileInfo = false;
                     });
                   },
                   backgroundColor: currentCard,
@@ -464,17 +513,18 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                         style: TextStyle(fontSize: 10, color: isDarkMode ? Colors.grey : const Color(0xFF64748B), letterSpacing: 2),
                       ),
                       const SizedBox(height: 40),
-                      Expanded(
+                       Expanded(
                         child: ListView.builder(
                           itemCount: _tabs.length,
                           itemBuilder: (context, index) {
-                            final isSelected = _currentIndex == index;
+                            final isSelected = !_showProfileInfo && _currentIndex == index;
                             return Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                               child: InkWell(
                                 onTap: () {
                                   setState(() {
                                     _currentIndex = index;
+                                    _showProfileInfo = false;
                                   });
                                 },
                                 borderRadius: BorderRadius.circular(12),
@@ -518,16 +568,58 @@ class _PremiumDashboardState extends State<PremiumDashboard> {
                           },
                         ),
                       ),
-                      Container(
+                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: Row(
                           children: [
-                            CircleAvatar(
-                              backgroundColor: isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0),
-                              child: Text(
-                                initialText, 
-                                style: TextStyle(color: currentText, fontWeight: FontWeight.bold)
+                            // Avatar button that opens profile popup
+                            PopupMenuButton<String>(
+                              tooltip: 'Account',
+                              offset: const Offset(0, -160),
+                              child: CircleAvatar(
+                                backgroundColor: _showProfileInfo
+                                    ? const Color(0xFF4F46E5).withOpacity(0.2)
+                                    : (isDarkMode ? Colors.white10 : const Color(0xFFE2E8F0)),
+                                child: Text(
+                                  initialText, 
+                                  style: TextStyle(
+                                    color: _showProfileInfo
+                                        ? const Color(0xFF4F46E5)
+                                        : currentText,
+                                    fontWeight: FontWeight.bold,
+                                  )
+                                ),
                               ),
+                              onSelected: (value) {
+                                if (value == 'profile') {
+                                  setState(() => _showProfileInfo = true);
+                                } else if (value == 'signout') {
+                                  _handleSignOut();
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'profile',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.manage_accounts_rounded, size: 18, color: Color(0xFF4F46E5)),
+                                      SizedBox(width: 10),
+                                      Text('Profile & Settings'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuDivider(),
+                                const PopupMenuItem(
+                                  value: 'signout',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.logout_rounded, size: 18, color: Color(0xFFF05A7E)),
+                                      SizedBox(width: 10),
+                                      Text('Sign Out', style: TextStyle(color: Color(0xFFF05A7E))),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -6954,6 +7046,12 @@ class _ProfileInfoTabState extends State<ProfileInfoTab> {
                             enabled: _isEditing,
                             currentText: currentText,
                             cardBg: cardBg,
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty) return 'Phone number is required';
+                              final phoneRegex = RegExp(r'^[6-9]\d{9}$');
+                              if (!phoneRegex.hasMatch(val.trim())) return 'Enter a valid 10-digit Indian mobile number';
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 16),
                           if (_role == 'teacher') ...[
@@ -6973,6 +7071,11 @@ class _ProfileInfoTabState extends State<ProfileInfoTab> {
                               enabled: _isEditing,
                               currentText: currentText,
                               cardBg: cardBg,
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) return 'Class/Grade is required';
+                                if (val.trim().length < 2) return 'Enter a valid class or grade';
+                                return null;
+                              },
                             ),
                           ],
                           if (_schoolName != null && _schoolName!.isNotEmpty) ...[

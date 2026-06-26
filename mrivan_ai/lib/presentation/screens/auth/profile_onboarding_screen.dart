@@ -674,6 +674,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                       validator: (val) {
                         if (_selectedPlanTitle == 'Free Plan') return null;
                         if (val == null || val.trim().isEmpty) return 'Class/Grade is required';
+                        if (val.trim().length < 2) return 'Enter a valid class or grade';
                         return null;
                       },
                     ),
@@ -690,6 +691,9 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                       validator: (val) {
                         if (_selectedPlanTitle == 'Free Plan') return null;
                         if (val == null || val.trim().isEmpty) return 'Age is required';
+                        final age = int.tryParse(val.trim());
+                        if (age == null) return 'Age must be a number';
+                        if (age < 5 || age > 100) return 'Enter a valid age (5–100)';
                         return null;
                       },
                     ),
@@ -776,6 +780,9 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
                       validator: (val) {
                         if (_selectedPlanTitle != 'Campus Plan' || !_isJoinWithCode || _inviteCodeVerified) {
                           if (val == null || val.trim().isEmpty) return 'Phone number is required';
+                          final phone = val.trim();
+                          final phoneRegex = RegExp(r'^[6-9]\d{9}$');
+                          if (!phoneRegex.hasMatch(phone)) return 'Enter a valid 10-digit Indian mobile number';
                         }
                         return null;
                       },
