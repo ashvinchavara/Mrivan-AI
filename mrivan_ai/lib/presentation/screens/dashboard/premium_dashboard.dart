@@ -1648,6 +1648,11 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   bool _isLoadingMessages = false;
   bool _isSending = false;
 
+  // Typewriter streaming state
+  Timer? _typewriterTimer;
+  String _streamingContent = '';
+  bool _isStreaming = false;
+
   String _selectedLevel = 'Simple Explanation';
   int _queriesRemaining = 5;
 
@@ -1771,6 +1776,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
 
   @override
   void dispose() {
+    _typewriterTimer?.cancel();
     _speech.stop();
     _chatController.dispose();
     _customTopicController.dispose();
@@ -2703,21 +2709,14 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
           'user',
           text,
         );
-        
-        // Save simulated response to Supabase directly
-        await DatabaseService.instance.insertChatMessage(
-          _selectedSessionId!,
-          'ai',
-          aiResponseText,
-        );
+        // Note: AI response will be saved by _typewriterEffect after streaming completes
       }
 
-      // 3. Load latest messages
-      final updatedMessages = await DatabaseService.instance.fetchAIChatMessages(_selectedSessionId!);
-      setState(() {
-        _messages = updatedMessages;
-      });
-      _scrollToBottom();
+      // 3. Stream the AI response word-by-word instead of bulk reload
+      _typewriterEffect(
+        aiResponseText: aiResponseText,
+        sessionId: _selectedSessionId!,
+      );
 
     } catch (e) {
       if (kDebugMode) print('Error sending message: $e');
@@ -2729,6 +2728,82 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
       }
       _scrollToBottom();
     }
+  }
+
+  /// Reveals the AI response word-by-word, simulating a streaming typewriter effect.
+  void _typewriterEffect({required String aiResponseText, required String sessionId}) {
+    // Cancel any ongoing timer
+    _typewriterTimer?.cancel();
+
+    // Append a placeholder streaming bubble to the message list
+    setState(() {
+      _isSending = false;
+      _isStreaming = true;
+      _streamingContent = '';
+      _messages.add({
+        'id': 'streaming',
+        'sender': 'ai',
+        'content': '',
+        'isStreaming': true,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    });
+    _scrollToBottom();
+
+    final words = aiResponseText.split(' ');
+    int wordIndex = 0;
+
+    _typewriterTimer = Timer.periodic(const Duration(milliseconds: 38), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (wordIndex < words.length) {
+        setState(() {
+          _streamingContent += (wordIndex == 0 ? '' : ' ') + words[wordIndex];
+          // Update the streaming bubble
+          final idx = _messages.indexWhere((m) => m['id'] == 'streaming');
+          if (idx != -1) {
+            _messages[idx] = {
+              ..._messages[idx],
+              'content': _streamingContent,
+            };
+          }
+        });
+        wordIndex++;
+        // Auto-scroll every 8 words to follow streaming
+        if (wordIndex % 8 == 0) _scrollToBottom();
+      } else {
+        // Streaming complete — finalize
+        timer.cancel();
+        if (!mounted) return;
+
+        setState(() {
+          _isStreaming = false;
+          // Replace streaming placeholder with final permanent message
+          final idx = _messages.indexWhere((m) => m['id'] == 'streaming');
+          if (idx != -1) {
+            _messages[idx] = {
+              'id': 'final_${DateTime.now().millisecondsSinceEpoch}',
+              'sender': 'ai',
+              'content': aiResponseText,
+              'isStreaming': false,
+              'timestamp': DateTime.now().toIso8601String(),
+            };
+          }
+          _streamingContent = '';
+        });
+        _scrollToBottom();
+
+        // Persist to DB in background
+        try {
+          await DatabaseService.instance.insertChatMessage(sessionId, 'ai', aiResponseText);
+        } catch (e) {
+          if (kDebugMode) print('Error persisting AI message: $e');
+        }
+      }
+    });
   }
 
   String _generateSimulatedResponse(String prompt) {
@@ -4115,7 +4190,10 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   _buildFormattedMessage(
-                                    msg['content'] ?? '',
+                                    // Show streaming content with blinking cursor if this bubble is streaming
+                                    (msg['isStreaming'] == true)
+                                        ? '$_streamingContent▍'
+                                        : (msg['content'] ?? ''),
                                     isAI,
                                     isAI ? currentText : Colors.white,
                                   ),
@@ -4169,7 +4247,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
                       ),
           ),
 
-          // Loading/Sending Indicator
+          // Thinking indicator: only show while waiting for backend (not during streaming)
           if (_isSending)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
