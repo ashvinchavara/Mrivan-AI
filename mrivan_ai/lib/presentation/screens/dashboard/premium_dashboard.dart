@@ -11116,13 +11116,144 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
   bool _isSavedToLibrary = false;
   bool _isSaving = false;
 
+  String? _profileClassId;
+  String? _profileClassLevel;
+
   @override
   void initState() {
     super.initState();
-    _fetchStudyNotes();
+    _loadUserProfile().then((_) {
+      _fetchStudyNotes();
+    });
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user != null) {
+        final profile = await _client
+            .from('profiles')
+            .select('class_id, class')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (profile != null) {
+          _profileClassId = profile['class_id'] as String?;
+          _profileClassLevel = profile['class'] as String?;
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading profile: $e');
+    }
+  }
+
+  Future<void> _saveNoteToDb(String content) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    try {
+      await _client.from('notes').insert({
+        'user_id': user.id,
+        'title': widget.topic,
+        'content': content,
+        'subject': widget.subject,
+        'class_level': _profileClassLevel ?? '10th Grade',
+        'class_id': _profileClassId,
+        'is_ai_generated': true,
+      });
+      if (mounted) {
+        setState(() {
+          _isSavedToLibrary = true;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error inserting note to DB: $e');
+    }
   }
 
   Future<void> _fetchStudyNotes() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      // 1. Load from DB if available
+      final user = _client.auth.currentUser;
+      if (user != null) {
+        final dbNotes = await _client
+            .from('notes')
+            .select()
+            .eq('title', widget.topic)
+            .eq('subject', widget.subject)
+            .eq('user_id', user.id)
+            .order('created_at', ascending: false);
+
+        if (dbNotes != null && dbNotes.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _notesMarkdown = dbNotes.first['content'] ?? '';
+              _isSavedToLibrary = true;
+              _isLoading = false;
+            });
+          }
+          return;
+        }
+      }
+
+      // 2. Load from API if not available in DB
+      const envBackendUrl = String.fromEnvironment(
+        'BACKEND_API_URL',
+        defaultValue: 'https://mrivan-ai.onrender.com',
+      );
+      final jwtToken = _client.auth.currentSession?.accessToken;
+
+      final response = await http.post(
+        Uri.parse('$envBackendUrl/api/ai/notes'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true',
+          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+        },
+        body: jsonEncode({
+          'topic': widget.topic,
+          'subject': widget.subject,
+          'gradeLevel': '10',
+          'saveToLibrary': false,
+        }),
+      ).timeout(const Duration(seconds: 25));
+
+      if (response.statusCode != 200) {
+        throw Exception('Server returned status code ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body);
+      if (data == null || data['notes'] == null) {
+        throw Exception('Failed to parse generated notes.');
+      }
+
+      final notesText = data['notes'] as String;
+
+      // Automatically add to DB/notes hub
+      await _saveNoteToDb(notesText);
+
+      if (mounted) {
+        setState(() {
+          _notesMarkdown = notesText;
+          _isSavedToLibrary = true;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error fetching study notes: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _regenerateStudyNotes() async {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -11159,14 +11290,27 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
         throw Exception('Failed to parse generated notes.');
       }
 
+      final notesText = data['notes'] as String;
+
+      // Save a new note entry to DB (adds one more to DB/notes hub)
+      await _saveNoteToDb(notesText);
+
       if (mounted) {
         setState(() {
-          _notesMarkdown = data['notes'];
+          _notesMarkdown = notesText;
+          _isSavedToLibrary = true;
           _isLoading = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✨ New version generated and added to library!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } catch (e) {
-      if (kDebugMode) print('Error fetching study notes: $e');
+      if (kDebugMode) print('Error regenerating study notes: $e');
       if (mounted) {
         setState(() {
           _errorMessage = e.toString();
@@ -11184,34 +11328,9 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
     });
 
     try {
-      const envBackendUrl = String.fromEnvironment(
-        'BACKEND_API_URL',
-        defaultValue: 'https://mrivan-ai.onrender.com',
-      );
-      final jwtToken = _client.auth.currentSession?.accessToken;
-
-      final response = await http.post(
-        Uri.parse('$envBackendUrl/api/ai/notes'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true',
-          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
-        },
-        body: jsonEncode({
-          'topic': widget.topic,
-          'subject': widget.subject,
-          'gradeLevel': '10',
-          'saveToLibrary': true,
-        }),
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode != 200) {
-        throw Exception('Server returned status code ${response.statusCode}');
-      }
-
+      await _saveNoteToDb(_notesMarkdown);
       if (mounted) {
         setState(() {
-          _isSavedToLibrary = true;
           _isSaving = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -11268,6 +11387,11 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
         centerTitle: false,
         actions: [
           if (!_isLoading && _errorMessage.isEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, color: Color(0xFF4F46E5)),
+              onPressed: _regenerateStudyNotes,
+              tooltip: 'Create Another Version',
+            ),
             IconButton(
               icon: const Icon(Icons.copy_rounded, color: Color(0xFF4F46E5)),
               onPressed: () {
@@ -11369,10 +11493,24 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-
+ 
                     // Render parsed markdown notes
                     ..._parseAndRenderMarkdown(_notesMarkdown, currentText, currentCard, currentBorder),
                     
+                    const SizedBox(height: 24),
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: _regenerateStudyNotes,
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: const Text('Create Another Version'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF4F46E5),
+                          side: const BorderSide(color: Color(0xFF4F46E5)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 40),
                   ],
                 ),
