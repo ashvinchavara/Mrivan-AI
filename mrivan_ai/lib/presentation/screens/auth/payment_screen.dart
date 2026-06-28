@@ -379,7 +379,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    isCampus ? '₹149 / student / month' : widget.planSubtitle,
+                    isCampus ? '₹199 / student / month' : widget.planSubtitle,
                     style: TextStyle(
                       fontSize: 12,
                       color: _isDarkMode ? Colors.white54 : Colors.black54,
@@ -394,7 +394,7 @@ class _PaymentScreenState extends State<PaymentScreen> with SingleTickerProvider
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  isCampus ? '₹149/stud' : widget.planPrice,
+                  isCampus ? '₹199/stud' : widget.planPrice,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

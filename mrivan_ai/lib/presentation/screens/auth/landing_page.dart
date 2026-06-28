@@ -1889,8 +1889,8 @@ class _LandingPageScreenState extends State<LandingPageScreen>
         _PlanData(
           icon: Icons.apartment_rounded,
           title: 'Campus Plan',
-          price: 'Rs 149',
-          paymentPrice: '\u20B9149',
+          price: 'Rs 199',
+          paymentPrice: '₹199',
           cadence: 'per student/month',
           subtitle: 'For schools and institutions',
           cta: 'Contact Campus',

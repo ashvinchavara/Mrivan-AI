@@ -6836,7 +6836,7 @@ class _ProfileInfoTabState extends State<ProfileInfoTab> {
     _PricingPlanInfo(
       icon: Icons.apartment_rounded,
       title: 'Campus Plan',
-      price: 'Rs 149 per student/mo',
+      price: 'Rs 199 per student/mo',
       subtitle: 'For schools and institutions',
       color: Colors.teal,
       features: ['Teacher & Student dashboards', 'Attendance & Homework CRM', 'School Analytics'],

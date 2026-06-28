@@ -46,7 +46,7 @@ class _ProfileOnboardingScreenState extends State<ProfileOnboardingScreen>
     },
     {
       'title': 'Campus Plan',
-      'price': 'Rs 149/student',
+      'price': 'Rs 199/student',
       'subtitle': 'For schools and institutions',
     },
     {
