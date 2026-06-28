@@ -2624,7 +2624,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     try {
       final sessions = await DatabaseService.instance.fetchAIChatSessions(user.id);
       setState(() {
-        _sessions = sessions;
+        _sessions = sessions.where((s) => s['subject'] != 'Career').toList();
       });
     } catch (e) {
       if (kDebugMode) print('Error loading sessions: $e');
