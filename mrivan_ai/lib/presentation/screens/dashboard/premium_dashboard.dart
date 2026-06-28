@@ -7011,10 +7011,28 @@ class _ProfileInfoTabState extends State<ProfileInfoTab> {
 
     final plan = widget.paymentPlan.toLowerCase();
     final isFreePlan = plan.contains('free');
+    final isCampusPlan = plan.contains('campus');
 
-    final otherPlans = _allPlans.where((p) {
-      return p.title.toLowerCase() != plan;
-    }).toList();
+    // Individual plan tier order (Campus Plan is institutional — excluded from upgrade path)
+    const planTierOrder = [
+      'free plan',
+      'basic plan',
+      'pro student',
+      'exam aspirant',
+      'premium ai',
+    ];
+
+    // Find current rank (-1 means unknown / campus)
+    final currentRank = planTierOrder.indexWhere((t) => plan.contains(t.split(' ')[0]));
+
+    // Only show plans strictly above the current tier
+    final upgradePlans = (isCampusPlan || currentRank == -1)
+        ? <_PricingPlanInfo>[]
+        : _allPlans.where((p) {
+            if (p.title.toLowerCase().contains('campus')) return false; // never show Campus as upgrade
+            final rank = planTierOrder.indexWhere((t) => p.title.toLowerCase().contains(t.split(' ')[0]));
+            return rank > currentRank;
+          }).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -7278,27 +7296,29 @@ class _ProfileInfoTabState extends State<ProfileInfoTab> {
           ),
           const SizedBox(height: 36),
 
-          // SWITCH OR UPGRADE PLAN
-          Text(
-            'Switch or Upgrade Plan',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentText),
-          ),
-          const SizedBox(height: 16),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: MediaQuery.of(context).size.width >= 900 ? 3 : (MediaQuery.of(context).size.width >= 600 ? 2 : 1),
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 0.82,
+          // UPGRADE PLAN — only shown when higher plans exist
+          if (upgradePlans.isNotEmpty) ...[
+            Text(
+              'Upgrade Plan',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: currentText),
             ),
-            itemCount: otherPlans.length,
-            itemBuilder: (context, index) {
-              final planInfo = otherPlans[index];
-              return _buildPlanUpgradeCard(context, planInfo, cardBg, currentText, borderCol);
-            },
-          ),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: MediaQuery.of(context).size.width >= 900 ? 3 : (MediaQuery.of(context).size.width >= 600 ? 2 : 1),
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 0.82,
+              ),
+              itemCount: upgradePlans.length,
+              itemBuilder: (context, index) {
+                final planInfo = upgradePlans[index];
+                return _buildPlanUpgradeCard(context, planInfo, cardBg, currentText, borderCol);
+              },
+            ),
+          ],
         ],
       ),
     );
