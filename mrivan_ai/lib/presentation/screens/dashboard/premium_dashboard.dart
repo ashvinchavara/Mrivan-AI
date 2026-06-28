@@ -2209,7 +2209,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
           'gradeLevel': '10',
           'saveToLibrary': false,
         }),
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -11424,7 +11424,7 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
           'gradeLevel': '10',
           'saveToLibrary': false,
         }),
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 90));
 
       if (response.statusCode != 200) {
         throw Exception('Server returned status code ${response.statusCode}');
@@ -11480,7 +11480,7 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
           'gradeLevel': '10',
           'saveToLibrary': false,
         }),
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 90));
 
       if (response.statusCode != 200) {
         throw Exception('Server returned status code ${response.statusCode}');
