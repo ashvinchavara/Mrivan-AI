@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
+import 'dart:async';
 import '../../../data/services/database_service.dart';
 import '../../theme/theme_config.dart';
 import '../../widgets/animated_background.dart';
@@ -2592,6 +2593,7 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
   final _titleController = TextEditingController();
   final _noteContentController = TextEditingController();
   final _subjectController = TextEditingController();
+  Timer? _typewriterTimer;
 
   List<Map<String, dynamic>> _classes = [];
   String? _selectedClassId;
@@ -2610,6 +2612,12 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
     _loadClasses().then((_) {
       _loadSharedNotes();
     });
+  }
+
+  @override
+  void dispose() {
+    _typewriterTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadClasses() async {
@@ -2744,7 +2752,7 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
         continue;
       }
 
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('+ ')) {
         final content = trimmed.substring(2);
         widgets.add(Padding(
           padding: const EdgeInsets.only(left: 10, bottom: 4),
@@ -2785,14 +2793,27 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
 
   Widget _renderNoteInlineText(String text, Color textCol, double fontSize) {
     final spans = <TextSpan>[];
-    final regex = RegExp(r'\*\*(.*?)\*\*');
-    int last = 0;
-    for (final m in regex.allMatches(text)) {
-      if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start)));
-      spans.add(TextSpan(text: m.group(1), style: const TextStyle(fontWeight: FontWeight.bold)));
-      last = m.end;
+    final regex = RegExp(r'\*\*(.*?)\*\*|\*(.*?)\*|\+(.*?)\+');
+    int lastIndex = 0;
+    
+    for (final match in regex.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, match.start)));
+      }
+      final matchedText = match.group(1) ?? match.group(2) ?? match.group(3) ?? '';
+      spans.add(
+        TextSpan(
+          text: matchedText,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      );
+      lastIndex = match.end;
     }
-    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
+    
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex)));
+    }
+    
     return RichText(
       text: TextSpan(
         style: TextStyle(color: textCol, fontSize: fontSize, height: 1.5),
@@ -2830,17 +2851,67 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
+        final fullText = data['response'] ?? '';
+
+        _typewriterTimer?.cancel();
         setState(() {
-          _generatedPlanText = data['response'] ?? '';
-          _noteContentController.text = _generatedPlanText; // preload content editor
+          _generatedPlanText = '';
+          _noteContentController.text = '';
+        });
+
+        final words = fullText.split(' ');
+        int wordIndex = 0;
+        _typewriterTimer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
+          if (!mounted) {
+            timer.cancel();
+            return;
+          }
+          if (wordIndex >= words.length) {
+            timer.cancel();
+            setState(() {
+              _generatedPlanText = fullText;
+              _noteContentController.text = fullText;
+            });
+            return;
+          }
+          setState(() {
+            _generatedPlanText += (wordIndex == 0 ? '' : ' ') + words[wordIndex];
+            _noteContentController.text = _generatedPlanText;
+          });
+          wordIndex++;
         });
       } else {
         throw Exception('API returned status code ${res.statusCode}');
       }
     } catch (e) {
+      final fallbackText = 'Error generating lesson plan: $e\n\nFallback structure:\n\n1. **Topic**: $prompt\n2. **Learning Outcomes**: Student will master basic parameters.\n3. **Curriculum Mapping**: Align with Chapter 3 state boards.\n4. **Class Outline**:\n   - 0-10 mins: Hook & Warmup\n   - 10-30 mins: Core Direct Teaching\n   - 30-45 mins: Check for Understanding & Practical examples.';
+      
+      _typewriterTimer?.cancel();
       setState(() {
-        _generatedPlanText = 'Error generating lesson plan: $e\n\nFallback structure:\n\n1. **Topic**: $prompt\n2. **Learning Outcomes**: Student will master basic parameters.\n3. **Curriculum Mapping**: Align with Chapter 3 state boards.\n4. **Class Outline**:\n   - 0-10 mins: Hook & Warmup\n   - 10-30 mins: Core Direct Teaching\n   - 30-45 mins: Check for Understanding & Practical examples.';
-        _noteContentController.text = _generatedPlanText;
+        _generatedPlanText = '';
+        _noteContentController.text = '';
+      });
+
+      final words = fallbackText.split(' ');
+      int wordIndex = 0;
+      _typewriterTimer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        if (wordIndex >= words.length) {
+          timer.cancel();
+          setState(() {
+            _generatedPlanText = fallbackText;
+            _noteContentController.text = fallbackText;
+          });
+          return;
+        }
+        setState(() {
+          _generatedPlanText += (wordIndex == 0 ? '' : ' ') + words[wordIndex];
+          _noteContentController.text = _generatedPlanText;
+        });
+        wordIndex++;
       });
     } finally {
       setState(() => _generatingPlan = false);

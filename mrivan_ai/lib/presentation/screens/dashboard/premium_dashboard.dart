@@ -1795,6 +1795,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
 
   // Typewriter streaming state
   Timer? _typewriterTimer;
+  Timer? _notesTypewriterTimer;
   String _streamingContent = '';
   bool _isStreaming = false;
 
@@ -1922,6 +1923,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
   @override
   void dispose() {
     _typewriterTimer?.cancel();
+    _notesTypewriterTimer?.cancel();
     _speech.stop();
     _chatController.dispose();
     _customTopicController.dispose();
@@ -2212,8 +2214,32 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data != null && data['notes'] != null) {
+          final notesText = data['notes'] as String;
+
+          _notesTypewriterTimer?.cancel();
           setState(() {
-            _notesCache[topic] = data['notes'];
+            _notesCache[topic] = '';
+          });
+
+          final words = notesText.split(' ');
+          int wordIndex = 0;
+
+          _notesTypewriterTimer = Timer.periodic(const Duration(milliseconds: 20), (timer) {
+            if (!mounted) {
+              timer.cancel();
+              return;
+            }
+            if (wordIndex >= words.length) {
+              timer.cancel();
+              setState(() {
+                _notesCache[topic] = notesText;
+              });
+              return;
+            }
+            setState(() {
+              _notesCache[topic] = _notesCache[topic]! + (wordIndex == 0 ? '' : ' ') + words[wordIndex];
+            });
+            wordIndex++;
           });
         } else {
           throw Exception('Invalid response structure');
@@ -2509,7 +2535,7 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
         );
       } 
       // Parse bullet points
-      else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('+ ')) {
         final content = trimmed.substring(2);
         widgets.add(
           Padding(
@@ -2542,16 +2568,17 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
 
   Widget _renderTextWithBoldSupport(String text, Color textCol, double fontSize, {double height = 1.3}) {
     final List<TextSpan> spans = [];
-    final regExp = RegExp(r'\*\*(.*?)\*\*');
+    final regExp = RegExp(r'\*\*(.*?)\*\*|\*(.*?)\*|\+(.*?)\+');
     int lastIndex = 0;
 
     for (final match in regExp.allMatches(text)) {
       if (match.start > lastIndex) {
         spans.add(TextSpan(text: text.substring(lastIndex, match.start)));
       }
+      final matchedText = match.group(1) ?? match.group(2) ?? match.group(3) ?? '';
       spans.add(
         TextSpan(
-          text: match.group(1),
+          text: matchedText,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       );
@@ -11260,6 +11287,7 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
   String _notesMarkdown = '';
   bool _isSavedToLibrary = false;
   bool _isSaving = false;
+  Timer? _notesTypewriterTimer;
 
   String? _profileClassId;
   String? _profileClassLevel;
@@ -11270,6 +11298,12 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
     _loadUserProfile().then((_) {
       _fetchStudyNotes();
     });
+  }
+
+  @override
+  void dispose() {
+    _notesTypewriterTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadUserProfile() async {
@@ -11314,6 +11348,36 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
     }
   }
 
+  void _streamNotesText(String notesText) {
+    _notesTypewriterTimer?.cancel();
+    setState(() {
+      _notesMarkdown = '';
+      _isSavedToLibrary = true;
+      _isLoading = false;
+    });
+
+    final words = notesText.split(' ');
+    int wordIndex = 0;
+
+    _notesTypewriterTimer = Timer.periodic(const Duration(milliseconds: 15), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (wordIndex >= words.length) {
+        timer.cancel();
+        setState(() {
+          _notesMarkdown = notesText;
+        });
+        return;
+      }
+      setState(() {
+        _notesMarkdown += (wordIndex == 0 ? '' : ' ') + words[wordIndex];
+      });
+      wordIndex++;
+    });
+  }
+
   Future<void> _fetchStudyNotes() async {
     setState(() {
       _isLoading = true;
@@ -11334,11 +11398,7 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
 
         if (dbNotes != null && dbNotes.isNotEmpty) {
           if (mounted) {
-            setState(() {
-              _notesMarkdown = dbNotes.first['content'] ?? '';
-              _isSavedToLibrary = true;
-              _isLoading = false;
-            });
+            _streamNotesText(dbNotes.first['content'] ?? '');
           }
           return;
         }
@@ -11381,11 +11441,7 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
       await _saveNoteToDb(notesText);
 
       if (mounted) {
-        setState(() {
-          _notesMarkdown = notesText;
-          _isSavedToLibrary = true;
-          _isLoading = false;
-        });
+        _streamNotesText(notesText);
       }
     } catch (e) {
       if (kDebugMode) print('Error fetching study notes: $e');
@@ -11441,11 +11497,7 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
       await _saveNoteToDb(notesText);
 
       if (mounted) {
-        setState(() {
-          _notesMarkdown = notesText;
-          _isSavedToLibrary = true;
-          _isLoading = false;
-        });
+        _streamNotesText(notesText);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✨ New version generated and added to library!'),
@@ -11761,7 +11813,7 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
         );
       } 
       // Parse bullet points
-      else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('+ ')) {
         final content = trimmed.substring(2);
         widgets.add(
           Padding(
@@ -11795,16 +11847,17 @@ class _StudyNotesViewScreenState extends State<StudyNotesViewScreen> {
   // Helper to parse **bold text** inside paragraphs/bullets
   Widget _renderTextWithBoldSupport(String text, Color textCol, double fontSize, {double height = 1.3}) {
     final List<TextSpan> spans = [];
-    final regExp = RegExp(r'\*\*(.*?)\*\*');
+    final regExp = RegExp(r'\*\*(.*?)\*\*|\*(.*?)\*|\+(.*?)\+');
     int lastIndex = 0;
 
     for (final match in regExp.allMatches(text)) {
       if (match.start > lastIndex) {
         spans.add(TextSpan(text: text.substring(lastIndex, match.start)));
       }
+      final matchedText = match.group(1) ?? match.group(2) ?? match.group(3) ?? '';
       spans.add(
         TextSpan(
-          text: match.group(1),
+          text: matchedText,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       );
