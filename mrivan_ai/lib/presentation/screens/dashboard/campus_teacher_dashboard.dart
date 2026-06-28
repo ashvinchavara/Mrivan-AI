@@ -385,6 +385,7 @@ class _TeacherCockpitTabState extends State<TeacherCockpitTab> {
   int _studentCount = 0;
   int _classesCount = 0;
   int _homeworkCount = 0;
+  List<Map<String, dynamic>> _classes = [];
 
   @override
   void initState() {
@@ -402,6 +403,7 @@ class _TeacherCockpitTabState extends State<TeacherCockpitTab> {
       }
       
       setState(() {
+        _classes = classes;
         _classesCount = classes.length;
         _studentCount = totalStudents;
         _homeworkCount = classes.isNotEmpty ? 4 : 0; // Simulated active assignments
@@ -410,6 +412,368 @@ class _TeacherCockpitTabState extends State<TeacherCockpitTab> {
     } catch (e) {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showCreateCbtExamDialog() {
+    final titleController = TextEditingController();
+    final subjectController = TextEditingController(text: 'Science');
+    final durationController = TextEditingController(text: '45');
+    final totalMarksController = TextEditingController(text: '100');
+    final descriptionController = TextEditingController(text: 'Weekly Assessment');
+
+    String? selectedClassId = _classes.isNotEmpty ? _classes.first['id'] : null;
+
+    List<Map<String, dynamic>> questions = [
+      {
+        'question': '',
+        'options': ['', '', '', ''],
+        'correctAnswer': '',
+        'correctAnswerIndex': -1,
+        'explanation': '',
+      }
+    ];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final isDark = widget.isDarkMode;
+            final bg = isDark ? const Color(0xFF1E1E28) : Colors.white;
+            final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
+            final borderCol = isDark ? Colors.white10 : const Color(0xFFE2E8F0);
+            
+            return AlertDialog(
+              backgroundColor: bg,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Schedule CBT Mock Exam 📝', style: TextStyle(color: textCol, fontSize: 18, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: titleController,
+                        style: TextStyle(color: textCol, fontSize: 13),
+                        decoration: const InputDecoration(labelText: 'Exam Title', labelStyle: TextStyle(color: Colors.grey)),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: subjectController,
+                              style: TextStyle(color: textCol, fontSize: 13),
+                              decoration: const InputDecoration(labelText: 'Subject', labelStyle: TextStyle(color: Colors.grey)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              dropdownColor: bg,
+                              decoration: const InputDecoration(labelText: 'Target Class', labelStyle: TextStyle(color: Colors.grey)),
+                              value: selectedClassId,
+                              items: _classes.map((c) {
+                                return DropdownMenuItem<String>(
+                                  value: c['id'],
+                                  child: Text(c['name'] ?? '', style: TextStyle(color: textCol, fontSize: 13)),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setModalState(() => selectedClassId = val);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: durationController,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(color: textCol, fontSize: 13),
+                              decoration: const InputDecoration(labelText: 'Duration (Mins)', labelStyle: TextStyle(color: Colors.grey)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: totalMarksController,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(color: textCol, fontSize: 13),
+                              decoration: const InputDecoration(labelText: 'Total Marks', labelStyle: TextStyle(color: Colors.grey)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: descriptionController,
+                        style: TextStyle(color: textCol, fontSize: 13),
+                        decoration: const InputDecoration(labelText: 'Description', labelStyle: TextStyle(color: Colors.grey)),
+                      ),
+                      const SizedBox(height: 24),
+                      const Divider(),
+                      const SizedBox(height: 12),
+                      Text('Questions Checklist (${questions.length})', style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 16),
+                      
+                      ...questions.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final q = entry.value;
+                        final optionsList = q['options'] as List<String>;
+                        
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 20),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderCol),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Question #${idx + 1}', style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 13)),
+                                  if (questions.length > 1)
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                                      onPressed: () {
+                                        setModalState(() {
+                                          questions.removeAt(idx);
+                                        });
+                                      },
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                onChanged: (val) => q['question'] = val,
+                                style: TextStyle(color: textCol, fontSize: 13),
+                                decoration: const InputDecoration(hintText: 'Enter question text...', hintStyle: TextStyle(color: Colors.grey, fontSize: 12)),
+                              ),
+                              const SizedBox(height: 12),
+                              ...List.generate(4, (oIdx) {
+                                final char = String.fromCharCode(65 + oIdx);
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Row(
+                                    children: [
+                                      Text('$char: ', style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 12)),
+                                      Expanded(
+                                        child: TextField(
+                                          onChanged: (val) {
+                                            optionsList[oIdx] = val;
+                                            if (q['correctAnswerIndex'] == oIdx) {
+                                              q['correctAnswer'] = val;
+                                            }
+                                          },
+                                          style: TextStyle(color: textCol, fontSize: 12),
+                                          decoration: InputDecoration(
+                                            hintText: 'Option $char value',
+                                            hintStyle: const TextStyle(color: Colors.grey, fontSize: 11),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                            border: const OutlineInputBorder(),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Text('Correct Answer: ', style: TextStyle(color: textCol, fontSize: 12)),
+                                  const SizedBox(width: 8),
+                                  ...List.generate(4, (oIdx) {
+                                    final char = String.fromCharCode(65 + oIdx);
+                                    final isSelected = q['correctAnswerIndex'] == oIdx;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8.0),
+                                      child: ChoiceChip(
+                                        label: Text(char, style: TextStyle(color: isSelected ? Colors.white : textCol, fontSize: 11)),
+                                        selected: isSelected,
+                                        selectedColor: const Color(0xFF4F46E5),
+                                        onSelected: (selected) {
+                                          if (selected) {
+                                            setModalState(() {
+                                              q['correctAnswerIndex'] = oIdx;
+                                              q['correctAnswer'] = optionsList[oIdx];
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                onChanged: (val) => q['explanation'] = val,
+                                style: TextStyle(color: textCol, fontSize: 12),
+                                decoration: const InputDecoration(
+                                  hintText: 'Explanation (Optional)',
+                                  hintStyle: TextStyle(color: Colors.grey, fontSize: 11),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      
+                      Center(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setModalState(() {
+                              questions.add({
+                                'question': '',
+                                'options': ['', '', '', ''],
+                                'correctAnswer': '',
+                                'correctAnswerIndex': -1,
+                                'explanation': '',
+                              });
+                            });
+                          },
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Add Question'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF4F46E5),
+                            side: const BorderSide(color: Color(0xFF4F46E5)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
+                  onPressed: () async {
+                    final title = titleController.text.trim();
+                    final subject = subjectController.text.trim();
+                    final durationVal = int.tryParse(durationController.text.trim()) ?? 0;
+                    final totalMarksVal = int.tryParse(totalMarksController.text.trim()) ?? 100;
+                    final description = descriptionController.text.trim();
+
+                    if (title.isEmpty || subject.isEmpty || selectedClassId == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please fill title, subject, and select class.'), backgroundColor: Colors.redAccent),
+                      );
+                      return;
+                    }
+
+                    for (int i = 0; i < questions.length; i++) {
+                      final q = questions[i];
+                      if (q['question'].toString().trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Question #${i + 1} has empty text.'), backgroundColor: Colors.redAccent),
+                        );
+                        return;
+                      }
+                      final opts = q['options'] as List<String>;
+                      for (int j = 0; j < 4; j++) {
+                        if (opts[j].trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Question #${i + 1} option ${String.fromCharCode(65 + j)} is empty.'), backgroundColor: Colors.redAccent),
+                          );
+                          return;
+                        }
+                      }
+                      if (q['correctAnswer'].toString().trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Please select correct answer for Question #${i + 1}.'), backgroundColor: Colors.redAccent),
+                        );
+                        return;
+                      }
+                    }
+
+                    Navigator.pop(ctx);
+                    BuildContext? loaderContext;
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (lCtx) {
+                        loaderContext = lCtx;
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    );
+
+                    try {
+                      final jwtToken = Supabase.instance.client.auth.currentSession?.accessToken;
+                      const envBackendUrl = String.fromEnvironment('BACKEND_API_URL', defaultValue: 'https://mrivan-ai.onrender.com');
+
+                      final response = await http.post(
+                        Uri.parse('$envBackendUrl/api/tests'),
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Bypass-Tunnel-Reminder': 'true',
+                          if (jwtToken != null) 'Authorization': 'Bearer $jwtToken',
+                        },
+                        body: jsonEncode({
+                          'title': title,
+                          'description': 'CLASS_ID:$selectedClassId|DESC:$description',
+                          'subject': subject,
+                          'durationMinutes': durationVal,
+                          'totalMarks': totalMarksVal,
+                          'questions': questions.map((q) => {
+                            'question': q['question'],
+                            'options': q['options'],
+                            'correctAnswer': q['correctAnswer'],
+                            'explanation': q['explanation'],
+                          }).toList(),
+                        }),
+                      ).timeout(const Duration(seconds: 25));
+
+                      if (loaderContext != null) Navigator.pop(loaderContext!);
+
+                      if (response.statusCode == 211 || response.statusCode == 200 || response.statusCode == 201) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('🎉 CBT Exam scheduled and published successfully!'), backgroundColor: Colors.green),
+                        );
+                      } else {
+                        throw Exception('Server returned status code ${response.statusCode}');
+                      }
+                    } catch (e) {
+                      if (loaderContext != null) Navigator.pop(loaderContext!);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to publish CBT Exam: $e'), backgroundColor: Colors.redAccent),
+                      );
+                    }
+                  },
+                  child: const Text('Schedule & Publish', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -447,6 +811,54 @@ class _TeacherCockpitTabState extends State<TeacherCockpitTab> {
             ],
           ),
           const SizedBox(height: 24),
+
+          // CBT Exam Scheduler Banner
+          Container(
+            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.only(bottom: 24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: widget.isDarkMode
+                    ? [const Color(0xFF13131F), const Color(0xFF1E1A3C)]
+                    : [const Color(0xFFF5F3FF), const Color(0xFFEDE9FE)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF7C3AED).withOpacity(0.15)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: const Color(0xFF7C3AED).withOpacity(0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF7C3AED), size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Schedule CBT Mock Exam', style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Launch a new computer-based mock test for your students. Set questions, timing, options and answers.',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: _showCreateCbtExamDialog,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C3AED),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Start Exam', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
 
           // Quick guide banner
           Container(

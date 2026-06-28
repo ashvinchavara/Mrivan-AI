@@ -782,10 +782,72 @@ class _DashboardTabState extends State<DashboardTab> {
   String? _lastActiveDate;
   bool _isLoading = false;
 
+  List<Map<String, dynamic>> _activeExams = [];
+  bool _loadingExams = false;
+  String? _studentClassId;
+
   @override
   void initState() {
     super.initState();
     _loadStreaksAndHabits();
+    _loadStudentExams();
+  }
+
+  Future<void> _loadStudentExams() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    if (mounted) setState(() => _loadingExams = true);
+    try {
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('class_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (profile != null) {
+        _studentClassId = profile['class_id'] as String?;
+      }
+
+      if (_studentClassId != null && _studentClassId!.isNotEmpty) {
+        final response = await Supabase.instance.client
+            .from('mock_tests')
+            .select('id, title, description, subject, duration_minutes, total_marks');
+
+        final List<Map<String, dynamic>> filteredExams = [];
+        if (response != null) {
+          for (var t in response) {
+            final desc = t['description'] as String? ?? '';
+            if (desc.startsWith("CLASS_ID:")) {
+              final parts = desc.split('|');
+              final classIdPart = parts[0].substring(9);
+              if (classIdPart == _studentClassId) {
+                filteredExams.add(t);
+              }
+            }
+          }
+        }
+
+        final attempts = await Supabase.instance.client
+            .from('test_attempts')
+            .select('test_id')
+            .eq('student_id', user.id);
+
+        final completedTestIds = attempts.map((a) => a['test_id'] as String).toSet();
+
+        if (mounted) {
+          setState(() {
+            _activeExams = filteredExams.where((exam) => !completedTestIds.contains(exam['id'])).toList();
+          });
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading student exams: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _loadingExams = false);
+      }
+    }
   }
 
   Future<void> _loadStreaksAndHabits() async {
@@ -1241,6 +1303,89 @@ class _DashboardTabState extends State<DashboardTab> {
             ],
           ),
           const SizedBox(height: 32),
+
+          if (_activeExams.isNotEmpty) ...[
+            Text(
+              'Active CBT Exams 📝',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: currentText),
+            ),
+            const SizedBox(height: 12),
+            ..._activeExams.map((exam) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF4F46E5).withOpacity(0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    )
+                  ]
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: const BoxDecoration(
+                        color: Colors.white24,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.quiz_rounded, color: Colors.white, size: 24),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            exam['title'] ?? 'CBT Exam',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Subject: ${exam['subject']} • Duration: ${exam['duration_minutes']} Mins • Marks: ${exam['total_marks']}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CombinedQuizScreen(
+                              testId: exam['id'],
+                              testTitle: exam['title'],
+                              isDarkMode: widget.isDarkMode,
+                            ),
+                          ),
+                        ).then((_) {
+                          _loadStudentExams();
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF4F46E5),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      child: const Text('Start Exam', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+            const SizedBox(height: 24),
+          ],
 
           // QUICK INSIGHTS BENTO GRID
           GridView.count(
