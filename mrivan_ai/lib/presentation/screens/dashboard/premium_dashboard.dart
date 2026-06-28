@@ -2692,6 +2692,27 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
     final text = _chatController.text.trim();
     if (text.isEmpty || _selectedSessionId == null || _isSending) return;
 
+    final topic = _findTopicFromMessages(_messages) ?? _selectedSyllabusTopic;
+    if (topic != null) {
+      if (_isOutOfTopic(text, topic)) {
+        setState(() {
+          _chatController.clear();
+          _messages.add({
+            'sender': 'user',
+            'content': text,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          _messages.add({
+            'sender': 'ai',
+            'content': "Dear student, I would love to answer all your curious questions! 🌟 However, right now we are focusing on studying the topic '**$topic**' in this session. Let's stick to this topic so we can master it first! 📚\n\nIf you have any questions related to '**$topic**', go ahead and ask! If you'd like to study a different topic, you can select it from your syllabus checklist or start a new chat session.",
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+        });
+        _scrollToBottom();
+        return;
+      }
+    }
+
     if (_isListening) {
       _speech.stop();
       setState(() {
@@ -2900,6 +2921,75 @@ class _AiTeacherTabState extends State<AiTeacherTab> {
       }
       _scrollToBottom();
     }
+  }
+
+  String? _findTopicFromMessages(List<Map<String, dynamic>> messages) {
+    for (final msg in messages) {
+      final content = msg['content']?.toString() ?? '';
+      if (content.contains("Please explain the topic '")) {
+        final start = content.indexOf("Please explain the topic '") + "Please explain the topic '".length;
+        final end = content.indexOf("'", start);
+        if (end != -1) {
+          return content.substring(start, end);
+        }
+      }
+    }
+    return null;
+  }
+
+  bool _isOutOfTopic(String message, String topic) {
+    final msgClean = message.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
+    final topicClean = topic.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
+
+    // 1. If message is too short or is a general query/greeting, it is not out of topic
+    final words = msgClean.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.length <= 3) {
+      return false;
+    }
+
+    // Common general follow-up/learning phrases that shouldn't be blocked
+    final generalPhrases = [
+      'explain', 'clarify', 'example', 'understand', 'describe', 'define', 'summary',
+      'summarize', 'notes', 'help', 'more', 'tell me', 'show me', 'details', 'question',
+      'concept', 'theory', 'study', 'learn', 'what is', 'how to', 'why does', 'please',
+      'thank you', 'thanks', 'hello', 'hi', 'hey', 'sorry', 'yes', 'no', 'correct',
+      'wrong', 'try again', 'test me', 'quiz me', 'practice', 'problem', 'solution'
+    ];
+
+    // Check if the message is composed entirely of general phrases/stop words
+    final contentWords = words.where((w) => !generalPhrases.contains(w) && w.length > 2).toList();
+    if (contentWords.isEmpty) {
+      return false;
+    }
+
+    // 2. Extract content keywords from the topic
+    final topicWords = topicClean.split(RegExp(r'\s+'))
+        .where((w) => w.length > 2 && !['and', 'the', 'for', 'with', 'intro', 'introduction', 'basics'].contains(w))
+        .toList();
+
+    if (topicWords.isEmpty) {
+      // If the topic is extremely short/simple, just check if the message contains the topic name
+      return !msgClean.contains(topicClean);
+    }
+
+    // 3. Check for any overlap between topic keywords and message content keywords
+    for (final tWord in topicWords) {
+      if (msgClean.contains(tWord)) {
+        return false; // Found keyword overlap, it is ON topic!
+      }
+    }
+
+    // Also check if the topic contains part of any content word
+    for (final cWord in contentWords) {
+      for (final tWord in topicWords) {
+        if (cWord.contains(tWord) || tWord.contains(cWord)) {
+          return false; // Partial match, ON topic!
+        }
+      }
+    }
+
+    // Zero overlap and not a general phrase -> Out of topic!
+    return true;
   }
 
   /// Reveals the AI response word-by-word, simulating a streaming typewriter effect.
