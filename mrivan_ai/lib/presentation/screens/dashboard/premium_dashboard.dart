@@ -7977,6 +7977,145 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
     }
   }
 
+  /// Renders note content with full Markdown formatting:
+  /// # H1, ## H2, ### H3, - / * bullets, **bold**, numbered lists, ``` code blocks
+  Widget _renderMarkdownNote(String rawText, Color textCol, Color borderCol) {
+    final lines = rawText.split('\n');
+    final List<Widget> widgets = [];
+    bool inCodeBlock = false;
+    final List<String> codeLines = [];
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+
+      // Code block toggle
+      if (trimmed.startsWith('```')) {
+        if (inCodeBlock) {
+          inCodeBlock = false;
+          widgets.add(
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: borderCol),
+              ),
+              child: Text(
+                codeLines.join('\n'),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.grey),
+              ),
+            ),
+          );
+          codeLines.clear();
+        } else {
+          inCodeBlock = true;
+        }
+        continue;
+      }
+      if (inCodeBlock) { codeLines.add(line); continue; }
+
+      // Empty line
+      if (trimmed.isEmpty) { widgets.add(const SizedBox(height: 8)); continue; }
+
+      // H1
+      if (trimmed.startsWith('# ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 4),
+          child: Text(
+            trimmed.substring(2),
+            style: TextStyle(color: textCol, fontSize: 17, fontWeight: FontWeight.bold),
+          ),
+        ));
+        continue;
+      }
+
+      // H2
+      if (trimmed.startsWith('## ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 3),
+          child: Text(
+            trimmed.substring(3),
+            style: TextStyle(color: textCol, fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+        ));
+        continue;
+      }
+
+      // H3
+      if (trimmed.startsWith('### ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 6, bottom: 2),
+          child: Text(
+            trimmed.substring(4),
+            style: TextStyle(color: textCol, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ));
+        continue;
+      }
+
+      // Bullet: - or *
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        final content = trimmed.substring(2);
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(left: 10, bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('• ', style: TextStyle(color: textCol.withOpacity(0.7), fontSize: 12)),
+              Expanded(child: _renderNoteInlineText(content, textCol, 12)),
+            ],
+          ),
+        ));
+        continue;
+      }
+
+      // Numbered list: 1. 2. etc
+      final numMatch = RegExp(r'^(\d+)\. (.+)').firstMatch(trimmed);
+      if (numMatch != null) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(left: 10, bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${numMatch.group(1)}. ', style: TextStyle(color: textCol.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.bold)),
+              Expanded(child: _renderNoteInlineText(numMatch.group(2)!, textCol, 12)),
+            ],
+          ),
+        ));
+        continue;
+      }
+
+      // Standard paragraph
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: _renderNoteInlineText(trimmed, textCol, 12),
+      ));
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+  }
+
+  /// Renders inline text supporting **bold** spans
+  Widget _renderNoteInlineText(String text, Color textCol, double fontSize) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'\*\*(.*?)\*\*');
+    int last = 0;
+    for (final m in regex.allMatches(text)) {
+      if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start)));
+      spans.add(TextSpan(text: m.group(1), style: const TextStyle(fontWeight: FontWeight.bold)));
+      last = m.end;
+    }
+    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(color: textCol, fontSize: fontSize, height: 1.5),
+        children: spans,
+      ),
+    );
+  }
+
   void _showSubmitDialog(String hwId, String title) {
     final controller = TextEditingController();
     showDialog(
@@ -8546,15 +8685,16 @@ class _StudentCrmTabState extends State<StudentCrmTab> {
                                 Text('Subject: ${note['subject'] ?? 'General'}', style: const TextStyle(color: Color(0xFF4F46E5), fontSize: 11, fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 8),
                                 Container(
-                                  padding: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.all(12),
                                   width: double.infinity,
                                   decoration: BoxDecoration(
                                     color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Text(
+                                  child: _renderMarkdownNote(
                                     note['content'] ?? '',
-                                    style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+                                    currentText,
+                                    widget.isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0),
                                   ),
                                 ),
                               ],
