@@ -2189,10 +2189,15 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
 
   String _generatedPlanText = '';
 
+  List<Map<String, dynamic>> _sharedNotes = [];
+  bool _loadingSharedNotes = false;
+
   @override
   void initState() {
     super.initState();
-    _loadClasses();
+    _loadClasses().then((_) {
+      _loadSharedNotes();
+    });
   }
 
   Future<void> _loadClasses() async {
@@ -2208,6 +2213,180 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
     } catch (e) {
       setState(() => _loadingClasses = false);
     }
+  }
+
+  Future<void> _loadSharedNotes() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    setState(() => _loadingSharedNotes = true);
+    try {
+      final response = await Supabase.instance.client
+          .from('notes')
+          .select('id, title, content, subject, class_level, is_ai_generated, created_at, class_id')
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+
+      setState(() {
+        _sharedNotes = List<Map<String, dynamic>>.from(response);
+        _loadingSharedNotes = false;
+      });
+    } catch (e) {
+      if (kDebugMode) print('Error loading shared notes: $e');
+      setState(() => _loadingSharedNotes = false);
+    }
+  }
+
+  Future<void> _deleteSharedNote(String noteId) async {
+    try {
+      await Supabase.instance.client.from('notes').delete().eq('id', noteId);
+      _loadSharedNotes();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Note deleted successfully!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete note: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  /// Renders note content with full Markdown formatting
+  Widget _parseAndRenderMarkdown(String rawText, Color textCol, Color cardCol, Color borderCol) {
+    final lines = rawText.split('\n');
+    final List<Widget> widgets = [];
+    bool inCodeBlock = false;
+    final List<String> codeLines = [];
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+
+      if (trimmed.startsWith('```')) {
+        if (inCodeBlock) {
+          inCodeBlock = false;
+          widgets.add(
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: borderCol),
+              ),
+              child: Text(
+                codeLines.join('\n'),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.grey),
+              ),
+            ),
+          );
+          codeLines.clear();
+        } else {
+          inCodeBlock = true;
+        }
+        continue;
+      }
+      if (inCodeBlock) {
+        codeLines.add(line);
+        continue;
+      }
+
+      if (trimmed.isEmpty) {
+        widgets.add(const SizedBox(height: 8));
+        continue;
+      }
+
+      if (trimmed.startsWith('# ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 4),
+          child: Text(
+            trimmed.substring(2),
+            style: TextStyle(color: textCol, fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ));
+        continue;
+      }
+
+      if (trimmed.startsWith('## ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 3),
+          child: Text(
+            trimmed.substring(3),
+            style: TextStyle(color: textCol, fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+        ));
+        continue;
+      }
+
+      if (trimmed.startsWith('### ')) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(top: 6, bottom: 2),
+          child: Text(
+            trimmed.substring(4),
+            style: TextStyle(color: textCol, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ));
+        continue;
+      }
+
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        final content = trimmed.substring(2);
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(left: 10, bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('• ', style: TextStyle(color: textCol.withOpacity(0.7), fontSize: 12)),
+              Expanded(child: _renderNoteInlineText(content, textCol, 12)),
+            ],
+          ),
+        ));
+        continue;
+      }
+
+      final numMatch = RegExp(r'^(\d+)\. (.+)').firstMatch(trimmed);
+      if (numMatch != null) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(left: 10, bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${numMatch.group(1)}. ', style: TextStyle(color: textCol.withOpacity(0.7), fontSize: 12, fontWeight: FontWeight.bold)),
+              Expanded(child: _renderNoteInlineText(numMatch.group(2)!, textCol, 12)),
+            ],
+          ),
+        ));
+        continue;
+      }
+
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: _renderNoteInlineText(trimmed, textCol, 12),
+      ));
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+  }
+
+  Widget _renderNoteInlineText(String text, Color textCol, double fontSize) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'\*\*(.*?)\*\*');
+    int last = 0;
+    for (final m in regex.allMatches(text)) {
+      if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start)));
+      spans.add(TextSpan(text: m.group(1), style: const TextStyle(fontWeight: FontWeight.bold)));
+      last = m.end;
+    }
+    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(color: textCol, fontSize: fontSize, height: 1.5),
+        children: spans,
+      ),
+    );
   }
 
   Future<void> _generateLessonPlan() async {
@@ -2290,6 +2469,8 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
       _subjectController.clear();
       _plannerController.clear();
       setState(() => _generatedPlanText = '');
+
+      _loadSharedNotes();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2468,6 +2649,159 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
               ],
             ),
           ),
+          const SizedBox(height: 32),
+          Text(
+            'Already Shared Notes 📚',
+            style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          _loadingSharedNotes
+              ? const Center(child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4F46E5))),
+                ))
+              : _sharedNotes.isEmpty
+                  ? Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'No notes shared yet. Write or generate some notes above to share them with your classes.',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _sharedNotes.length,
+                      itemBuilder: (context, index) {
+                        final note = _sharedNotes[index];
+                        final dateStr = note['created_at'] != null 
+                            ? DateTime.parse(note['created_at']).toLocal().toString().split('.')[0]
+                            : 'N/A';
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      note['title'] ?? 'Untitled Note',
+                                      style: TextStyle(color: currentText, fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                                    onPressed: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Delete Shared Note'),
+                                          content: const Text('Are you sure you want to delete this shared note? Students will no longer see it.'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                Navigator.pop(ctx);
+                                                _deleteSharedNote(note['id']);
+                                              },
+                                              child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    tooltip: 'Delete Note',
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF4F46E5).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      note['subject'] ?? 'General',
+                                      style: const TextStyle(color: Color(0xFF4F46E5), fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.teal.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Class: ${note['class_level'] ?? 'N/A'}',
+                                      style: const TextStyle(color: Colors.teal, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  if (note['is_ai_generated'] == true) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'AI Generated',
+                                        style: TextStyle(color: Colors.blue, fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: _parseAndRenderMarkdown(
+                                  note['content'] ?? '',
+                                  currentText,
+                                  cardBg,
+                                  widget.isDarkMode ? Colors.white12 : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Shared on: $dateStr',
+                                style: const TextStyle(color: Colors.grey, fontSize: 10),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+          const SizedBox(height: 40),
         ],
       ),
     );
