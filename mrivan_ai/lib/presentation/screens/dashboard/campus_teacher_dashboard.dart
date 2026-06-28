@@ -2966,12 +2966,36 @@ class _TeacherLessonPlannerTabState extends State<TeacherLessonPlannerTab> {
               padding: const EdgeInsets.all(16),
               width: double.infinity,
               decoration: BoxDecoration(
-                color: widget.isDarkMode ? Colors.black26 : Colors.black.withOpacity(0.02),
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: widget.isDarkMode
+                      ? [const Color(0xFF1E1B4B).withOpacity(0.4), const Color(0xFF111116)]
+                      : [const Color(0xFFF5F3FF), const Color(0xFFFAF5FF)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(4),
+                  bottomLeft: Radius.circular(4),
+                  topRight: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+                border: Border(
+                  left: const BorderSide(color: Color(0xFF4F46E5), width: 4),
+                  top: BorderSide(color: const Color(0xFF4F46E5).withOpacity(0.15)),
+                  right: BorderSide(color: const Color(0xFF4F46E5).withOpacity(0.15)),
+                  bottom: BorderSide(color: const Color(0xFF4F46E5).withOpacity(0.15)),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(widget.isDarkMode ? 0.3 : 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ]
               ),
               child: Text(
                 _generatedPlanText,
-                style: TextStyle(color: currentText, fontSize: 12, height: 1.4),
+                style: TextStyle(color: currentText, fontSize: 12, height: 1.5),
               ),
             ),
             const SizedBox(height: 24),
